@@ -31,8 +31,9 @@ type Interface interface {
 	Unsubscribe(chan Event)
 	OpLog() *ipfslog.Log
 	Ipfs() ipfs.Services
+	DBName() string
 	Identity() *identityprovider.Identity
-	AccessController() accesscontroller.SimpleInterface
+	AccessController() accesscontroller.Interface
 	AddOperation(ctx context.Context, op operation.Operation, onProgressCallback chan<- *entry.Entry) (cid.Cid, error)
 }
 

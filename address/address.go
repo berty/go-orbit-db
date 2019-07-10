@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"path"
 	"strings"
 )
@@ -32,42 +33,27 @@ func (a *address) GetPath() string {
 }
 
 func IsValid(name string) error {
+	name = strings.TrimPrefix(name, "/orbitdb/")
 	parts := strings.Split(name, "/")
 
-	if strings.HasPrefix(name, "/orbit") {
-		parts = parts[2:]
-	}
+	logger().Debug(fmt.Sprintf("Address.IsValid: Tested name: %s (from %s)", parts[0], name))
 
 	var accessControllerHash cid.Cid
 
-	accessControllerHash, err := cid.Parse(parts[0])
+	accessControllerHash, err := cid.Decode(parts[0])
 	if err != nil {
+		logger().Debug("address is invalid", zap.Error(err))
 		return errors.Wrap(err, "address is invalid")
 	}
 
 	if accessControllerHash.String() == "" {
+		logger().Debug("accessControllerHash is empty")
 		return errors.New("address is invalid")
 	}
 
+	logger().Debug("Address.IsValid: seems ok, returning nil")
+
 	return nil
-}
-
-func filterParts(parts []string, startsWithOrbit bool) []string {
-	var out []string
-
-	for i, e := range parts {
-		if !((i == 0 || i == 1) && startsWithOrbit && e == "orbitdb") {
-			continue
-		}
-
-		if e == "" || e == " " {
-			continue
-		}
-
-		out = append(out, e)
-	}
-
-	return out
 }
 
 func Parse(path string) (Address, error) {
@@ -75,9 +61,10 @@ func Parse(path string) (Address, error) {
 		return nil, errors.Wrap(err, fmt.Sprintf("not a valid OrbitDB address: %s", path))
 	}
 
-	parts := filterParts(strings.Split(path, "/"), strings.HasPrefix(path, "/orbit"))
+	path = strings.TrimPrefix(path, "/orbitdb/")
+	parts := strings.Split(path, "/")
 
-	c, err := cid.Parse(parts[0])
+	c, err := cid.Decode(parts[0])
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to parse CID")
 	}

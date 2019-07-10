@@ -5,6 +5,7 @@ import (
 	"berty.tech/go-ipfs-log/keystore"
 	"context"
 	"github.com/berty/go-orbit-db/accesscontroller"
+	"github.com/berty/go-orbit-db/address"
 	"github.com/berty/go-orbit-db/ipfs"
 	"github.com/berty/go-orbit-db/stores"
 	"github.com/berty/go-orbit-db/stores/eventlogstore"
@@ -15,9 +16,9 @@ import (
 // TODO: interface?
 type CreateDBOptions struct {
 	Directory               *string
-	Overwrite               bool
-	LocalOnly               bool
-	Create                  bool
+	Overwrite               *bool
+	LocalOnly               *bool
+	Create                  *bool
 	Sync                    bool
 	StoreType               *string
 	AccessControllerAddress string
@@ -28,6 +29,12 @@ type CreateDBOptions struct {
 	Identity                *identityprovider.Identity
 }
 
+type DetermineAddressOptions struct {
+	OnlyHash         *bool
+	Replicate        *bool
+	AccessController accesscontroller.Interface
+}
+
 type OrbitDB interface {
 	IPFS() ipfs.Services
 	Identity() *identityprovider.Identity
@@ -35,4 +42,8 @@ type OrbitDB interface {
 	Open(ctx context.Context, dbAddress string, options *CreateDBOptions) (stores.Interface, error)
 	Log(ctx context.Context, address string, options *CreateDBOptions) (eventlogstore.OrbitDBEventLogStore, error)
 	KeyValue(ctx context.Context, address string, options *CreateDBOptions) (kvstore.OrbitDBKeyValue, error)
+	Create(ctx context.Context, name string, storeType string, options *CreateDBOptions) (stores.Interface, error)
+	Close() error
+
+	DetermineAddress(ctx context.Context, name string, storeType string, options *DetermineAddressOptions) (address.Address, error)
 }

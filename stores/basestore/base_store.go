@@ -31,7 +31,7 @@ type BaseStore struct {
 	dbName            string
 	ipfs              ipfs.Services
 	cache             datastore.Datastore
-	access            accesscontroller.SimpleInterface
+	access            accesscontroller.Interface
 	oplog             *ipfslog.Log
 	replicator        replicator.Replicator
 	storeType         string
@@ -52,6 +52,10 @@ type BaseStore struct {
 	subscribers    []chan stores.Event
 }
 
+func (b *BaseStore) DBName() string {
+	return b.dbName
+}
+
 func (b *BaseStore) Ipfs() ipfs.Services {
 	return b.ipfs
 }
@@ -64,7 +68,7 @@ func (b *BaseStore) OpLog() *ipfslog.Log {
 	return b.oplog
 }
 
-func (b *BaseStore) AccessController() accesscontroller.SimpleInterface {
+func (b *BaseStore) AccessController() accesscontroller.Interface {
 	return b.access
 }
 
@@ -85,10 +89,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, services ipfs.Services, i
 	if options.AccessController != nil {
 		b.access = options.AccessController
 	} else {
-		b.access, err = simple.NewSimpleAccessController(identity)
-		if err != nil {
-			return errors.New("unable to create a simple access controller")
-		}
+		b.access = simple.NewSimpleAccessController(map[string][]string{"write": {identity.ID}})
 	}
 
 	b.oplog, err = ipfslog.NewLog(services, identity, &ipfslog.LogOptions{
@@ -358,7 +359,7 @@ var atlasStoreSnapshot = atlas.BuildEntry(storeSnapshot{}).
 
 var atlasEntry = atlas.BuildEntry(entry.Entry{}).
 	StructMap().
-	AddField("V", atlas.StructMapEntry{SerialName: "v"}).
+	//AddField("V", atlas.StructMapEntry{SerialName: "v"}).
 	AddField("LogID", atlas.StructMapEntry{SerialName: "id"}).
 	AddField("Key", atlas.StructMapEntry{SerialName: "key"}).
 	AddField("Sig", atlas.StructMapEntry{SerialName: "sig"}).

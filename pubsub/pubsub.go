@@ -88,10 +88,12 @@ func (p *pubSub) Publish(ctx context.Context, topic string, message []byte) erro
 	return p.ipfs.PubSub().Publish(ctx, topic, message)
 }
 
-func (p *pubSub) Disconnect() {
+func (p *pubSub) Close() error {
 	for _, sub := range p.subscriptions {
-		_ = sub.Close()
+		_ = sub.Close() // TODO: handle errors
 	}
+
+	return nil
 }
 
 func (p *pubSub) Unsubscribe(topic string) error {

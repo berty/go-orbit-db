@@ -7,6 +7,7 @@ import (
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/pkg/errors"
+	"github.com/polydawn/refmt/obj/atlas"
 	"strings"
 )
 
@@ -83,7 +84,7 @@ func ResolveManifest(ctx context.Context, services ipfs.Services, manifestAddres
 		manifestAddress = strings.Split(manifestAddress, "/")[2]
 	}
 
-	c, err := cid.Parse(manifestAddress)
+	c, err := cid.Decode(manifestAddress)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to parse CID")
 	}
@@ -103,3 +104,21 @@ func ResolveManifest(ctx context.Context, services ipfs.Services, manifestAddres
 }
 
 var _ ManifestParams = &manifestParams{}
+
+var AtlasManifest = atlas.BuildEntry(Manifest{}).
+	StructMap().
+	AddField("Type", atlas.StructMapEntry{SerialName: "type"}).
+	AddField("Params", atlas.StructMapEntry{SerialName: "manifest"}).
+	Complete()
+
+var AtlasManifestParams = atlas.BuildEntry(manifestParams{}).
+	StructMap().
+	AddField("SkipManifest", atlas.StructMapEntry{SerialName: "skip_manifest"}).
+	AddField("Address", atlas.StructMapEntry{SerialName: "address"}).
+	AddField("Type", atlas.StructMapEntry{SerialName: "type"}).
+	Complete()
+
+func init() {
+	cbornode.RegisterCborType(AtlasManifest)
+	cbornode.RegisterCborType(AtlasManifestParams)
+}

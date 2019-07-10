@@ -16,6 +16,6 @@ type Subscription interface {
 type Interface interface {
 	Subscribe(ctx context.Context, topic string) (Subscription, error)
 	Unsubscribe(topic string) error
-	Disconnect()
+	Close() error
 	Publish(ctx context.Context, topic string, message []byte) error
 }

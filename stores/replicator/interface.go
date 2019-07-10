@@ -13,7 +13,7 @@ type StoreInterface interface {
 	OpLog() *ipfslog.Log
 	Ipfs() ipfs.Services
 	Identity() *identityprovider.Identity
-	AccessController() accesscontroller.SimpleInterface
+	AccessController() accesscontroller.Interface
 }
 
 type Replicator interface {

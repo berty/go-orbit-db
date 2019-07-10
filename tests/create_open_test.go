@@ -1,0 +1,342 @@
+package tests
+
+import (
+	"berty.tech/go-ipfs-log/identityprovider"
+	"berty.tech/go-ipfs-log/io"
+	"berty.tech/go-ipfs-log/keystore"
+	"context"
+	"fmt"
+	iface "github.com/berty/go-orbit-db"
+	"github.com/berty/go-orbit-db/accesscontroller/simple"
+	"github.com/berty/go-orbit-db/orbitdb"
+	"github.com/berty/go-orbit-db/stores/eventlogstore"
+	"github.com/berty/go-orbit-db/utils"
+	"github.com/ipfs/go-datastore"
+	leveldb "github.com/ipfs/go-ds-leveldb"
+	"github.com/polydawn/refmt/cbor"
+	"github.com/polydawn/refmt/obj/atlas"
+	. "github.com/smartystreets/goconvey/convey"
+	"os"
+	"path"
+	"testing"
+	"time"
+)
+
+func TestCreateOpen(t *testing.T) {
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
+
+	Convey("orbit-db - Create & Open", t, FailureHalts, func(c C) {
+		ipfs := makeIPFS(ctx, t)
+		tempDir := getTempDirectory()
+
+		dbPath := path.Join(tempDir, "./orbitdb/tests/create-open", "1")
+
+		println(fmt.Sprintf("dbpath is %s", dbPath))
+
+		orbit, err := orbitdb.NewOrbitDB(ctx, ipfs, &orbitdb.NewOrbitDBOptions{Directory: &dbPath})
+		c.So(err, ShouldBeNil)
+		defer orbit.Close()
+
+		Convey("Create", FailureHalts, func(c C) {
+			Convey("Errors", FailureHalts, func(c C) {
+				Convey("throws an error if given an invalid database type", FailureHalts, func(c C) {
+					db, err := orbit.Create(ctx, "first", "invalid-type", nil)
+
+					c.So(err, ShouldNotBeNil)
+					c.So(err.Error(), ShouldContainSubstring, "invalid database type")
+					c.So(db, ShouldBeNil)
+				})
+
+				Convey("throws an error if given an address instead of name", FailureHalts, func(c C) {
+					db, err := orbit.Create(ctx, "/orbitdb/Qmc9PMho3LwTXSaUXJ8WjeBZyXesAwUofdkGeadFXsqMzW/first", "eventlog", nil)
+					c.So(err, ShouldNotBeNil)
+					c.So(err.Error(), ShouldContainSubstring, "given database name is an address")
+					c.So(db, ShouldBeNil)
+				})
+
+				Convey("throws an error if database already exists", FailureHalts, func(c C) {
+					replicate := false
+
+					db1, err := orbit.Create(ctx, "first", "eventlog", &iface.CreateDBOptions{Replicate: &replicate})
+					c.So(err, ShouldBeNil)
+					c.So(db1, ShouldNotBeNil)
+
+					db2, err := orbit.Create(ctx, "first", "eventlog", &iface.CreateDBOptions{Replicate: &replicate})
+					c.So(err, ShouldNotBeNil)
+					c.So(db2, ShouldBeNil)
+					c.So(err.Error(), ShouldContainSubstring, "already exists")
+				})
+
+				Convey("throws an error if database type doesn't match", FailureHalts, func(c C) {
+					replicate := false
+
+					db1, err := orbit.KeyValue(ctx, "keyvalue", &iface.CreateDBOptions{Replicate: &replicate})
+					c.So(err, ShouldBeNil)
+					c.So(db1, ShouldNotBeNil)
+
+					db2, err := orbit.Log(ctx, db1.Address().String(), nil)
+					c.So(err, ShouldNotBeNil)
+					c.So(db2, ShouldBeNil)
+					c.So(err.Error(), ShouldContainSubstring, "unable to cast store to log")
+				})
+			})
+
+			Convey("Success", FailureHalts, func(c C) {
+				replicate := false
+				db1, err := orbit.Create(ctx, "second", "eventlog", &iface.CreateDBOptions{Replicate: &replicate})
+				c.So(err, ShouldBeNil)
+				c.So(db1, ShouldNotBeNil)
+
+				localDataPath := path.Join(dbPath, db1.Address().GetRoot().String(), db1.Address().GetPath())
+
+				_ = localDataPath // TODO: remove
+
+				err = db1.Close()
+				c.So(err, ShouldBeNil)
+
+				Convey("database has the correct address", FailureHalts, func(c C) {
+					c.So(db1.Address().String(), ShouldStartWith, "/orbitdb")
+					c.So(db1.Address().String(), ShouldContainSubstring, "bafy")
+					c.So(db1.Address().String(), ShouldContainSubstring, "second")
+				})
+
+				Convey("saves the database locally", FailureHalts, func(c C) {
+					_, err := os.Stat(localDataPath)
+					c.So(os.IsNotExist(err), ShouldBeFalse)
+				})
+
+				Convey("saves database manifest reference locally", FailureHalts, func(c C) {
+					manifestHash := db1.Address().GetRoot().String()
+					addr := db1.Address().String()
+
+					ds, err := leveldb.NewDatastore(localDataPath, &leveldb.Options{ReadOnly: true})
+					c.So(err, ShouldBeNil)
+
+					val, err := ds.Get(datastore.NewKey(fmt.Sprintf("%s/_manifest", addr)))
+					c.So(err, ShouldBeNil)
+
+					data := string(val)
+
+					c.So(err, ShouldBeNil)
+					c.So(data, ShouldEqual, manifestHash)
+				})
+
+				Convey("saves database manifest file locally", FailureHalts, func(c C) {
+					manifestNode, err := io.ReadCBOR(ctx, ipfs, db1.Address().GetRoot())
+					c.So(err, ShouldBeNil)
+
+					manifest := utils.Manifest{}
+					println("raw manifest data", string(manifestNode.RawData()))
+
+					err = cbor.UnmarshalAtlased(cbor.DecodeOptions{}, manifestNode.RawData(), &manifest, atlas.MustBuild(utils.AtlasManifest))
+					c.So(err, ShouldBeNil)
+					c.So(manifest, ShouldNotBeNil)
+					c.So(manifest.Name, ShouldEqual, "second")
+					c.So(manifest.Type, ShouldEqual, "eventlog")
+					c.So(manifest.AccessController, ShouldStartWith, "/ipfs")
+				})
+
+				Convey("can pass local database directory as an option", FailureHalts, func(c C) {
+					dir := path.Join(tempDir, "./orbitdb/tests/another-feed")
+					db, err := orbit.Create(ctx, "third", "eventlog", &iface.CreateDBOptions{Directory: &dir})
+					c.So(err, ShouldBeNil)
+
+					localDataPath = path.Join(dir, db.Address().GetRoot().String(), db.Address().GetPath())
+
+					_, err = os.Stat(localDataPath)
+					c.So(os.IsNotExist(err), ShouldBeFalse)
+				})
+
+				Convey("Access Controller", FailureHalts, func(c C) {
+					Convey("creates an access controller and adds ourselves as writer by default", FailureHalts, func(c C) {
+						db, err := orbit.Create(ctx, "fourth", "eventlog", nil)
+						c.So(err, ShouldBeNil)
+
+						accessController := db.AccessController()
+						allowed, err := accessController.GetAuthorizedByRole("write")
+						c.So(err, ShouldBeNil)
+
+						c.So(allowed, ShouldResemble, []string{orbit.Identity().ID})
+					})
+
+					Convey("creates an access controller and adds writers", FailureHalts, func(c C) {
+						db, err := orbit.Create(ctx, "fourth", "eventlog", &iface.CreateDBOptions{
+							AccessController: simple.NewSimpleAccessController(map[string][]string{
+								"write": {"another-key", "yet-another-key", orbit.Identity().ID},
+							}),
+						})
+						c.So(err, ShouldBeNil)
+
+						accessController := db.AccessController()
+						allowed, err := accessController.GetAuthorizedByRole("write")
+						c.So(err, ShouldBeNil)
+
+						c.So(allowed, ShouldResemble, []string{"another-key", "yet-another-key", orbit.Identity().ID})
+					})
+
+					Convey("creates an access controller and doesn't add read access keys", FailureHalts, func (c C) {
+						// TODO: NOOP seems bogus in JS test
+					})
+				})
+			})
+		})
+
+		Convey("determineAddress", FailureHalts, func(c C) {
+			Convey("Errors", FailureHalts, func(c C) {
+				Convey("throws an error if given an invalid database type", FailureHalts, func(c C) {
+					addr, err := orbit.DetermineAddress(ctx, "first", "invalid-type", nil)
+
+					c.So(err, ShouldNotBeNil)
+					c.So(addr, ShouldBeNil)
+					c.So(err.Error(), ShouldContainSubstring, "invalid database type")
+				})
+
+				Convey("throws an error if given an address instead of name", FailureHalts, func (c C) {
+					addr, err := orbit.DetermineAddress(ctx, "/orbitdb/Qmc9PMho3LwTXSaUXJ8WjeBZyXesAwUofdkGeadFXsqMzW/first", "eventlog", nil)
+
+					c.So(err, ShouldNotBeNil)
+					c.So(addr, ShouldBeNil)
+					c.So(err.Error(), ShouldContainSubstring, "given database name is an address, give only the name of the database")
+				})
+			})
+
+			Convey("Success", FailureHalts, func(c C) {
+				replicate := false
+				addr, err := orbit.DetermineAddress(ctx, "third", "eventlog", &iface.DetermineAddressOptions{Replicate: &replicate})
+				c.So(err, ShouldBeNil)
+				c.So(addr, ShouldNotBeNil)
+
+				localDataPath := path.Join(dbPath, addr.GetRoot().String(), addr.GetPath())
+
+				Convey("does not save the address locally", FailureHalts, func(c C) {
+					_, err := os.Stat(localDataPath)
+					c.So(os.IsNotExist(err), ShouldBeTrue)
+				})
+
+				Convey("returns the address that would have been created", FailureHalts, func(c C) {
+					_, err := os.Stat(localDataPath)
+					c.So(os.IsNotExist(err), ShouldBeTrue)
+
+					db, err := orbit.Create(ctx, "third", "eventlog", &iface.CreateDBOptions{Replicate: &replicate})
+
+					c.So(err, ShouldBeNil)
+					c.So(addr.String(), ShouldStartWith, "/orbitdb")
+					c.So(addr.String(), ShouldContainSubstring, "bafy")
+					c.So(addr.String(), ShouldEqual, db.Address().String())
+				})
+			})
+		})
+
+		Convey("Open", FailureHalts, func(c C) {
+			create := true
+			overwrite := true
+			storeType := "eventlog"
+
+			db, err := orbit.Open(ctx, "abc", &iface.CreateDBOptions{ Create: &create, StoreType: &storeType })
+
+			c.So(err, ShouldBeNil)
+			c.So(db, ShouldNotBeNil)
+
+			Convey("throws an error if trying to open a database with name only and 'create' is not set to 'true'", FailureHalts, func(c C) {
+				create := false
+
+				db, err := orbit.Open(ctx, "XXX", &iface.CreateDBOptions{ Create: &create, StoreType: &storeType })
+				c.So(err, ShouldNotBeNil)
+				c.So(db, ShouldBeNil)
+				c.So(err.Error(), ShouldContainSubstring, "'options.Create' set to 'false'. If you want to create a database, set 'options.Create' to 'true'")
+			})
+
+			Convey("throws an error if trying to open a database with name only and 'create' is not set to true", FailureHalts, func (c C) {
+				db, err := orbit.Open(ctx, "YYY", &iface.CreateDBOptions{ Create: &create })
+
+				c.So(err, ShouldNotBeNil)
+				c.So(db, ShouldBeNil)
+				c.So(err.Error(), ShouldContainSubstring, "database type not provided! Provide a type with 'options.StoreType'")
+			})
+
+			Convey("opens a database - name only", FailureHalts, func (c C) {
+				db, err := orbit.Open(ctx, "abc", &iface.CreateDBOptions{ Create: &create, StoreType: &storeType, Overwrite: &overwrite })
+
+				c.So(err, ShouldBeNil)
+				c.So(db.Address().String(), ShouldStartWith, "/orbitdb")
+				c.So(db.Address().String(), ShouldContainSubstring, "bafy")
+				c.So(db.Address().String(), ShouldContainSubstring, "abc")
+			})
+
+			Convey("opens a database - with a different identity", FailureHalts, func (c C) {
+				idDS, err := leveldb.NewDatastore("", nil)
+				c.So(err, ShouldBeNil)
+
+				idKeystore, err := keystore.NewKeystore(idDS)
+				c.So(err, ShouldBeNil)
+
+				identity, err := identityprovider.CreateIdentity(&identityprovider.CreateIdentityOptions{ID: "test-id", Keystore: idKeystore, Type: "orbitdb"})
+				c.So(err, ShouldBeNil)
+				c.So(identity, ShouldNotBeNil)
+
+				db, err = orbit.Open(ctx, "abc", &iface.CreateDBOptions{ Create: &create, StoreType: &storeType, Overwrite: &overwrite, Identity: identity })
+				c.So(err, ShouldBeNil)
+
+				c.So(err, ShouldBeNil)
+				c.So(db.Address().String(), ShouldStartWith, "/orbitdb")
+				c.So(db.Address().String(), ShouldContainSubstring, "bafy")
+				c.So(db.Address().String(), ShouldContainSubstring, "abc")
+				c.So(db.Identity(), ShouldEqual, identity)
+			})
+
+			Convey("opens the same database - from an address", FailureHalts, func (c C) {
+				db, err := orbit.Open(ctx, db.Address().String(), nil)
+
+				c.So(err, ShouldBeNil)
+				c.So(db.Address().String(), ShouldStartWith, "/orbitdb")
+				c.So(db.Address().String(), ShouldContainSubstring, "bafy")
+				c.So(db.Address().String(), ShouldContainSubstring, "abc")
+			})
+
+			Convey("opens a database and adds the creator as the only writer", FailureHalts, func (c C) {
+				db, err := orbit.Open(ctx, "abc", &iface.CreateDBOptions{Create: &create, StoreType: &storeType, Overwrite: &overwrite})
+
+				c.So(err, ShouldBeNil)
+				allowed, err := db.AccessController().GetAuthorizedByRole("write")
+				c.So(err, ShouldBeNil)
+				c.So(len(allowed), ShouldEqual, 1)
+				c.So(allowed[0], ShouldEqual, db.Identity().ID)
+			})
+
+			Convey("doesn't open a database if we don't have it locally", FailureHalts, func (c C) {
+
+			})
+
+			Convey("throws an error if trying to open a database locally and we don't have it", FailureHalts, func (c C) {
+
+			})
+
+			Convey("open the database and it has the added entries", FailureHalts, func (c C) {
+				db, err := orbit.Open(ctx, "ZZZ", &iface.CreateDBOptions{ Create: &create, StoreType: &storeType })
+				c.So(err, ShouldBeNil)
+
+				logStore, ok := db.(eventlogstore.OrbitDBEventLogStore)
+				c.So(ok, ShouldBeTrue)
+
+				err = logStore.Add(ctx, []byte("hello1"))
+				c.So(err, ShouldBeNil)
+
+				err = logStore.Add(ctx, []byte("hello2"))
+				c.So(err, ShouldBeNil)
+
+				db, err = orbit.Open(ctx, db.Address().String(), nil)
+				c.So(err, ShouldBeNil)
+
+				//err = db.Load(ctx, -1)
+				//c.So(err, ShouldBeNil)
+
+				//const res = db.iterator({ limit: -1 }).collect()
+				//
+				//assert.equal(res.length, 2)
+				//assert.equal(res[0].payload.value, 'hello1')
+				//assert.equal(res[1].payload.value, 'hello2')
+
+			})
+		})
+	})
+}

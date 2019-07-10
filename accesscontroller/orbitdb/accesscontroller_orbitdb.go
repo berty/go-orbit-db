@@ -34,7 +34,7 @@ func (o *orbitDBAccessController) Address() address.Address {
 	return o.kvStore.Address()
 }
 
-func (o *orbitDBAccessController) getAuthorizedByRole(role string) ([]string, error) {
+func (o *orbitDBAccessController) GetAuthorizedByRole(role string) ([]string, error) {
 	authorizations, err := o.getAuthorizations()
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to get authorizations")
@@ -245,7 +245,7 @@ func NewOrbitDBAccessController(ctx context.Context, db orbitdb.OrbitDB, options
 
 	kvStore, err := db.KeyValue(ctx, addr, nil)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "unable to init key value store")
 	}
 
 	controller := &orbitDBAccessController{
@@ -255,7 +255,7 @@ func NewOrbitDBAccessController(ctx context.Context, db orbitdb.OrbitDB, options
 
 	for _, writeAccess := range options.WriteAccess {
 		if err := controller.Grant(ctx, "write", writeAccess); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "unable to grant write access")
 		}
 	}
 

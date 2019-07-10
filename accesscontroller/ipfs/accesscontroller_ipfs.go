@@ -44,6 +44,14 @@ func (i *ipfsAccessController) CanAppend(entry *entry.Entry, p identityprovider.
 	return errors.New("not allowed")
 }
 
+func (i *ipfsAccessController) GetAuthorizedByRole(role string) ([]string, error) {
+	if role == "admin" || role == "write" {
+		return i.writeAccess, nil
+	}
+
+	return nil, nil
+}
+
 func (i *ipfsAccessController) Grant(ctx context.Context, capability string, keyID string) error {
 	return errors.New("not implemented - does not exist in JS version")
 }
@@ -53,7 +61,7 @@ func (i *ipfsAccessController) Revoke(ctx context.Context, capability string, ke
 }
 
 func (i *ipfsAccessController) Load(ctx context.Context, address string) error {
-	c, err := cid.Parse(address)
+	c, err := cid.Decode(address)
 	if err != nil {
 		return errors.Wrap(err, "unable to parse cid")
 	}
