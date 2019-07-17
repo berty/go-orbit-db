@@ -20,7 +20,6 @@ func TestLogDatabase(t *testing.T) {
 
 	//.createInstance(ipfs, { directory: path.join(dbPath, '1') })
 	Convey("creates and opens a database", t, FailureHalts, func(c C) {
-
 		err := os.RemoveAll(dbPath)
 		c.So(err, ShouldBeNil)
 
@@ -31,9 +30,9 @@ func TestLogDatabase(t *testing.T) {
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, db1IPFS, &orbitdb.NewOrbitDBOptions{
 			Directory: &db1Path,
 		})
-		defer orbitdb1.Close()
-
 		c.So(err, ShouldBeNil)
+
+		defer orbitdb1.Close()
 
 		c.Convey("basic tests", FailureHalts, func(c C) {
 			db, err := orbitdb1.Log(ctx, "log database", nil)

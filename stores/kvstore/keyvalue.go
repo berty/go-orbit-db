@@ -54,7 +54,7 @@ func (o *orbitDBKeyValue) Delete(ctx context.Context, key string) (operation.Ope
 func (o *orbitDBKeyValue) Get(ctx context.Context, key string) ([]byte, error) {
 	value, ok := o.Index().(*kvIndex).Get(key).([]byte)
 	if value == nil {
-		return nil, errors.New("unable to find the requested entry")
+		return nil, nil
 	}
 
 	if !ok {
