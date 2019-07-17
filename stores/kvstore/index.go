@@ -28,13 +28,19 @@ func (i *kvIndex) UpdateIndex(oplog *ipfslog.Log, _ []*entry.Entry) error {
 			return errors.Wrap(err, "unable to parse log kv operation")
 		}
 
-		if _, ok := handled[item.GetKey()]; !ok {
-			handled[item.GetKey()] = struct{}{}
+		key := item.GetKey()
+		if key == nil {
+			// ignoring entries with nil keys
+			continue
+		}
+
+		if _, ok := handled[*item.GetKey()]; !ok {
+			handled[*item.GetKey()] = struct{}{}
 
 			if item.GetOperation() == "PUT" {
-				i.index[item.GetKey()] = item.GetValue()
+				i.index[*item.GetKey()] = item.GetValue()
 			} else if item.GetOperation() == "DEL" {
-				delete(i.index, item.GetKey())
+				delete(i.index, *item.GetKey())
 			}
 		}
 	}

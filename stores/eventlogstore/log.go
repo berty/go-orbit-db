@@ -17,23 +17,50 @@ type orbitDBEventLogStore struct {
 	basestore.BaseStore
 }
 
+func (o *orbitDBEventLogStore) List(ctx context.Context, options *StreamOptions) ([]operation.Operation, error) {
+	var err error
+	var operations []operation.Operation
+	c := make(chan operation.Operation)
+
+	go func () {
+		err = o.Stream(ctx, c, options)
+	}()
+	for op := range c {
+		operations = append(operations, op)
+		if err != nil {
+			return nil, errors.Wrap(err, "unable to list operations")
+		}
+	}
+
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to list operations")
+	}
+
+	return operations, nil
+}
+
 func (o *orbitDBEventLogStore) All() []*entry.Entry {
 	return o.OpLog().Values().Slice()
 }
 
-func (o *orbitDBEventLogStore) Add(ctx context.Context, value []byte) error {
-	op := operation.NewOperation("", "ADD", value)
+func (o *orbitDBEventLogStore) Add(ctx context.Context, value []byte) (operation.Operation, error) {
+	op := operation.NewOperation(nil, "ADD", value)
 
-	_, err := o.AddOperation(ctx, op, nil)
+	e, err := o.AddOperation(ctx, op, nil)
 	if err != nil {
-		return errors.Wrap(err, "error while deleting value")
+		return nil, errors.Wrap(err, "error while deleting value")
 	}
 
-	return nil
+	op, err = operation.ParseOperation(e)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to parse newly created entry")
+	}
+
+	return op, nil
 }
 
-func (o *orbitDBEventLogStore) Get(ctx context.Context, cid cid.Cid) ([]byte, error) {
-	stream := make(chan []byte, 1)
+func (o *orbitDBEventLogStore) Get(ctx context.Context, cid cid.Cid) (operation.Operation, error) {
+	stream := make(chan operation.Operation, 1)
 	one := 1
 
 	err := o.Stream(ctx, stream, &StreamOptions{GTE: &cid, Amount: &one})
@@ -49,15 +76,22 @@ func (o *orbitDBEventLogStore) Get(ctx context.Context, cid cid.Cid) ([]byte, er
 	}
 }
 
-func (o *orbitDBEventLogStore) Stream(ctx context.Context, resultChan chan []byte, options *StreamOptions) error {
+func (o *orbitDBEventLogStore) Stream(ctx context.Context, resultChan chan operation.Operation, options *StreamOptions) error {
 	messages, err := o.query(options)
 	if err != nil {
 		return errors.Wrap(err, "unable to fetch query results")
 	}
 
 	for _, message := range messages {
-		resultChan <- message.Payload
+		op, err := operation.ParseOperation(message)
+		if err != nil {
+			return errors.Wrap(err, "unable to parse operation")
+		}
+
+		resultChan <- op
 	}
+
+	close(resultChan)
 
 	return nil
 }
@@ -67,6 +101,11 @@ func (o *orbitDBEventLogStore) query(options *StreamOptions) ([]*entry.Entry, er
 		options = &StreamOptions{}
 	}
 
+	uncastedEvents := o.Index().Get("")
+	if uncastedEvents == nil {
+		return nil, nil
+	}
+
 	events, ok := o.Index().Get("").([]*entry.Entry)
 	if !ok {
 		return nil, errors.New("unable to cast index to entries")
@@ -74,7 +113,9 @@ func (o *orbitDBEventLogStore) query(options *StreamOptions) ([]*entry.Entry, er
 
 	amount := 1
 	if options.Amount != nil {
-		if *options.Amount > -1 {
+		if *options.Amount  == 0 {
+			amount = 1
+		} else if *options.Amount > -1 {
 			amount = *options.Amount
 		} else {
 			amount = len(events)
@@ -96,7 +137,7 @@ func (o *orbitDBEventLogStore) query(options *StreamOptions) ([]*entry.Entry, er
 
 	if options.LT != nil {
 		c = *options.LT
-	} else {
+	} else if options.LTE != nil {
 		c = *options.LTE
 	}
 

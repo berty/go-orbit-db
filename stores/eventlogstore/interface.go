@@ -3,6 +3,7 @@ package eventlogstore
 import (
 	"context"
 	"github.com/berty/go-orbit-db/stores"
+	"github.com/berty/go-orbit-db/stores/operation"
 	"github.com/ipfs/go-cid"
 )
 
@@ -16,8 +17,8 @@ type StreamOptions struct {
 
 type OrbitDBEventLogStore interface {
 	stores.Interface
-	//All()
-	Add(ctx context.Context, data []byte) error
-	Get(ctx context.Context, cid cid.Cid) ([]byte, error)
-	Stream(ctx context.Context, resultChan chan []byte, options *StreamOptions) error
+	Add(ctx context.Context, data []byte) (operation.Operation, error)
+	Get(ctx context.Context, cid cid.Cid) (operation.Operation, error)
+	Stream(ctx context.Context, resultChan chan operation.Operation, options *StreamOptions) error
+	List(ctx context.Context, options *StreamOptions) ([]operation.Operation, error)
 }

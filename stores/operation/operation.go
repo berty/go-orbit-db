@@ -7,25 +7,31 @@ import (
 )
 
 type operation struct {
-	key   string
-	op    string
-	value []byte
+	Key   *string       `json:"key,omitempty"`
+	Op    string       `json:"op,omitempty"`
+	Value []byte       `json:"value,omitempty"`
+	Entry *entry.Entry `json:"-"`
 }
 
 func (o *operation) Marshal() ([]byte, error) {
 	return json.Marshal(o)
 }
 
-func (o *operation) GetKey() string {
-	return o.key
+func (o *operation) GetKey() *string {
+	return o.Key
 }
 
 func (o *operation) GetOperation() string {
-	return o.op
+	return o.Op
 }
 
 func (o *operation) GetValue() []byte {
-	return o.value
+	return o.Value
+}
+
+func (o *operation) GetEntry() *entry.Entry {
+	//return nil
+	return o.Entry
 }
 
 func ParseOperation(e *entry.Entry) (Operation, error) {
@@ -36,14 +42,16 @@ func ParseOperation(e *entry.Entry) (Operation, error) {
 		return nil, errors.Wrap(err, "unable to parse operation json")
 	}
 
+	op.Entry = e
+
 	return &op, nil
 }
 
-func NewOperation(key, op string, value []byte) Operation {
+func NewOperation(key *string, op string, value []byte) Operation {
 	return &operation{
-		key:   key,
-		op:    op,
-		value: value,
+		Key:   key,
+		Op:    op,
+		Value: value,
 	}
 }
 

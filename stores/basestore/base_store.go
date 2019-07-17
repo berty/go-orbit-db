@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"github.com/berty/go-orbit-db/accesscontroller"
 	"github.com/berty/go-orbit-db/accesscontroller/simple"
 	"github.com/berty/go-orbit-db/address"
@@ -19,8 +20,6 @@ import (
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/pkg/errors"
-	"github.com/polydawn/refmt/json"
-	"github.com/polydawn/refmt/obj/atlas"
 	"time"
 )
 
@@ -241,19 +240,21 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 		return errors.Wrap(err, "unable to get local heads from cache")
 	}
 
-	err = json.UnmarshalAtlased(localHeadsBytes, &localHeads, atlasedStructs)
+	err = json.Unmarshal(localHeadsBytes, &localHeads)
 	if err != nil {
 		return errors.Wrap(err, "unable to unmarshal cached local heads")
 	}
 
 	remoteHeadsBytes, err := b.cache.Get(datastore.NewKey("_remoteHeads"))
-	if err != nil {
+	if err != nil && err != datastore.ErrNotFound {
 		return errors.Wrap(err, "unable to get data from cache")
 	}
 
-	err = json.UnmarshalAtlased(remoteHeadsBytes, &remoteHeads, atlasedStructs)
-	if err != nil {
-		return errors.Wrap(err, "unable to unmarshal cached remote heads")
+	if remoteHeadsBytes != nil {
+		err = json.Unmarshal(remoteHeadsBytes, &remoteHeads)
+		if err != nil {
+			return errors.Wrap(err, "unable to unmarshal cached remote heads")
+		}
 	}
 
 	heads := append(localHeads, remoteHeads...)
@@ -278,10 +279,12 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 			return errors.Wrap(err, "unable to create log from entry hash")
 		}
 
-		_, err = b.oplog.Join(l, amount)
+		l, err = b.oplog.Join(l, amount)
 		if err != nil {
 			return errors.Wrap(err, "unable to join log")
 		}
+
+		b.oplog = l
 	}
 
 	// Update the index
@@ -343,34 +346,11 @@ func (b *BaseStore) LoadMoreFrom(ctx context.Context, amount uint, cids []cid.Ci
 }
 
 type storeSnapshot struct {
-	ID    string
-	Heads []*entry.Entry
-	Size  int
-	Type  string
+	ID    string         `json:"id,omitempty"`
+	Heads []*entry.Entry `json:"heads,omitempty"`
+	Size  int            `json:"size,omitempty"`
+	Type  string         `json:"type,omitempty"`
 }
-
-var atlasStoreSnapshot = atlas.BuildEntry(storeSnapshot{}).
-	StructMap().
-	AddField("ID", atlas.StructMapEntry{SerialName: "id"}).
-	AddField("Heads", atlas.StructMapEntry{SerialName: "heads"}).
-	AddField("Size", atlas.StructMapEntry{SerialName: "size"}).
-	AddField("Type", atlas.StructMapEntry{SerialName: "type"}).
-	Complete()
-
-var atlasEntry = atlas.BuildEntry(entry.Entry{}).
-	StructMap().
-	//AddField("V", atlas.StructMapEntry{SerialName: "v"}).
-	AddField("LogID", atlas.StructMapEntry{SerialName: "id"}).
-	AddField("Key", atlas.StructMapEntry{SerialName: "key"}).
-	AddField("Sig", atlas.StructMapEntry{SerialName: "sig"}).
-	AddField("Hash", atlas.StructMapEntry{SerialName: "hash"}).
-	AddField("Next", atlas.StructMapEntry{SerialName: "next"}).
-	AddField("Clock", atlas.StructMapEntry{SerialName: "clock"}).
-	AddField("Payload", atlas.StructMapEntry{SerialName: "payload"}).
-	AddField("Identity", atlas.StructMapEntry{SerialName: "identity"}).
-	Complete()
-
-var atlasedStructs = atlas.MustBuild(atlasStoreSnapshot, atlasEntry)
 
 func (b *BaseStore) SaveSnapshot(ctx context.Context) (cid.Cid, error) {
 	// I'd rather use protobuf here but I decided to keep the
@@ -378,12 +358,12 @@ func (b *BaseStore) SaveSnapshot(ctx context.Context) (cid.Cid, error) {
 
 	unfinished := b.replicator.GetQueue()
 
-	header, err := json.MarshalAtlased(json.EncodeOptions{}, &storeSnapshot{
+	header, err := json.Marshal(&storeSnapshot{
 		ID:    b.oplog.ID,
 		Heads: b.oplog.Heads().Slice(),
 		Size:  b.oplog.Values().Len(),
 		Type:  b.storeType,
-	}, atlasedStructs)
+	})
 
 	if err != nil {
 		return cid.Cid{}, errors.Wrap(err, "unable to serialize snapshot")
@@ -396,7 +376,7 @@ func (b *BaseStore) SaveSnapshot(ctx context.Context) (cid.Cid, error) {
 	rs := bytes.NewBuffer(append(size, header...))
 
 	for _, e := range b.oplog.Values().Slice() {
-		entryJSON, err := json.MarshalAtlased(json.EncodeOptions{}, e, atlasedStructs)
+		entryJSON, err := json.Marshal(e)
 		if err != nil {
 			return cid.Cid{}, errors.Wrap(err, "unable to serialize entry as JSON")
 		}
@@ -473,7 +453,7 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 		return errors.Wrap(err, "unable to read from stream")
 	}
 
-	if err := json.UnmarshalAtlased(headerRaw, header, atlasedStructs); err != nil {
+	if err := json.Unmarshal(headerRaw, &header); err != nil {
 		return errors.Wrap(err, "unable to decode header from ipfs data")
 	}
 
@@ -494,7 +474,7 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 			return errors.Wrap(err, "unable to read from stream")
 		}
 
-		if err = json.UnmarshalAtlased(entryRaw, header, atlasedStructs); err != nil {
+		if err = json.Unmarshal(entryRaw, header); err != nil {
 			return errors.Wrap(err, "unable to unmarshal entry from ipfs data")
 		}
 
@@ -542,30 +522,30 @@ func intPtr(i int) *int {
 	return &i
 }
 
-func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, onProgressCallback chan<- *entry.Entry) (cid.Cid, error) {
+func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, onProgressCallback chan<- *entry.Entry) (*entry.Entry, error) {
 	data, err := op.Marshal()
 	if err != nil {
-		return cid.Cid{}, errors.Wrap(err, "unable to marshal operation")
+		return nil, errors.Wrap(err, "unable to marshal operation")
 	}
 
 	e, err := b.oplog.Append(ctx, data, b.referenceCount)
 	if err != nil {
-		return cid.Cid{}, errors.Wrap(err, "unable to append data on log")
+		return nil, errors.Wrap(err, "unable to append data on log")
 	}
 	b.recalculateReplicationStatus(b.replicationStatus.GetProgress()+1, e.Clock.Time)
 
-	marshaledEntry, err := json.MarshalAtlased(json.EncodeOptions{}, []*entry.Entry{e}, atlasedStructs)
+	marshaledEntry, err := json.Marshal([]*entry.Entry{e})
 	if err != nil {
-		return cid.Cid{}, errors.Wrap(err, "unable to marshal entry")
+		return nil, errors.Wrap(err, "unable to marshal entry")
 	}
 
 	err = b.cache.Put(datastore.NewKey("_localHeads"), marshaledEntry)
 	if err != nil {
-		return cid.Cid{}, errors.Wrap(err, "unable to add data to cache")
+		return nil, errors.Wrap(err, "unable to add data to cache")
 	}
 
 	if err := b.updateIndex(); err != nil {
-		return cid.Cid{}, errors.Wrap(err, "unable to update index")
+		return nil, errors.Wrap(err, "unable to update index")
 	}
 
 	b.emit(stores.NewEventWrite(b.address, e, b.oplog.Heads().Slice()))
@@ -574,7 +554,7 @@ func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, on
 		onProgressCallback <- e
 	}
 
-	return e.Hash, nil
+	return e, nil
 }
 
 func (b *BaseStore) recalculateReplicationProgress(max int) {

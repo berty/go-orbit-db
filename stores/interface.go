@@ -34,7 +34,7 @@ type Interface interface {
 	DBName() string
 	Identity() *identityprovider.Identity
 	AccessController() accesscontroller.Interface
-	AddOperation(ctx context.Context, op operation.Operation, onProgressCallback chan<- *entry.Entry) (cid.Cid, error)
+	AddOperation(ctx context.Context, op operation.Operation, onProgressCallback chan<- *entry.Entry) (*entry.Entry, error)
 }
 
 type Index interface {

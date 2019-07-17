@@ -19,26 +19,36 @@ func (o *orbitDBKeyValue) All() map[string][]byte {
 	return o.Index().(*kvIndex).index
 }
 
-func (o *orbitDBKeyValue) Put(ctx context.Context, key string, value []byte) error {
-	op := operation.NewOperation(key, "PUT", value)
+func (o *orbitDBKeyValue) Put(ctx context.Context, key string, value []byte) (operation.Operation, error) {
+	op := operation.NewOperation(&key, "PUT", value)
 
-	_, err := o.AddOperation(ctx, op, nil)
+	e, err := o.AddOperation(ctx, op, nil)
 	if err != nil {
-		return errors.Wrap(err, "error while deleting value")
+		return nil, errors.Wrap(err, "error while deleting value")
 	}
 
-	return nil
+	op, err = operation.ParseOperation(e)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to parse newly created entry")
+	}
+
+	return op, nil
 }
 
-func (o *orbitDBKeyValue) Delete(ctx context.Context, key string) error {
-	op := operation.NewOperation(key, "DEL", nil)
+func (o *orbitDBKeyValue) Delete(ctx context.Context, key string) (operation.Operation, error) {
+	op := operation.NewOperation(&key, "DEL", nil)
 
-	_, err := o.AddOperation(ctx, op, nil)
+	e, err := o.AddOperation(ctx, op, nil)
 	if err != nil {
-		return errors.Wrap(err, "error while deleting value")
+		return nil, errors.Wrap(err, "error while deleting value")
 	}
 
-	return nil
+	op, err = operation.ParseOperation(e)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to parse newly created entry")
+	}
+
+	return op, nil
 }
 
 func (o *orbitDBKeyValue) Get(ctx context.Context, key string) ([]byte, error) {
