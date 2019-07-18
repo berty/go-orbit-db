@@ -8,5 +8,5 @@ type Services interface {
 	Dag() coreapi.APIDagService
 	PubSub() coreapi.PubSubAPI
 	Key() coreapi.KeyAPI
-	Object() coreapi.ObjectAPI
+	Unixfs() coreapi.UnixfsAPI
 }

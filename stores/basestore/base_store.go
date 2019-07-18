@@ -5,10 +5,10 @@ import (
 	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/io"
-	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"github.com/berty/go-orbit-db/accesscontroller"
 	"github.com/berty/go-orbit-db/accesscontroller/simple"
 	"github.com/berty/go-orbit-db/address"
@@ -18,8 +18,10 @@ import (
 	"github.com/berty/go-orbit-db/stores/replicator"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
+	files "github.com/ipfs/go-ipfs-files"
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"time"
 )
 
@@ -49,6 +51,7 @@ type BaseStore struct {
 	directory      string
 	options        *stores.NewStoreOptions
 	subscribers    []chan stores.Event
+	cacheDestroy   func() error
 }
 
 func (b *BaseStore) DBName() string {
@@ -85,6 +88,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, services ipfs.Services, i
 	b.dbName = addr.GetPath()
 	b.ipfs = services
 	b.cache = options.Cache
+	b.cacheDestroy = options.CacheDestroy
 	if options.AccessController != nil {
 		b.access = options.AccessController
 	} else {
@@ -209,6 +213,11 @@ func (b *BaseStore) Drop() error {
 	var err error
 	if err = b.Close(); err != nil {
 		return errors.Wrap(err, "unable to close store")
+	}
+
+	err = b.cacheDestroy()
+	if err != nil {
+		return errors.Wrap(err, "unable to destroy cache")
 	}
 
 	// TODO: Destroy cache? b.cache.Delete()
@@ -373,24 +382,29 @@ func (b *BaseStore) SaveSnapshot(ctx context.Context) (cid.Cid, error) {
 
 	size := make([]byte, 2)
 	binary.BigEndian.PutUint16(size, uint16(headerSize))
-	rs := bytes.NewBuffer(append(size, header...))
+	rs := append(size, header...)
 
 	for _, e := range b.oplog.Values().Slice() {
 		entryJSON, err := json.Marshal(e)
+
 		if err != nil {
 			return cid.Cid{}, errors.Wrap(err, "unable to serialize entry as JSON")
 		}
 
+		logger().Debug(fmt.Sprintf("Serialized entry: %s", string(entryJSON)))
+
 		size := make([]byte, 2)
 		binary.BigEndian.PutUint16(size, uint16(len(entryJSON)))
 
-		rs.Write(size)
-		rs.Write(entryJSON)
+		rs = append(rs, size...)
+		rs = append(rs, entryJSON...)
 	}
 
-	rs.WriteByte(0) // tell the stream we're finished
+	rs = append(rs, 0)
 
-	snapshotPath, err := b.ipfs.Object().Put(ctx, rs)
+	rsFileNode := files.NewBytesFile(rs)
+
+	snapshotPath, err := b.ipfs.Unixfs().Add(ctx, rsFileNode)
 	if err != nil {
 		return cid.Cid{}, errors.Wrap(err, "unable to save log data on store")
 	}
@@ -410,7 +424,7 @@ func (b *BaseStore) SaveSnapshot(ctx context.Context) (cid.Cid, error) {
 		return cid.Cid{}, errors.Wrap(err, "unable to add unfinished data to cache")
 	}
 
-	// TODO: logger.debug(`Saved snapshot: ${snapshot[snapshot.length - 1].hash}, queue length: ${unfinished.length}`)
+	logger().Debug(fmt.Sprintf(`Saved snapshot: %s, queue length: %d`, snapshotPath.String(), len(unfinished)))
 
 	return snapshotPath.Cid(), nil
 }
@@ -427,18 +441,25 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 	// TODO: unmarshal queue
 	// TODO: this.sync(queue || [])
 
-	snapshot, err := b.cache.Get(datastore.NewKey("queue"))
-	if err != nil && err != datastore.ErrNotFound {
+	snapshot, err := b.cache.Get(datastore.NewKey("snapshot"))
+	if err == datastore.ErrNotFound {
+		return errors.Wrap(err, "not found")
+	}
+
+	if err != nil {
 		return errors.Wrap(err, "unable to get value from cache")
 	}
 
-	if snapshot == nil {
-		return nil
-	}
+	logger().Debug("loading snapshot from path", zap.String("snapshot", string(snapshot)))
 
-	res, err := b.ipfs.Object().Data(ctx, path.New(string(snapshot)))
+	resNode, err := b.ipfs.Unixfs().Get(ctx, path.New(string(snapshot)))
 	if err != nil {
 		return errors.Wrap(err, "unable to get snapshot from ipfs")
+	}
+
+	res, ok := resNode.(files.File)
+	if !ok {
+		return errors.New("unable to cast fetched data as a file")
 	}
 
 	headerLengthRaw := make([]byte, 2)
@@ -474,7 +495,9 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 			return errors.Wrap(err, "unable to read from stream")
 		}
 
-		if err = json.Unmarshal(entryRaw, header); err != nil {
+		logger().Debug(fmt.Sprintf("Entry raw: %s", string(entryRaw)))
+
+		if err = json.Unmarshal(entryRaw, e); err != nil {
 			return errors.Wrap(err, "unable to unmarshal entry from ipfs data")
 		}
 

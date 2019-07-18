@@ -46,6 +46,7 @@ type NewStoreOptions struct {
 	Index                  IndexConstructor
 	AccessController       accesscontroller.Interface
 	Cache                  datastore.Datastore
+	CacheDestroy 		   func () error
 	ReplicationConcurrency uint
 	ReferenceCount         *int
 	Replicate              *bool

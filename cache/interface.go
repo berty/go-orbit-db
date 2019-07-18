@@ -8,4 +8,5 @@ import (
 type Interface interface {
 	Load(directory string, dbAddress address.Address) (datastore.Datastore, error)
 	Close() error
+	Destroy(directory string, dbAddress address.Address) error
 }

@@ -5,6 +5,7 @@ import (
 	"github.com/berty/go-orbit-db/address"
 	"github.com/berty/go-orbit-db/stores/replicator"
 	"github.com/ipfs/go-cid"
+	"go.uber.org/zap"
 )
 
 type Event interface{}
@@ -53,6 +54,7 @@ type EventLoad struct {
 }
 
 func NewEventLoad(addr address.Address, heads []*entry.Entry) *EventLoad {
+	logger().Debug("emitting stores.load event", zap.String("addr", addr.String()))
 	return &EventLoad{
 		Address: addr,
 		Heads:   heads,
@@ -81,6 +83,7 @@ type EventReady struct {
 }
 
 func NewEventReady(addr address.Address, heads []*entry.Entry) *EventReady {
+	logger().Debug("emitting stores.ready event", zap.String("addr", addr.String()))
 	return &EventReady{
 		Address: addr,
 		Heads:   heads,
@@ -94,6 +97,7 @@ type EventWrite struct {
 }
 
 func NewEventWrite(addr address.Address, e *entry.Entry, heads []*entry.Entry) *EventWrite {
+	logger().Debug("emitting stores.write event", zap.String("addr", addr.String()))
 	return &EventWrite{
 		Address: addr,
 		Entry:   e,
@@ -106,6 +110,7 @@ type EventClosed struct {
 }
 
 func NewEventClosed(addr address.Address) *EventClosed {
+	logger().Debug("emitting stores.closed event", zap.String("addr", addr.String()))
 	return &EventClosed{
 		Address: addr,
 	}

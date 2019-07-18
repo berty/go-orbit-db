@@ -29,8 +29,6 @@ import (
 	net "github.com/libp2p/go-libp2p-core/network"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"log"
-
 	"path"
 	"strings"
 )
@@ -470,7 +468,7 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 		}
 	}
 
-	cache, err := o.loadCache(o.directory, parsedDBAddress)
+	c, err := o.loadCache(o.directory, parsedDBAddress)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to acquire a cache instance")
 	}
@@ -481,7 +479,7 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 
 	options.AccessController = accessController
 	options.Keystore = o.keystore
-	options.Cache = cache
+	options.Cache = c
 
 	identity := o.identity
 	if options.Identity != nil {
@@ -497,6 +495,7 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 		Cache:            options.Cache,
 		Replicate:        options.Replicate,
 		Directory:        *options.Directory,
+		CacheDestroy:     func () error { return o.cache.Destroy(o.directory, parsedDBAddress) },
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to instantiate store")
@@ -545,25 +544,25 @@ func (o *orbitDB) storeListenerSwitch(ctx context.Context, evt stores.Event) {
 	case *stores.EventClosed:
 		e := evt.(*stores.EventClosed)
 		err := o.onClose(ctx, e.Address.GetRoot())
-		log.Printf("unable to perform onClose %v", err)
+		logger().Debug(fmt.Sprintf("unable to perform onClose %v", err))
 
 	case *stores.EventWrite:
 		e := evt.(*stores.EventWrite)
 		if len(e.Heads) == 0 {
-			log.Printf("'heads' are not defined")
+			logger().Debug(fmt.Sprintf("'heads' are not defined"))
 			return
 		}
 
 		if o.pubsub != nil {
 			headsBytes, err := json.Marshal(e.Heads)
 			if err != nil {
-				log.Printf("unable to serialize heads %v", err)
+				logger().Debug(fmt.Sprintf("unable to serialize heads %v", err))
 				return
 			}
 
 			err = o.pubsub.Publish(ctx, e.Address.String(), headsBytes)
 			if err != nil {
-				log.Printf("unable to publish message on pubsub %v", err)
+				logger().Debug(fmt.Sprintf("unable to publish message on pubsub %v", err))
 				return
 			}
 		}

@@ -7,18 +7,15 @@ import (
 	iface "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/pkg/errors"
 	"github.com/shibukawa/configdir"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest"
 	"testing"
 )
 
 func init() {
-	zaptest.Level(zapcore.DebugLevel)
-	config := zap.NewDevelopmentConfig()
-	config.OutputPaths = []string{"stdout"}
-	logger, _ := config.Build()
-	zap.ReplaceGlobals(logger)
+	//zaptest.Level(zapcore.DebugLevel)
+	//config := zap.NewDevelopmentConfig()
+	//config.OutputPaths = []string{"stdout"}
+	//logger, _ := config.Build()
+	//zap.ReplaceGlobals(logger)
 }
 
 func getTempDirectory() string {
