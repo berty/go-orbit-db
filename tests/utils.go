@@ -7,23 +7,19 @@ import (
 	mock "github.com/ipfs/go-ipfs/core/mock"
 	iface "github.com/ipfs/interface-go-ipfs-core"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
-	"github.com/pkg/errors"
 	"github.com/shibukawa/configdir"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest"
 	"testing"
 )
 
 func init() {
-	zaptest.Level(zapcore.DebugLevel)
-	config := zap.NewDevelopmentConfig()
-	config.OutputPaths = []string{"stdout"}
-	logger, _ := config.Build()
-	zap.ReplaceGlobals(logger)
+	//zaptest.Level(zapcore.DebugLevel)
+	//config := zap.NewDevelopmentConfig()
+	//config.OutputPaths = []string{"stdout"}
+	//logger, _ := config.Build()
+	//zap.ReplaceGlobals(logger)
 }
 
-func getTempDirectory() string {
+func GetTempDirectory() string {
 	storagePath := configdir.New("go-orbit-db", "go-orbit-db")
 	storageDirs := storagePath.QueryFolders(configdir.Cache)
 
@@ -38,16 +34,16 @@ func getTempDirectory() string {
 	return storageDirs[0].Path
 }
 
-var testNetwork mocknet.Mocknet
+var TestNetwork mocknet.Mocknet
 
-func makeIPFS(ctx context.Context, t *testing.T) (*ipfsCore.IpfsNode, iface.CoreAPI) {
-	if testNetwork == nil {
-		testNetwork = mocknet.New(ctx)
+func MakeIPFS(ctx context.Context, t *testing.T) (*ipfsCore.IpfsNode, iface.CoreAPI) {
+	if TestNetwork == nil {
+		TestNetwork = mocknet.New(ctx)
 	}
 
 	core, err := ipfsCore.NewNode(ctx, &ipfsCore.BuildCfg{
 		Online: true,
-		Host:   mock.MockHostOption(testNetwork),
+		Host:   mock.MockHostOption(TestNetwork),
 		ExtraOpts: map[string]bool{
 			"pubsub": true,
 		},
@@ -65,10 +61,6 @@ func makeIPFS(ctx context.Context, t *testing.T) (*ipfsCore.IpfsNode, iface.Core
 	return core, api
 }
 
-func teardownNetwork () {
-	testNetwork = nil
-}
-
-type stackTracer interface {
-	StackTrace() errors.StackTrace
+func TeardownNetwork() {
+	TestNetwork = nil
 }

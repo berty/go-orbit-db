@@ -17,7 +17,6 @@ import (
 	"github.com/berty/go-orbit-db/cache"
 	"github.com/berty/go-orbit-db/cache/cacheleveldown"
 	"github.com/berty/go-orbit-db/events"
-	"github.com/berty/go-orbit-db/ipfs"
 	"github.com/berty/go-orbit-db/pubsub"
 	"github.com/berty/go-orbit-db/pubsub/oneonone"
 	"github.com/berty/go-orbit-db/pubsub/peermonitor"
@@ -29,6 +28,7 @@ import (
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-ds-leveldb"
 	cbornode "github.com/ipfs/go-ipld-cbor"
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	p2pcore "github.com/libp2p/go-libp2p-core"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -54,12 +54,12 @@ type NewOrbitDBOptions struct {
 }
 
 type orbitDB struct {
-	ipfs              ipfs.Services
+	ipfs              coreapi.CoreAPI
 	identity          *idp.Identity
 	id                p2pcore.PeerID
 	pubsub            pubsub.Interface
 	keystore          *keystore.Keystore
-	stores            map[string]stores.Interface
+	stores            map[string]orbitdb.Store
 	directConnections map[p2pcore.PeerID]oneonone.Channel
 	directory         string
 	cache             cache.Interface
@@ -71,7 +71,7 @@ func (o *orbitDB) Identity() *identityprovider.Identity {
 
 var defaultDirectory = "./orbitdb"
 
-func newOrbitDB(ctx context.Context, is ipfs.Services, identity *idp.Identity, options *NewOrbitDBOptions) (orbitdb.OrbitDB, error) {
+func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity, options *NewOrbitDBOptions) (orbitdb.OrbitDB, error) {
 	if is == nil {
 		return nil, errors.New("ipfs is a required argument")
 	}
@@ -114,17 +114,17 @@ func newOrbitDB(ctx context.Context, is ipfs.Services, identity *idp.Identity, o
 		pubsub:            ps,
 		cache:             options.Cache,
 		directory:         *options.Directory,
-		stores:            map[string]stores.Interface{},
+		stores:            map[string]orbitdb.Store{},
 		directConnections: map[p2pcore.PeerID]oneonone.Channel{},
 	}, nil
 }
 
-func NewOrbitDB(ctx context.Context, services ipfs.Services, options *NewOrbitDBOptions) (orbitdb.OrbitDB, error) {
-	if services == nil {
-		return nil, errors.New("services is a required argument")
+func NewOrbitDB(ctx context.Context, ipfs coreapi.CoreAPI, options *NewOrbitDBOptions) (orbitdb.OrbitDB, error) {
+	if ipfs == nil {
+		return nil, errors.New("ipfs is a required argument")
 	}
 
-	k, err := services.Key().Self(ctx)
+	k, err := ipfs.Key().Self(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +172,7 @@ func NewOrbitDB(ctx context.Context, services ipfs.Services, options *NewOrbitDB
 		options.Identity = identity
 	}
 
-	return newOrbitDB(ctx, services, options.Identity, options)
+	return newOrbitDB(ctx, ipfs, options.Identity, options)
 }
 
 func (o *orbitDB) Close() error {
@@ -203,7 +203,7 @@ func (o *orbitDB) Close() error {
 		}
 	}
 
-	o.stores = map[string]stores.Interface{}
+	o.stores = map[string]orbitdb.Store{}
 
 	err := o.cache.Close()
 	if err != nil {
@@ -214,7 +214,7 @@ func (o *orbitDB) Close() error {
 	return nil
 }
 
-func (o *orbitDB) Create(ctx context.Context, name string, storeType string, options *orbitdb.CreateDBOptions) (stores.Interface, error) {
+func (o *orbitDB) Create(ctx context.Context, name string, storeType string, options *orbitdb.CreateDBOptions) (orbitdb.Store, error) {
 	logger().Debug("Create()")
 
 	if options == nil {
@@ -229,7 +229,7 @@ func (o *orbitDB) Create(ctx context.Context, name string, storeType string, opt
 	logger().Debug(fmt.Sprintf("Creating database '%s' as %s in '%s'", name, storeType, o.directory))
 
 	// Create the database address
-	dbAddress, err := o.DetermineAddress(ctx, name, storeType, &orbitdb.DetermineAddressOptions{})
+	dbAddress, err := o.DetermineAddress(ctx, name, storeType, &orbitdb.DetermineAddressOptions{AccessController: options.AccessController})
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +258,7 @@ func (o *orbitDB) Create(ctx context.Context, name string, storeType string, opt
 	return o.Open(ctx, dbAddress.String(), options)
 }
 
-func (o *orbitDB) Log(ctx context.Context, address string, options *orbitdb.CreateDBOptions) (eventlogstore.OrbitDBEventLogStore, error) {
+func (o *orbitDB) Log(ctx context.Context, address string, options *orbitdb.CreateDBOptions) (orbitdb.EventLogStore, error) {
 	if options == nil {
 		options = &orbitdb.CreateDBOptions{}
 	}
@@ -270,7 +270,7 @@ func (o *orbitDB) Log(ctx context.Context, address string, options *orbitdb.Crea
 		return nil, errors.Wrap(err, "unable to open database")
 	}
 
-	logStore, ok := store.(eventlogstore.OrbitDBEventLogStore)
+	logStore, ok := store.(orbitdb.EventLogStore)
 	if !ok {
 		return nil, errors.New("unable to cast store to log")
 	}
@@ -278,7 +278,7 @@ func (o *orbitDB) Log(ctx context.Context, address string, options *orbitdb.Crea
 	return logStore, nil
 }
 
-func (o *orbitDB) KeyValue(ctx context.Context, address string, options *orbitdb.CreateDBOptions) (kvstore.OrbitDBKeyValue, error) {
+func (o *orbitDB) KeyValue(ctx context.Context, address string, options *orbitdb.CreateDBOptions) (orbitdb.KeyValueStore, error) {
 	if options == nil {
 		options = &orbitdb.CreateDBOptions{}
 	}
@@ -291,7 +291,7 @@ func (o *orbitDB) KeyValue(ctx context.Context, address string, options *orbitdb
 		return nil, errors.Wrap(err, "unable to open database")
 	}
 
-	kvStore, ok := store.(kvstore.OrbitDBKeyValue)
+	kvStore, ok := store.(orbitdb.KeyValueStore)
 	if !ok {
 		return nil, errors.New("unable to cast store to keyvalue")
 	}
@@ -299,7 +299,7 @@ func (o *orbitDB) KeyValue(ctx context.Context, address string, options *orbitdb
 	return kvStore, nil
 }
 
-func (o *orbitDB) Open(ctx context.Context, dbAddress string, options *orbitdb.CreateDBOptions) (stores.Interface, error) {
+func (o *orbitDB) Open(ctx context.Context, dbAddress string, options *orbitdb.CreateDBOptions) (orbitdb.Store, error) {
 	logger().Debug("Open()")
 
 	if options == nil {
@@ -397,9 +397,11 @@ func (o *orbitDB) DetermineAddress(ctx context.Context, name string, storeType s
 		return nil, errors.New("given database name is an address, give only the name of the database")
 	}
 
-	options.AccessController, err = ipfsAccessController.NewIPFSAccessController(ctx, o, &base.CreateAccessControllerOptions{})
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to initialize access controller")
+	if options.AccessController == nil {
+		options.AccessController, err = ipfsAccessController.NewIPFSAccessController(ctx, o, &base.CreateAccessControllerOptions{})
+		if err != nil {
+			return nil, errors.Wrap(err, "unable to initialize access controller")
+		}
 	}
 
 	accessControllerAddress, err := base.Create(ctx, o, options.AccessController.Type(), &base.CreateAccessControllerOptions{})
@@ -465,11 +467,11 @@ func (o *orbitDB) addManifestToCache(directory string, dbAddress address.Address
 	return nil
 }
 
-func (o *orbitDB) IPFS() ipfs.Services {
+func (o *orbitDB) IPFS() coreapi.CoreAPI {
 	return o.ipfs
 }
 
-func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAddress address.Address, options *orbitdb.CreateDBOptions) (stores.Interface, error) {
+func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAddress address.Address, options *orbitdb.CreateDBOptions) (orbitdb.Store, error) {
 	var err error
 	storeFunc, ok := stores.GetConstructor(storeType)
 	if !ok {
@@ -477,13 +479,14 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 	}
 
 	accessController := options.AccessController
-	if options.AccessControllerAddress != "" {
+	options.AccessControllerAddress = strings.TrimPrefix(options.AccessControllerAddress, "/ipfs/")
+
+	if len(options.AccessControllerAddress) > 3 {
 		logger().Debug(fmt.Sprintf("Access controller address is %s", options.AccessControllerAddress))
-		options.AccessControllerAddress = strings.TrimPrefix(options.AccessControllerAddress, "/ipfs/")
 
 		c, err := cid.Decode(options.AccessControllerAddress)
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to parse access controller address")
+			return nil, errors.Wrap(err, fmt.Sprintf("unable to parse access controller address (%s %d)", options.AccessControllerAddress, len(options.AccessControllerAddress)))
 		}
 
 		accessController, err = base.Resolve(ctx, o, options.AccessControllerAddress, accesscontroller.NewManifestParams(
@@ -517,7 +520,7 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 		options.Directory = &o.directory
 	}
 
-	store, err := storeFunc(ctx, o.ipfs, identity, parsedDBAddress, &stores.NewStoreOptions{
+	store, err := storeFunc(ctx, o.ipfs, identity, parsedDBAddress, &orbitdb.NewStoreOptions{
 		AccessController: options.AccessController,
 		Cache:            options.Cache,
 		Replicate:        options.Replicate,
@@ -787,3 +790,8 @@ func (o *orbitDB) getDirectConnection(ctx context.Context, peerID p2pcore.PeerID
 }
 
 var _ orbitdb.OrbitDB = &orbitDB{}
+
+func init() {
+	stores.RegisterStore("eventlog", eventlogstore.NewOrbitDBEventLogStore)
+	stores.RegisterStore("keyvalue", kvstore.NewOrbitDBKeyValue)
+}

@@ -20,7 +20,7 @@ func TestKeyValueStore(t *testing.T) {
 		c.So(err, ShouldBeNil)
 
 		db1Path := path.Join(dbPath, "1")
-		_, db1IPFS := makeIPFS(ctx, t)
+		_, db1IPFS := MakeIPFS(ctx, t)
 
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, db1IPFS, &orbitdb.NewOrbitDBOptions{
 			Directory: &db1Path,
@@ -125,6 +125,6 @@ func TestKeyValueStore(t *testing.T) {
 			c.So(value, ShouldEqual, nil)
 		})
 
-		teardownNetwork()
+		TeardownNetwork()
 	})
 }

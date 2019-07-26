@@ -7,9 +7,9 @@ import (
 	"context"
 	"fmt"
 	iface "github.com/berty/go-orbit-db"
+	"github.com/berty/go-orbit-db/accesscontroller/base"
 	"github.com/berty/go-orbit-db/accesscontroller/simple"
 	"github.com/berty/go-orbit-db/orbitdb"
-	"github.com/berty/go-orbit-db/stores/eventlogstore"
 	"github.com/berty/go-orbit-db/stores/operation"
 	"github.com/berty/go-orbit-db/utils"
 	"github.com/ipfs/go-datastore"
@@ -27,8 +27,8 @@ func TestCreateOpen(t *testing.T) {
 	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
 
 	Convey("orbit-db - Create & Open", t, FailureHalts, func(c C) {
-		_, ipfs := makeIPFS(ctx, t)
-		tempDir := getTempDirectory()
+		_, ipfs := MakeIPFS(ctx, t)
+		tempDir := GetTempDirectory()
 
 		dbPath := path.Join(tempDir, "./orbitdb/tests/create-open", "1")
 
@@ -156,10 +156,19 @@ func TestCreateOpen(t *testing.T) {
 					})
 
 					c.Convey("creates an access controller and adds writers", FailureHalts, func(c C) {
-						db, err := orbit.Create(ctx, "fourth", "eventlog", &iface.CreateDBOptions{
-							AccessController: simple.NewSimpleAccessController(map[string][]string{
+						access, err := simple.NewSimpleAccessController(ctx, nil, &base.CreateAccessControllerOptions{
+							Access: map[string][]string{
 								"write": {"another-key", "yet-another-key", orbit.Identity().ID},
-							}),
+							},
+						})
+
+						c.So(err, ShouldBeNil)
+
+						overwrite := true
+
+						db, err := orbit.Create(ctx, "fourth", "eventlog", &iface.CreateDBOptions{
+							AccessController: access,
+							Overwrite: &overwrite,
 						})
 						c.So(err, ShouldBeNil)
 
@@ -311,7 +320,7 @@ func TestCreateOpen(t *testing.T) {
 				db, err := orbit.Open(ctx, "ZZZ", &iface.CreateDBOptions{ Create: &create, StoreType: &storeType })
 				c.So(err, ShouldBeNil)
 
-				logStore, ok := db.(eventlogstore.OrbitDBEventLogStore)
+				logStore, ok := db.(iface.EventLogStore)
 				c.So(ok, ShouldBeTrue)
 
 				_, err = logStore.Add(ctx, []byte("hello1"))
@@ -329,7 +338,7 @@ func TestCreateOpen(t *testing.T) {
 				res := make(chan operation.Operation, 100)
 				infinity := -1
 
-				err = logStore.Stream(ctx, res, &eventlogstore.StreamOptions{Amount: &infinity})
+				err = logStore.Stream(ctx, res, &iface.StreamOptions{Amount: &infinity})
 
 				c.So(err, ShouldBeNil)
 				c.So(len(res), ShouldEqual, 2)
@@ -342,6 +351,6 @@ func TestCreateOpen(t *testing.T) {
 			})
 		})
 
-		teardownNetwork()
+		TeardownNetwork()
 	})
 }

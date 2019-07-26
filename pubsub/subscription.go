@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/berty/go-orbit-db/events"
-	"github.com/berty/go-orbit-db/ipfs"
 	"github.com/berty/go-orbit-db/pubsub/peermonitor"
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	iface "github.com/ipfs/interface-go-ipfs-core"
 	p2pcore "github.com/libp2p/go-libp2p-core"
 	"github.com/pkg/errors"
@@ -16,25 +16,25 @@ type subscription struct {
 	events.EventEmitter
 	cancel    context.CancelFunc
 	pubSubSub iface.PubSubSubscription
-	services  ipfs.Services
+	ipfs      coreapi.CoreAPI
 	id        p2pcore.PeerID
 }
 
-func NewSubscription(ctx context.Context, services ipfs.Services, topic string) (Subscription, error) {
+func NewSubscription(ctx context.Context, ipfs coreapi.CoreAPI, topic string) (Subscription, error) {
 	_, cancel := context.WithCancel(ctx)
 
-	pubSubSub, err := services.PubSub().Subscribe(ctx, topic)
+	pubSubSub, err := ipfs.PubSub().Subscribe(ctx, topic)
 	if err != nil {
 		return nil, err
 	}
 
-	id, err := services.Key().Self(ctx)
+	id, err := ipfs.Key().Self(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to get id for user")
 	}
 
 	s := &subscription{
-		services:  services,
+		ipfs:      ipfs,
 		pubSubSub: pubSubSub,
 		cancel:    cancel,
 		id:        id.ID(),
@@ -53,7 +53,7 @@ func (s *subscription) Close() error {
 }
 
 func (s *subscription) topicMonitor(ctx context.Context, topic string) {
-	pm := peermonitor.NewPeerMonitor(ctx, s.services, topic, nil)
+	pm := peermonitor.NewPeerMonitor(ctx, s.ipfs, topic, nil)
 	ch := pm.Subscribe()
 	pm.Start(ctx)
 

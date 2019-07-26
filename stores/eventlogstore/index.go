@@ -3,7 +3,7 @@ package eventlogstore
 import (
 	"berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/entry"
-	"github.com/berty/go-orbit-db/stores"
+	orbitdb "github.com/berty/go-orbit-db"
 )
 
 type eventIndex struct {
@@ -24,9 +24,9 @@ func (i *eventIndex) UpdateIndex(log *ipfslog.Log, _ []*entry.Entry) error {
 	return nil
 }
 
-func NewEventIndex(_ []byte) stores.Index {
+func NewEventIndex(_ []byte) orbitdb.StoreIndex {
 	return &eventIndex{}
 }
 
-var _ stores.IndexConstructor = NewEventIndex
-var _ stores.Index = &eventIndex{}
+var _ orbitdb.IndexConstructor = NewEventIndex
+var _ orbitdb.StoreIndex = &eventIndex{}

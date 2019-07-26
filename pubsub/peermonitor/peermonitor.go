@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/berty/go-orbit-db/events"
-	"github.com/berty/go-orbit-db/ipfs"
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/pkg/errors"
@@ -32,12 +32,12 @@ var defaultPeerMonitorOptions = &NewPeerMonitorOptions{
 
 type peerMonitor struct {
 	events.EventEmitter
-	cancelFunc     func()
-	ipfs           ipfs.Services
-	topic          string
-	started        bool
-	pollInterval   time.Duration
-	peers          map[peer.ID]struct{}
+	cancelFunc   func()
+	ipfs         coreapi.CoreAPI
+	topic        string
+	started      bool
+	pollInterval time.Duration
+	peers        map[peer.ID]struct{}
 }
 
 func (p *peerMonitor) Start(ctx context.Context) func() {
@@ -134,7 +134,7 @@ func (p *peerMonitor) pollPeers(ctx context.Context) error {
 	return nil
 }
 
-func NewPeerMonitor(ctx context.Context, services ipfs.Services, topic string, options *NewPeerMonitorOptions) Interface {
+func NewPeerMonitor(ctx context.Context, ipfs coreapi.CoreAPI, topic string, options *NewPeerMonitorOptions) Interface {
 	if options == nil {
 		options = defaultPeerMonitorOptions
 	}
@@ -148,9 +148,9 @@ func NewPeerMonitor(ctx context.Context, services ipfs.Services, topic string, o
 	}
 
 	monitor := &peerMonitor{
-		ipfs:           services,
-		topic:          topic,
-		pollInterval:   *options.PollInterval,
+		ipfs:         ipfs,
+		topic:        topic,
+		pollInterval: *options.PollInterval,
 	}
 
 	if *options.Start == true {

@@ -9,17 +9,19 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	orbitdb "github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/accesscontroller"
+	"github.com/berty/go-orbit-db/accesscontroller/base"
 	"github.com/berty/go-orbit-db/accesscontroller/simple"
 	"github.com/berty/go-orbit-db/address"
 	"github.com/berty/go-orbit-db/events"
-	"github.com/berty/go-orbit-db/ipfs"
 	"github.com/berty/go-orbit-db/stores"
 	"github.com/berty/go-orbit-db/stores/operation"
 	"github.com/berty/go-orbit-db/stores/replicator"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	files "github.com/ipfs/go-ipfs-files"
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -33,13 +35,13 @@ type BaseStore struct {
 	identity          *identityprovider.Identity
 	address           address.Address
 	dbName            string
-	ipfs              ipfs.Services
+	ipfs              coreapi.CoreAPI
 	cache             datastore.Datastore
 	access            accesscontroller.Interface
 	oplog             *ipfslog.Log
 	replicator        replicator.Replicator
 	storeType         string
-	index             stores.Index
+	index             orbitdb.StoreIndex
 	replicationStatus replicator.ReplicationInfo
 	loader            replicator.Replicator
 	onClose           func(address.Address)
@@ -52,7 +54,7 @@ type BaseStore struct {
 	referenceCount int
 	replicate      bool
 	directory      string
-	options        *stores.NewStoreOptions
+	options        *orbitdb.NewStoreOptions
 	cacheDestroy   func() error
 }
 
@@ -60,7 +62,7 @@ func (b *BaseStore) DBName() string {
 	return b.dbName
 }
 
-func (b *BaseStore) Ipfs() ipfs.Services {
+func (b *BaseStore) Ipfs() coreapi.CoreAPI {
 	return b.ipfs
 }
 
@@ -76,7 +78,7 @@ func (b *BaseStore) AccessController() accesscontroller.Interface {
 	return b.access
 }
 
-func (b *BaseStore) InitBaseStore(ctx context.Context, services ipfs.Services, identity *identityprovider.Identity, addr address.Address, options *stores.NewStoreOptions) error {
+func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *orbitdb.NewStoreOptions) error {
 	var err error
 
 	if identity == nil {
@@ -88,16 +90,24 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, services ipfs.Services, i
 	b.identity = identity
 	b.address = addr
 	b.dbName = addr.GetPath()
-	b.ipfs = services
+	b.ipfs = ipfs
 	b.cache = options.Cache
 	b.cacheDestroy = options.CacheDestroy
 	if options.AccessController != nil {
 		b.access = options.AccessController
 	} else {
-		b.access = simple.NewSimpleAccessController(map[string][]string{"write": {identity.ID}})
+		b.access, err = simple.NewSimpleAccessController(ctx, nil, &base.CreateAccessControllerOptions{
+			Access: map[string][]string{
+				"write": {identity.ID},
+			},
+		})
+
+		if err != nil {
+			return errors.Wrap(err, "unable to create simple access controller")
+		}
 	}
 
-	b.oplog, err = ipfslog.NewLog(services, identity, &ipfslog.LogOptions{
+	b.oplog, err = ipfslog.NewLog(ipfs, identity, &ipfslog.LogOptions{
 		ID:               b.id,
 		AccessController: b.access,
 	})
@@ -201,7 +211,7 @@ func (b *BaseStore) Address() address.Address {
 	return b.address
 }
 
-func (b *BaseStore) Index() stores.Index {
+func (b *BaseStore) Index() orbitdb.StoreIndex {
 	return b.index
 }
 
@@ -399,8 +409,6 @@ func (b *BaseStore) SaveSnapshot(ctx context.Context) (cid.Cid, error) {
 		if err != nil {
 			return cid.Cid{}, errors.Wrap(err, "unable to serialize entry as JSON")
 		}
-
-		logger().Debug(fmt.Sprintf("Serialized entry: %s", string(entryJSON)))
 
 		size := make([]byte, 2)
 		binary.BigEndian.PutUint16(size, uint16(len(entryJSON)))
@@ -663,4 +671,4 @@ func (b *BaseStore) replicationLoadComplete(logs []*ipfslog.Log) {
 	b.Emit(stores.NewEventReplicated(b.address, len(logs)))
 }
 
-var _ stores.Interface = &BaseStore{}
+var _ orbitdb.Store = &BaseStore{}

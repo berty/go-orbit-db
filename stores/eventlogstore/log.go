@@ -4,12 +4,13 @@ import (
 	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"context"
+	orbitdb "github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/address"
-	"github.com/berty/go-orbit-db/ipfs"
 	"github.com/berty/go-orbit-db/stores"
 	"github.com/berty/go-orbit-db/stores/basestore"
 	"github.com/berty/go-orbit-db/stores/operation"
 	"github.com/ipfs/go-cid"
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/pkg/errors"
 )
 
@@ -17,12 +18,12 @@ type orbitDBEventLogStore struct {
 	basestore.BaseStore
 }
 
-func (o *orbitDBEventLogStore) List(ctx context.Context, options *StreamOptions) ([]operation.Operation, error) {
+func (o *orbitDBEventLogStore) List(ctx context.Context, options *orbitdb.StreamOptions) ([]operation.Operation, error) {
 	var err error
 	var operations []operation.Operation
 	c := make(chan operation.Operation, 10)
 
-	go func () {
+	go func() {
 		err = o.Stream(ctx, c, options)
 	}()
 	for op := range c {
@@ -63,7 +64,7 @@ func (o *orbitDBEventLogStore) Get(ctx context.Context, cid cid.Cid) (operation.
 	stream := make(chan operation.Operation, 1)
 	one := 1
 
-	err := o.Stream(ctx, stream, &StreamOptions{GTE: &cid, Amount: &one})
+	err := o.Stream(ctx, stream, &orbitdb.StreamOptions{GTE: &cid, Amount: &one})
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to open stream")
 	}
@@ -76,7 +77,7 @@ func (o *orbitDBEventLogStore) Get(ctx context.Context, cid cid.Cid) (operation.
 	}
 }
 
-func (o *orbitDBEventLogStore) Stream(ctx context.Context, resultChan chan operation.Operation, options *StreamOptions) error {
+func (o *orbitDBEventLogStore) Stream(ctx context.Context, resultChan chan operation.Operation, options *orbitdb.StreamOptions) error {
 	messages, err := o.query(options)
 	if err != nil {
 		return errors.Wrap(err, "unable to fetch query results")
@@ -96,9 +97,9 @@ func (o *orbitDBEventLogStore) Stream(ctx context.Context, resultChan chan opera
 	return nil
 }
 
-func (o *orbitDBEventLogStore) query(options *StreamOptions) ([]*entry.Entry, error) {
+func (o *orbitDBEventLogStore) query(options *orbitdb.StreamOptions) ([]*entry.Entry, error) {
 	if options == nil {
-		options = &StreamOptions{}
+		options = &orbitdb.StreamOptions{}
 	}
 
 	uncastedEvents := o.Index().Get("")
@@ -113,7 +114,7 @@ func (o *orbitDBEventLogStore) query(options *StreamOptions) ([]*entry.Entry, er
 
 	amount := 1
 	if options.Amount != nil {
-		if *options.Amount  == 0 {
+		if *options.Amount == 0 {
 			amount = 1
 		} else if *options.Amount > -1 {
 			amount = *options.Amount
@@ -198,14 +199,14 @@ func (o *orbitDBEventLogStore) Type() string {
 }
 
 func init() {
-	stores.RegisterStore("eventlog", newOrbitDBEventLogStore)
+	stores.RegisterStore("eventlog", NewOrbitDBEventLogStore)
 }
 
-func newOrbitDBEventLogStore(ctx context.Context, services ipfs.Services, identity *identityprovider.Identity, addr address.Address, options *stores.NewStoreOptions) (i stores.Interface, e error) {
+func NewOrbitDBEventLogStore(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *orbitdb.NewStoreOptions) (i orbitdb.Store, e error) {
 	store := &orbitDBEventLogStore{}
 	options.Index = NewEventIndex
 
-	err := store.InitBaseStore(ctx, services, identity, addr, options)
+	err := store.InitBaseStore(ctx, ipfs, identity, addr, options)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to initialize base store")
 	}
@@ -213,4 +214,4 @@ func newOrbitDBEventLogStore(ctx context.Context, services ipfs.Services, identi
 	return store, nil
 }
 
-var _ OrbitDBEventLogStore = &orbitDBEventLogStore{}
+var _ orbitdb.EventLogStore = &orbitDBEventLogStore{}

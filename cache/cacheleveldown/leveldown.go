@@ -12,7 +12,7 @@ import (
 	"path"
 )
 
-var singleton cache.Interface = nil
+var singleton cache.Interface
 
 type levelDownCache struct {
 	caches map[string]*wrappedCache

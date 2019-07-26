@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/berty/go-orbit-db/events"
-	"github.com/berty/go-orbit-db/ipfs"
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	iface "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	p2pcore "github.com/libp2p/go-libp2p-core"
@@ -20,7 +20,7 @@ type channel struct {
 	id         string
 	receiverID p2pcore.PeerID
 	senderID   p2pcore.PeerID
-	services   ipfs.Services
+	ipfs       coreapi.CoreAPI
 	peers      []p2pcore.PeerID
 	sub        iface.PubSubSubscription
 }
@@ -43,7 +43,7 @@ func (c *channel) Connect(ctx context.Context) error {
 }
 
 func (c *channel) waitForPeers(ctx context.Context, peersToWait []p2pcore.PeerID) error {
-	peers, err := c.services.PubSub().Peers(ctx, options.PubSub.Topic(c.id))
+	peers, err := c.ipfs.PubSub().Peers(ctx, options.PubSub.Topic(c.id))
 	if err != nil {
 		logger().Error("failed to get peers on pub sub")
 		return err
@@ -89,7 +89,7 @@ func (c *channel) waitForPeers(ctx context.Context, peersToWait []p2pcore.PeerID
 }
 
 func (c *channel) Send(ctx context.Context, data []byte) error {
-	err := c.services.PubSub().Publish(ctx, c.id, data)
+	err := c.ipfs.PubSub().Publish(ctx, c.id, data)
 	if err != nil {
 		return errors.Wrap(err, "unable to publish data on pubsub")
 	}
@@ -104,14 +104,14 @@ func (c *channel) Close() error {
 	return nil
 }
 
-func NewChannel(ctx context.Context, services ipfs.Services, pid p2pcore.PeerID) (Channel, error) {
-	selfKey, err := services.Key().Self(ctx)
+func NewChannel(ctx context.Context, ipfs coreapi.CoreAPI, pid p2pcore.PeerID) (Channel, error) {
+	selfKey, err := ipfs.Key().Self(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to get key for self")
 	}
 
 	ch := &channel{
-		services:   services,
+		ipfs:       ipfs,
 		receiverID: pid,
 		senderID:   selfKey.ID(),
 		peers:      []p2pcore.PeerID{pid, selfKey.ID()},
@@ -124,7 +124,7 @@ func NewChannel(ctx context.Context, services ipfs.Services, pid p2pcore.PeerID)
 	ch.id = "/" + PROTOCOL + "/" + strings.Join(channelIDPeers, "/")
 	logger().Debug(fmt.Sprintf("subscribing to %s", ch.id))
 
-	sub, err := services.PubSub().Subscribe(ctx, ch.id)
+	sub, err := ipfs.PubSub().Subscribe(ctx, ch.id)
 	ch.sub = sub
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to subscribe to pubsub")

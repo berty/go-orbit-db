@@ -3,11 +3,12 @@ package kvstore
 import (
 	"berty.tech/go-ipfs-log/identityprovider"
 	"context"
+	orbitdb "github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/address"
-	"github.com/berty/go-orbit-db/ipfs"
 	"github.com/berty/go-orbit-db/stores"
 	"github.com/berty/go-orbit-db/stores/basestore"
 	"github.com/berty/go-orbit-db/stores/operation"
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/pkg/errors"
 )
 
@@ -69,15 +70,15 @@ func (o *orbitDBKeyValue) Type() string {
 }
 
 func init() {
-	stores.RegisterStore("keyvalue", newOrbitDBKeyValue)
+	stores.RegisterStore("keyvalue", NewOrbitDBKeyValue)
 }
 
-func newOrbitDBKeyValue(ctx context.Context, services ipfs.Services, identity *identityprovider.Identity, addr address.Address, options *stores.NewStoreOptions) (i stores.Interface, e error) {
+func NewOrbitDBKeyValue(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *orbitdb.NewStoreOptions) (i orbitdb.Store, e error) {
 	store := &orbitDBKeyValue{}
 
 	options.Index = NewEventIndex
 
-	err := store.InitBaseStore(ctx, services, identity, addr, options)
+	err := store.InitBaseStore(ctx, ipfs, identity, addr, options)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to initialize base store")
 	}
@@ -85,4 +86,4 @@ func newOrbitDBKeyValue(ctx context.Context, services ipfs.Services, identity *i
 	return store, nil
 }
 
-var _ OrbitDBKeyValue = &orbitDBKeyValue{}
+var _ orbitdb.KeyValueStore = &orbitDBKeyValue{}

@@ -3,20 +3,20 @@ package pubsub
 import (
 	"context"
 	"fmt"
-	"github.com/berty/go-orbit-db/ipfs"
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/pkg/errors"
 )
 
 type pubSub struct {
-	ipfs          ipfs.Services
+	ipfs          coreapi.CoreAPI
 	id            peer.ID
 	subscriptions map[string]Subscription
 }
 
-func NewPubSub(is ipfs.Services, id peer.ID) (Interface, error) {
+func NewPubSub(is coreapi.CoreAPI, id peer.ID) (Interface, error) {
 	if is == nil {
-		return nil, errors.New("ipfs services are not defined")
+		return nil, errors.New("ipfs is not defined")
 	}
 
 	ps := is.PubSub()

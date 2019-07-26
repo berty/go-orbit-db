@@ -12,6 +12,7 @@ type CreateAccessControllerOptions struct {
 	Type         string
 	SkipManifest bool
 	Name         string
+	Access       map[string][]string
 	WriteAccess  []string
 	AdminAccess  []string
 	Address      string
@@ -24,17 +25,17 @@ var supportedTypes = map[string]ControllerConstructor{}
 func Create(ctx context.Context, db orbitdb.OrbitDB, controllerType string, options *CreateAccessControllerOptions) (cid.Cid, error) {
 	AccessController, ok := supportedTypes[controllerType]
 	if !ok {
-		return cid.Cid{}, errors.New("unrecognized access controller")
+		return cid.Cid{}, errors.New("unrecognized access controller on create")
 	}
 
 	ac, err := AccessController(ctx, db, options)
 	if err != nil {
-		return cid.Cid{}, err
+		return cid.Cid{}, errors.Wrap(err, "unable to init access controller")
 	}
 
 	params, err := ac.Save(ctx)
 	if err != nil {
-		return cid.Cid{}, err
+		return cid.Cid{}, errors.Wrap(err, "unable to save access controller")
 	}
 
 	return accesscontroller.CreateManifest(ctx, db.IPFS(), controllerType, params)
@@ -48,7 +49,7 @@ func Resolve(ctx context.Context, db orbitdb.OrbitDB, manifestAddress string, pa
 
 	accessControllerConstructor, ok := supportedTypes[manifest.Type]
 	if !ok {
-		return nil, errors.New("unrecognized access controller")
+		return nil, errors.New("unrecognized access controller on resolve")
 	}
 
 	// TODO: options

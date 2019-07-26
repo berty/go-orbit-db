@@ -72,7 +72,7 @@ func NewReplicator(ctx context.Context, store StoreInterface, concurrency uint) 
 		cancelFunc:  cancelFunc,
 		concurrency: concurrency,
 		store:       store,
-		queue: 		 map[string]cid.Cid{},
+		queue:       map[string]cid.Cid{},
 		fetching:    map[string]cid.Cid{},
 	}
 

@@ -66,6 +66,6 @@ func TestOrbitDbAddress(t *testing.T) {
 			})
 		})
 
-		teardownNetwork()
+		TeardownNetwork()
 	})
 }

@@ -6,13 +6,13 @@ import (
 	"context"
 	"github.com/berty/go-orbit-db/accesscontroller"
 	"github.com/berty/go-orbit-db/events"
-	"github.com/berty/go-orbit-db/ipfs"
 	"github.com/ipfs/go-cid"
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
 )
 
 type StoreInterface interface {
 	OpLog() *ipfslog.Log
-	Ipfs() ipfs.Services
+	Ipfs() coreapi.CoreAPI
 	Identity() *identityprovider.Identity
 	AccessController() accesscontroller.Interface
 }

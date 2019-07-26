@@ -13,7 +13,6 @@ import (
 	"github.com/berty/go-orbit-db/address"
 	"github.com/berty/go-orbit-db/events"
 	"github.com/berty/go-orbit-db/stores"
-	"github.com/berty/go-orbit-db/stores/kvstore"
 	"github.com/pkg/errors"
 )
 
@@ -22,9 +21,9 @@ type EventUpdated struct{}
 
 type orbitDBAccessController struct {
 	events.EventEmitter
-	orbitdb    orbitdb.OrbitDB
-	kvStore    kvstore.OrbitDBKeyValue
-	options    *base.CreateAccessControllerOptions
+	orbitdb orbitdb.OrbitDB
+	kvStore orbitdb.KeyValueStore
+	options *base.CreateAccessControllerOptions
 }
 
 func (o *orbitDBAccessController) Type() string {
@@ -122,7 +121,7 @@ func (o *orbitDBAccessController) Grant(ctx context.Context, capability string, 
 	}
 
 	_, err = o.kvStore.Put(ctx, capability, capabilitiesJSON)
-	if err!= nil {
+	if err != nil {
 		return errors.Wrap(err, "unable to put data in store")
 	}
 
@@ -170,14 +169,20 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 		}
 	}
 
+	if o.options.Access == nil {
+		o.options.Access = map[string][]string{}
+	}
+
 	// Force '<address>/_access' naming for the database
-	writeAccess := o.options.AdminAccess
+	writeAccess := o.options.Access["admin"]
 	if len(writeAccess) == 0 {
 		writeAccess = []string{o.orbitdb.Identity().ID}
 	}
 
 	ipfsAccessController, err := ipfs.NewIPFSAccessController(ctx, o.orbitdb, &base.CreateAccessControllerOptions{
-		WriteAccess: writeAccess,
+		Access: map[string][]string{
+			"write": writeAccess,
+		},
 	})
 	if err != nil {
 		return errors.New("unable to create IPFS access controller")
@@ -251,7 +256,7 @@ func NewOrbitDBAccessController(ctx context.Context, db orbitdb.OrbitDB, options
 		options: options,
 	}
 
-	for _, writeAccess := range options.WriteAccess {
+	for _, writeAccess := range options.Access["write"] {
 		if err := controller.Grant(ctx, "write", writeAccess); err != nil {
 			return nil, errors.Wrap(err, "unable to grant write access")
 		}

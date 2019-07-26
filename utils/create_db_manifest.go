@@ -3,9 +3,9 @@ package utils
 import (
 	"berty.tech/go-ipfs-log/io"
 	"context"
-	"github.com/berty/go-orbit-db/ipfs"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/pkg/errors"
 	"github.com/polydawn/refmt/obj/atlas"
 	"path"
@@ -17,14 +17,14 @@ type Manifest struct {
 	AccessController string
 }
 
-func CreateDBManifest(ctx context.Context, services ipfs.Services, name string, dbType string, accessControllerAddress string, options interface{}) (cid.Cid, error) {
+func CreateDBManifest(ctx context.Context, ipfs coreapi.CoreAPI, name string, dbType string, accessControllerAddress string, options interface{}) (cid.Cid, error) {
 	manifest := &Manifest{
 		Name:             name,
 		Type:             dbType,
 		AccessController: path.Join("/ipfs", accessControllerAddress),
 	}
 
-	c, err := io.WriteCBOR(ctx, services, manifest)
+	c, err := io.WriteCBOR(ctx, ipfs, manifest)
 	if err != nil {
 		return cid.Cid{}, errors.Wrap(err, "unable to write cbor data")
 	}

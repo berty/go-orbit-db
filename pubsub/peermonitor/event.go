@@ -8,11 +8,11 @@ import (
 type Event events.Event
 
 type EventPeerJoin struct {
-	Peer   peer.ID
+	Peer peer.ID
 }
 
 type EventPeerLeave struct {
-	Peer   peer.ID
+	Peer peer.ID
 }
 
 func NewEventPeerJoin(p peer.ID) *EventPeerJoin {

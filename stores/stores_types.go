@@ -1,8 +1,10 @@
 package stores
 
-var storeTypes = map[string]Constructor{}
+import orbitdb "github.com/berty/go-orbit-db"
 
-func RegisterStore(storeType string, constructor Constructor) {
+var storeTypes = map[string]orbitdb.StoreConstructor{}
+
+func RegisterStore(storeType string, constructor orbitdb.StoreConstructor) {
 	storeTypes[storeType] = constructor
 }
 
@@ -20,7 +22,7 @@ func StoreTypesNames() []string {
 	return names
 }
 
-func GetConstructor(storeType string) (Constructor, bool) {
+func GetConstructor(storeType string) (orbitdb.StoreConstructor, bool) {
 	constructor, ok := storeTypes[storeType]
 
 	return constructor, ok

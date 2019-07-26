@@ -12,9 +12,9 @@ import (
 	"github.com/berty/go-orbit-db/accesscontroller/base"
 	"github.com/berty/go-orbit-db/address"
 	"github.com/berty/go-orbit-db/events"
-	"github.com/berty/go-orbit-db/ipfs"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/pkg/errors"
 	"github.com/polydawn/refmt/obj/atlas"
 )
@@ -25,7 +25,7 @@ type cborWriteAccess struct {
 
 type ipfsAccessController struct {
 	events.EventEmitter
-	ipfs        ipfs.Services
+	ipfs        coreapi.CoreAPI
 	writeAccess []string
 }
 
@@ -129,12 +129,16 @@ func NewIPFSAccessController(_ context.Context, db orbitdb.OrbitDB, options *bas
 		return &ipfsAccessController{}, errors.New("an OrbitDB instance is required")
 	}
 
-	if options.WriteAccess == nil {
-		options.WriteAccess = []string{db.Identity().ID}
+	if options.Access == nil {
+		options.Access = map[string][]string{}
+	}
+
+	if options.Access["write"] == nil {
+		options.Access["write"] = []string{db.Identity().ID}
 	}
 
 	var allowedIDs []string
-	for _, keyID := range options.WriteAccess {
+	for _, keyID := range options.Access["write"] {
 		allowedIDs = append(allowedIDs, keyID)
 	}
 

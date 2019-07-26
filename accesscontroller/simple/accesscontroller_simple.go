@@ -4,9 +4,12 @@ import (
 	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"context"
+	orbitdb "github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/accesscontroller"
+	"github.com/berty/go-orbit-db/accesscontroller/base"
 	"github.com/berty/go-orbit-db/address"
 	"github.com/berty/go-orbit-db/events"
+	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 )
 
@@ -32,7 +35,7 @@ func (o *simpleAccessController) Load(ctx context.Context, address string) error
 }
 
 func (o *simpleAccessController) Save(ctx context.Context) (accesscontroller.ManifestParams, error) {
-	return nil, nil
+	return accesscontroller.NewManifestParams(cid.Cid{}, true, "simple"), nil
 }
 
 func (o *simpleAccessController) Close() error {
@@ -57,10 +60,18 @@ func (o *simpleAccessController) CanAppend(e *entry.Entry, p identityprovider.In
 	return errors.New("not allowed to write entry")
 }
 
-func NewSimpleAccessController(identities map[string][]string) accesscontroller.Interface {
-	return &simpleAccessController{
-		allowedKeys: identities,
+func NewSimpleAccessController(_ context.Context, _ orbitdb.OrbitDB, options *base.CreateAccessControllerOptions) (accesscontroller.Interface, error) {
+	if options.Access == nil {
+		options.Access = map[string][]string{}
 	}
+
+	return &simpleAccessController{
+		allowedKeys: options.Access,
+	}, nil
 }
 
 var _ accesscontroller.Interface = &simpleAccessController{}
+
+func init() {
+	_ = base.AddAccessController(NewSimpleAccessController)
+}

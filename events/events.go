@@ -1,6 +1,6 @@
 package events
 
-type Event interface {}
+type Event interface{}
 
 type EmitterInterface interface {
 	Emit(Event)

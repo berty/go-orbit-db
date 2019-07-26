@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	iface "github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/orbitdb"
-	"github.com/berty/go-orbit-db/stores/eventlogstore"
 	"github.com/berty/go-orbit-db/stores/operation"
 	. "github.com/smartystreets/goconvey/convey"
 	"os"
@@ -24,7 +24,7 @@ func TestLogDatabase(t *testing.T) {
 		c.So(err, ShouldBeNil)
 
 		db1Path := path.Join(dbPath, "1")
-		_, db1IPFS := makeIPFS(ctx, t)
+		_, db1IPFS := MakeIPFS(ctx, t)
 		infinity := -1
 
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, db1IPFS, &orbitdb.NewOrbitDBOptions{
@@ -45,7 +45,7 @@ func TestLogDatabase(t *testing.T) {
 
 			////// returns 0 items when it's a fresh database
 			res := make(chan operation.Operation, 100)
-			err = db.Stream(ctx, res, &eventlogstore.StreamOptions{Amount: &infinity})
+			err = db.Stream(ctx, res, &iface.StreamOptions{Amount: &infinity})
 			c.So(err, ShouldBeNil)
 			c.So(len(res), ShouldEqual, 0)
 
@@ -53,7 +53,7 @@ func TestLogDatabase(t *testing.T) {
 			op, err := db.Add(ctx, []byte("hello1"))
 			c.So(err, ShouldBeNil)
 
-			ops, err := db.List(ctx, &eventlogstore.StreamOptions{Amount: &infinity})
+			ops, err := db.List(ctx, &iface.StreamOptions{Amount: &infinity})
 
 			c.So(err, ShouldBeNil)
 			c.So(len(ops), ShouldEqual, 1)
@@ -65,7 +65,7 @@ func TestLogDatabase(t *testing.T) {
 			err = db.Load(ctx, -1)
 			c.So(err, ShouldBeNil)
 
-			ops, err = db.List(ctx, &eventlogstore.StreamOptions{Amount: &infinity})
+			ops, err = db.List(ctx, &iface.StreamOptions{Amount: &infinity})
 			c.So(err, ShouldBeNil)
 			c.So(len(ops), ShouldEqual, 1)
 
@@ -74,7 +74,7 @@ func TestLogDatabase(t *testing.T) {
 			op, err = db.Add(ctx, []byte("hello2"))
 			c.So(err, ShouldBeNil)
 
-			ops, err = db.List(ctx, &eventlogstore.StreamOptions{Amount: &infinity})
+			ops, err = db.List(ctx, &iface.StreamOptions{Amount: &infinity})
 			c.So(err, ShouldBeNil)
 			c.So(len(ops), ShouldEqual, 2)
 
@@ -91,7 +91,7 @@ func TestLogDatabase(t *testing.T) {
 				c.So(err, ShouldBeNil)
 			}
 
-			items, err := db.List(ctx, &eventlogstore.StreamOptions{Amount: &infinity})
+			items, err := db.List(ctx, &iface.StreamOptions{Amount: &infinity})
 			c.So(err, ShouldBeNil)
 			c.So(len(items), ShouldEqual, 5)
 
@@ -143,7 +143,7 @@ func TestLogDatabase(t *testing.T) {
 					c.Convey("implements Iterator interface", FailureHalts, func(c C) {
 						ch := make(chan operation.Operation, 100)
 
-						err = db.Stream(ctx, ch, &eventlogstore.StreamOptions{Amount: &infinity})
+						err = db.Stream(ctx, ch, &iface.StreamOptions{Amount: &infinity})
 						c.So(err, ShouldBeNil)
 
 						c.So(len(ch), ShouldEqual, itemCount)
@@ -168,7 +168,7 @@ func TestLogDatabase(t *testing.T) {
 
 						amount := 3
 
-						err := db.Stream(ctx, ch, &eventlogstore.StreamOptions{Amount: &amount})
+						err := db.Stream(ctx, ch, &iface.StreamOptions{Amount: &amount})
 						c.So(err, ShouldBeNil)
 
 						i := len(ops) - amount
@@ -183,7 +183,7 @@ func TestLogDatabase(t *testing.T) {
 
 			c.Convey("collect", FailureHalts, func(c C) {
 				c.Convey("returns all items", FailureHalts, func(c C) {
-					messages, err := db.List(ctx, &eventlogstore.StreamOptions{Amount: &infinity})
+					messages, err := db.List(ctx, &iface.StreamOptions{Amount: &infinity})
 
 					c.So(err, ShouldBeNil)
 					c.So(len(messages), ShouldEqual, len(ops))
@@ -200,7 +200,7 @@ func TestLogDatabase(t *testing.T) {
 
 				c.Convey("returns 3 items", FailureHalts, func(c C) {
 					three := 3
-					messages, err := db.List(ctx, &eventlogstore.StreamOptions{Amount: &three})
+					messages, err := db.List(ctx, &iface.StreamOptions{Amount: &three})
 
 					c.So(err, ShouldBeNil)
 					c.So(len(messages), ShouldEqual, 3)
@@ -211,7 +211,7 @@ func TestLogDatabase(t *testing.T) {
 				c.Convey("returns 1 item when limit is 0", FailureHalts, func(c C) {
 					ch := make(chan operation.Operation, 100)
 					zero := 0
-					err = db.Stream(ctx, ch, &eventlogstore.StreamOptions{Amount: &zero})
+					err = db.Stream(ctx, ch, &iface.StreamOptions{Amount: &zero})
 					c.So(err, ShouldBeNil)
 
 					c.So(len(ch), ShouldEqual, 1)
@@ -226,7 +226,7 @@ func TestLogDatabase(t *testing.T) {
 				c.Convey("returns 1 item when limit is 1", FailureHalts, func(c C) {
 					ch := make(chan operation.Operation, 100)
 					one := 1
-					err = db.Stream(ctx, ch, &eventlogstore.StreamOptions{Amount: &one})
+					err = db.Stream(ctx, ch, &iface.StreamOptions{Amount: &one})
 					c.So(err, ShouldBeNil)
 
 					c.So(len(ch), ShouldEqual, 1)
@@ -241,7 +241,7 @@ func TestLogDatabase(t *testing.T) {
 				c.Convey("returns 3 items", FailureHalts, func(c C) {
 					ch := make(chan operation.Operation, 100)
 					three := 3
-					err = db.Stream(ctx, ch, &eventlogstore.StreamOptions{Amount: &three})
+					err = db.Stream(ctx, ch, &iface.StreamOptions{Amount: &three})
 					c.So(err, ShouldBeNil)
 
 					c.So(len(ch), ShouldEqual, 3)
@@ -259,7 +259,7 @@ func TestLogDatabase(t *testing.T) {
 
 				c.Convey("returns all items", FailureHalts, func(c C) {
 					ch := make(chan operation.Operation, 100)
-					err = db.Stream(ctx, ch, &eventlogstore.StreamOptions{Amount: &infinity})
+					err = db.Stream(ctx, ch, &iface.StreamOptions{Amount: &infinity})
 					c.So(err, ShouldBeNil)
 
 					c.So(len(ops), ShouldEqual, len(ch))
@@ -275,7 +275,7 @@ func TestLogDatabase(t *testing.T) {
 				c.Convey("returns all items when limit is bigger than -1", FailureHalts, func(c C) {
 					ch := make(chan operation.Operation, 100)
 					minusThreeHundred := -300
-					err = db.Stream(ctx, ch, &eventlogstore.StreamOptions{Amount: &minusThreeHundred})
+					err = db.Stream(ctx, ch, &iface.StreamOptions{Amount: &minusThreeHundred})
 					c.So(err, ShouldBeNil)
 
 					c.So(len(ops), ShouldEqual, len(ch))
@@ -291,7 +291,7 @@ func TestLogDatabase(t *testing.T) {
 				c.Convey("returns all items when limit is bigger than number of items", FailureHalts, func(c C) {
 					ch := make(chan operation.Operation, 100)
 					threeHundred := 300
-					err = db.Stream(ctx, ch, &eventlogstore.StreamOptions{Amount: &threeHundred})
+					err = db.Stream(ctx, ch, &iface.StreamOptions{Amount: &threeHundred})
 					c.So(err, ShouldBeNil)
 
 					c.So(len(ops), ShouldEqual, len(ch))
@@ -308,14 +308,14 @@ func TestLogDatabase(t *testing.T) {
 			c.Convey("Options: ranges", FailureHalts, func(c C) {
 				c.Convey("gt & gte", FailureHalts, func(c C) {
 					c.Convey("returns 1 item when gte is the head", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &eventlogstore.StreamOptions{GTE: &ops[len(ops)-1].GetEntry().Hash, Amount: &infinity})
+						messages, err := db.List(ctx, &iface.StreamOptions{GTE: &ops[len(ops)-1].GetEntry().Hash, Amount: &infinity})
 						c.So(err, ShouldBeNil)
 
 						c.So(len(messages), ShouldEqual, 1)
 						c.So(messages[0].GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-1].GetEntry().Hash.String())
 					})
 					c.Convey("returns 0 items when gt is the head", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &eventlogstore.StreamOptions{GT: &ops[len(ops)-1].GetEntry().Hash, Amount: &infinity})
+						messages, err := db.List(ctx, &iface.StreamOptions{GT: &ops[len(ops)-1].GetEntry().Hash, Amount: &infinity})
 						c.So(err, ShouldBeNil)
 
 						c.So(len(messages), ShouldEqual, 0)
@@ -323,7 +323,7 @@ func TestLogDatabase(t *testing.T) {
 					c.Convey("returns 2 item when gte is defined", FailureHalts, func(c C) {
 						gte := ops[len(ops)-2].GetEntry().Hash
 
-						messages, err := db.List(ctx, &eventlogstore.StreamOptions{GTE: &gte, Amount: &infinity})
+						messages, err := db.List(ctx, &iface.StreamOptions{GTE: &gte, Amount: &infinity})
 						c.So(err, ShouldBeNil)
 
 						c.So(len(messages), ShouldEqual, 2)
@@ -331,7 +331,7 @@ func TestLogDatabase(t *testing.T) {
 						c.So(messages[1].GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-1].GetEntry().Hash.String())
 					})
 					c.Convey("returns all items when gte is the root item", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &eventlogstore.StreamOptions{ GTE: &ops[0].GetEntry().Hash, Amount: &infinity })
+						messages, err := db.List(ctx, &iface.StreamOptions{ GTE: &ops[0].GetEntry().Hash, Amount: &infinity })
 						c.So(err, ShouldBeNil)
 
 						c.So(len(messages), ShouldEqual, len(ops))
@@ -339,7 +339,7 @@ func TestLogDatabase(t *testing.T) {
 						c.So(messages[len(messages) - 1].GetEntry().Hash.String(), ShouldEqual, ops[len(ops) - 1].GetEntry().Hash.String())
 					})
 					c.Convey("returns items when gt is the root item", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &eventlogstore.StreamOptions{ GT: &ops[0].GetEntry().Hash, Amount: &infinity })
+						messages, err := db.List(ctx, &iface.StreamOptions{ GT: &ops[0].GetEntry().Hash, Amount: &infinity })
 						c.So(err, ShouldBeNil)
 
 						c.So(len(messages), ShouldEqual, len(ops) - 1)
@@ -347,14 +347,14 @@ func TestLogDatabase(t *testing.T) {
 						c.So(messages[len(messages) - 1].GetEntry().Hash.String(), ShouldEqual, ops[len(ops) - 1].GetEntry().Hash.String())
 					})
 					c.Convey("returns items when gt is defined", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &eventlogstore.StreamOptions{ Amount: &infinity })
+						messages, err := db.List(ctx, &iface.StreamOptions{ Amount: &infinity })
 						c.So(err, ShouldBeNil)
 						c.So(len(messages), ShouldEqual, 5)
 
 						gt := messages[2].GetEntry().Hash
 						hundred := 100
 
-						messages2, err := db.List(ctx, &eventlogstore.StreamOptions{ GT: &gt, Amount: &hundred })
+						messages2, err := db.List(ctx, &iface.StreamOptions{ GT: &gt, Amount: &hundred })
 						c.So(err, ShouldBeNil)
 
 						c.So(len(messages2), ShouldEqual, 2)
@@ -365,14 +365,14 @@ func TestLogDatabase(t *testing.T) {
 
 				c.Convey("lt & lte", FailureHalts, func(c C) {
 					c.Convey("returns one item after head when lt is the head", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &eventlogstore.StreamOptions{LT: &ops[len(ops)-1].GetEntry().Hash })
+						messages, err := db.List(ctx, &iface.StreamOptions{LT: &ops[len(ops)-1].GetEntry().Hash })
 						c.So(err, ShouldBeNil)
 
 						c.So(len(messages), ShouldEqual, 1)
 						c.So(messages[0].GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-2].GetEntry().Hash.String())
 					})
 					c.Convey("returns all items when lt is head and limit is -1", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &eventlogstore.StreamOptions{LT: &ops[len(ops)-1].GetEntry().Hash, Amount: &infinity })
+						messages, err := db.List(ctx, &iface.StreamOptions{LT: &ops[len(ops)-1].GetEntry().Hash, Amount: &infinity })
 						c.So(err, ShouldBeNil)
 
 						c.So(len(messages), ShouldEqual, len(ops) - 1)
@@ -381,7 +381,7 @@ func TestLogDatabase(t *testing.T) {
 					})
 					c.Convey("returns 3 items when lt is head and limit is 3", FailureHalts, func(c C) {
 						three := 3
-						messages, err := db.List(ctx, &eventlogstore.StreamOptions{LT: &ops[len(ops)-1].GetEntry().Hash, Amount: &three })
+						messages, err := db.List(ctx, &iface.StreamOptions{LT: &ops[len(ops)-1].GetEntry().Hash, Amount: &three })
 						c.So(err, ShouldBeNil)
 
 						c.So(len(messages), ShouldEqual, 3)
@@ -389,18 +389,18 @@ func TestLogDatabase(t *testing.T) {
 						c.So(messages[2].GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-2].GetEntry().Hash.String())
 					})
 					c.Convey("returns null when lt is the root item", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &eventlogstore.StreamOptions{LT: &ops[0].GetEntry().Hash })
+						messages, err := db.List(ctx, &iface.StreamOptions{LT: &ops[0].GetEntry().Hash })
 						c.So(err, ShouldBeNil)
 						c.So(len(messages), ShouldEqual, 0)
 					})
 					c.Convey("returns one item when lte is the root item", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &eventlogstore.StreamOptions{LTE: &ops[0].GetEntry().Hash })
+						messages, err := db.List(ctx, &iface.StreamOptions{LTE: &ops[0].GetEntry().Hash })
 						c.So(err, ShouldBeNil)
 						c.So(len(messages), ShouldEqual, 1)
 						c.So(messages[0].GetEntry().Hash.String(), ShouldEqual, ops[0].GetEntry().Hash.String())
 					})
 					c.Convey("returns all items when lte is the head", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &eventlogstore.StreamOptions{LTE: &ops[len(ops) - 1].GetEntry().Hash, Amount: &infinity })
+						messages, err := db.List(ctx, &iface.StreamOptions{LTE: &ops[len(ops) - 1].GetEntry().Hash, Amount: &infinity })
 						c.So(err, ShouldBeNil)
 						c.So(len(messages), ShouldEqual, itemCount)
 						c.So(messages[0].GetEntry().Hash.String(), ShouldEqual, ops[0].GetEntry().Hash.String())
@@ -408,7 +408,7 @@ func TestLogDatabase(t *testing.T) {
 					})
 					c.Convey("returns 3 items when lte is the head", FailureHalts, func(c C) {
 						three := 3
-						messages, err := db.List(ctx, &eventlogstore.StreamOptions{LTE: &ops[len(ops) - 1].GetEntry().Hash, Amount: &three })
+						messages, err := db.List(ctx, &iface.StreamOptions{LTE: &ops[len(ops) - 1].GetEntry().Hash, Amount: &three })
 						c.So(err, ShouldBeNil)
 						c.So(len(messages), ShouldEqual, three)
 						c.So(messages[0].GetEntry().Hash.String(), ShouldEqual, ops[itemCount - 3].GetEntry().Hash.String())
@@ -419,6 +419,6 @@ func TestLogDatabase(t *testing.T) {
 			})
 		})
 
-		teardownNetwork()
+		TeardownNetwork()
 	})
 }

@@ -3,9 +3,9 @@ package accesscontroller
 import (
 	"berty.tech/go-ipfs-log/io"
 	"context"
-	"github.com/berty/go-orbit-db/ipfs"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/pkg/errors"
 	"github.com/polydawn/refmt/obj/atlas"
 	"strings"
@@ -48,7 +48,7 @@ type ManifestParams interface {
 	GetType() string
 }
 
-func CreateManifest(ctx context.Context, ipfs ipfs.Services, controllerType string, params ManifestParams) (cid.Cid, error) {
+func CreateManifest(ctx context.Context, ipfs coreapi.CoreAPI, controllerType string, params ManifestParams) (cid.Cid, error) {
 	if params.GetSkipManifest() {
 		return params.GetAddress(), nil
 	}
@@ -64,7 +64,7 @@ func CreateManifest(ctx context.Context, ipfs ipfs.Services, controllerType stri
 	return io.WriteCBOR(ctx, ipfs, manifest)
 }
 
-func ResolveManifest(ctx context.Context, services ipfs.Services, manifestAddress string, params ManifestParams) (*Manifest, error) {
+func ResolveManifest(ctx context.Context, ipfs coreapi.CoreAPI, manifestAddress string, params ManifestParams) (*Manifest, error) {
 	if params.GetSkipManifest() {
 		if params.GetType() == "" {
 			return nil, errors.New("no manifest, access-controller type required")
@@ -87,7 +87,7 @@ func ResolveManifest(ctx context.Context, services ipfs.Services, manifestAddres
 		return nil, errors.Wrap(err, "unable to parse CID")
 	}
 
-	node, err := io.ReadCBOR(ctx, services, c)
+	node, err := io.ReadCBOR(ctx, ipfs, c)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to fetch manifest data")
 	}

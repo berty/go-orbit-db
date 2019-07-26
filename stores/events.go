@@ -41,13 +41,13 @@ func NewEventReplicateProgress(addr address.Address, h cid.Cid, e *entry.Entry, 
 }
 
 type EventReplicated struct {
-	Address address.Address
+	Address   address.Address
 	LogLength int
 }
 
 func NewEventReplicated(addr address.Address, logLength int) *EventReplicated {
 	return &EventReplicated{
-		Address: addr,
+		Address:   addr,
 		LogLength: logLength,
 	}
 }
