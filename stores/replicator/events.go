@@ -3,18 +3,19 @@ package replicator
 import (
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/entry"
+	"github.com/berty/go-orbit-db/events"
 	"github.com/ipfs/go-cid"
 )
 
-type Event interface{}
+type Event events.Event
 
 type EventLoadAdded struct {
-	EntryCID cid.Cid
+	Hash cid.Cid
 }
 
 func NewEventLoadAdded(h cid.Cid) *EventLoadAdded {
 	return &EventLoadAdded{
-		EntryCID: h,
+		Hash: h,
 	}
 }
 

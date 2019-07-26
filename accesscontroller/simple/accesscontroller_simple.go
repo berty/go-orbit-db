@@ -6,10 +6,12 @@ import (
 	"context"
 	"github.com/berty/go-orbit-db/accesscontroller"
 	"github.com/berty/go-orbit-db/address"
+	"github.com/berty/go-orbit-db/events"
 	"github.com/pkg/errors"
 )
 
 type simpleAccessController struct {
+	events.EventEmitter
 	allowedKeys map[string][]string
 }
 

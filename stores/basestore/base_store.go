@@ -12,6 +12,7 @@ import (
 	"github.com/berty/go-orbit-db/accesscontroller"
 	"github.com/berty/go-orbit-db/accesscontroller/simple"
 	"github.com/berty/go-orbit-db/address"
+	"github.com/berty/go-orbit-db/events"
 	"github.com/berty/go-orbit-db/ipfs"
 	"github.com/berty/go-orbit-db/stores"
 	"github.com/berty/go-orbit-db/stores/operation"
@@ -26,6 +27,8 @@ import (
 )
 
 type BaseStore struct {
+	events.EventEmitter
+
 	id                string
 	identity          *identityprovider.Identity
 	address           address.Address
@@ -50,7 +53,6 @@ type BaseStore struct {
 	replicate      bool
 	directory      string
 	options        *stores.NewStoreOptions
-	subscribers    []chan stores.Event
 	cacheDestroy   func() error
 }
 
@@ -113,10 +115,8 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, services ipfs.Services, i
 
 	b.stats.snapshot.bytesLoaded = -1
 
-	replicatorChan := make(chan replicator.Event)
-
 	b.replicator = replicator.NewReplicator(ctx, b, options.ReplicationConcurrency)
-	b.replicator.Subscribe(replicatorChan)
+	replicatorChan := b.replicator.Subscribe()
 	b.loader = b.replicator
 
 	b.referenceCount = 64
@@ -144,10 +144,14 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, services ipfs.Services, i
 			case e := <-replicatorChan:
 				switch e.(type) {
 				case *replicator.EventLoadAdded:
-					// TODO
-					//evt := e.(*replicator.EventLoadAdded)
-					b.replicationLoadAdded(nil)
+					evt := e.(*replicator.EventLoadAdded)
+					b.replicationLoadAdded(evt.Hash)
+
+				case *replicator.EventLoadEnd:
+					evt := e.(*replicator.EventLoadEnd)
+					b.replicationLoadComplete(evt.Logs)
 				}
+
 				break
 			}
 		}
@@ -156,12 +160,12 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, services ipfs.Services, i
 	return nil
 }
 
-func (b *BaseStore) replicationLoadAdded(e *entry.Entry) {
+func (b *BaseStore) replicationLoadAdded(e cid.Cid) {
 	// TODO
 	//b.replicationStatus.IncQueued()
 	//b.recalculateReplicationMax(e.Clock.Time)
-	//// logger.debug(`<replicate>`)
-	//b.emit(stores.NewEventReplicate(b.address, e))
+	//logger().Debug("<replicate>")
+	//b.Emit(stores.NewEventReplicate(b.address, e))
 }
 
 func (b *BaseStore) Close() error {
@@ -179,11 +183,11 @@ func (b *BaseStore) Close() error {
 	b.stats.snapshot.bytesLoaded = -1
 	b.stats.syncRequestsReceived = 0
 
-	for _, s := range b.subscribers {
+	for _, s := range b.Subscribers {
 		s <- stores.NewEventClosed(b.address)
 	}
 
-	b.subscribers = []chan stores.Event{}
+	b.Subscribers = []chan events.Event{}
 
 	err := b.cache.Close()
 	if err != nil {
@@ -269,7 +273,7 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 	heads := append(localHeads, remoteHeads...)
 
 	if len(heads) > 0 {
-		b.emit(stores.NewEventLoad(b.address, heads))
+		b.Emit(stores.NewEventLoad(b.address, heads))
 	}
 
 	for _, h := range heads {
@@ -303,7 +307,7 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 		}
 	}
 
-	b.emit(stores.NewEventReady(b.address, b.oplog.Heads().Slice()))
+	b.Emit(stores.NewEventReady(b.address, b.oplog.Heads().Slice()))
 	return nil
 }
 
@@ -314,10 +318,16 @@ func (b *BaseStore) Sync(ctx context.Context, heads []*entry.Entry) error {
 		return nil
 	}
 
+	var savedEntriesCIDs []cid.Cid
+
 	for _, h := range heads {
 		if h == nil {
-			//console.warn("Warning: Given input entry was 'null'.")
+			logger().Debug("warning: Given input entry was 'null'.")
 			continue
+		}
+
+		if h.Next == nil {
+			h.Next = []cid.Cid{}
 		}
 
 		identityProvider := b.identity.Provider
@@ -327,24 +337,23 @@ func (b *BaseStore) Sync(ctx context.Context, heads []*entry.Entry) error {
 
 		canAppend := b.access.CanAppend(h, identityProvider)
 		if canAppend != nil {
-			//console.warn('Warning: Given input entry is not allowed in this log and was discarded (no write access).')
+			logger().Debug("warning: Given input entry is not allowed in this log and was discarded (no write access).")
 			continue
 		}
 
-		logEntry := h // TODO: copy?
-		logEntry.Hash = cid.Cid{}
-
-		hash, err := io.WriteCBOR(ctx, b.ipfs, logEntry)
+		hash, err := io.WriteCBOR(ctx, b.ipfs, h.ToCborEntry())
 		if err != nil {
 			return errors.Wrap(err, "unable to write entry on dag")
 		}
 
 		if hash.String() != h.Hash.String() {
-			//TODO: warn instead of error? console.warn('"WARNING! Head hash didn\'t match the contents')
-
 			return errors.New("WARNING! Head hash didn't match the contents")
 		}
+
+		savedEntriesCIDs = append(savedEntriesCIDs, hash)
 	}
+
+	b.replicator.Load(ctx, savedEntriesCIDs)
 
 	return nil
 }
@@ -430,7 +439,7 @@ func (b *BaseStore) SaveSnapshot(ctx context.Context) (cid.Cid, error) {
 }
 
 func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
-	b.emit(stores.NewEventLoad(b.address, nil))
+	b.Emit(stores.NewEventLoad(b.address, nil))
 
 	queue, err := b.cache.Get(datastore.NewKey("queue"))
 	if err != nil && err != datastore.ErrNotFound {
@@ -571,7 +580,7 @@ func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, on
 		return nil, errors.Wrap(err, "unable to update index")
 	}
 
-	b.emit(stores.NewEventWrite(b.address, e, b.oplog.Heads().Slice()))
+	b.Emit(stores.NewEventWrite(b.address, e, b.oplog.Heads().Slice()))
 
 	if onProgressCallback != nil {
 		onProgressCallback <- e
@@ -615,30 +624,43 @@ func (b *BaseStore) updateIndex() error {
 	return nil
 }
 
-func (b *BaseStore) emit(evt stores.Event) {
-	for _, s := range b.subscribers {
-		s <- evt
-	}
-}
-
-func (b *BaseStore) Subscribe(c chan stores.Event) {
-	for _, s := range b.subscribers {
-		if s == c {
+func (b *BaseStore) replicationLoadComplete(logs []*ipfslog.Log) {
+	logger().Debug("replication load complete")
+	for _, log := range logs {
+		logger().Debug(fmt.Sprintf("joining log with %d entries", log.Values().Len()))
+		_, err := b.oplog.Join(log, -1)
+		if err != nil {
+			logger().Error("unable to join logs", zap.Error(err))
 			return
 		}
 	}
-
-	b.subscribers = append(b.subscribers, c)
-}
-
-func (b *BaseStore) Unsubscribe(c chan stores.Event) {
-	for i, s := range b.subscribers {
-		if s == c {
-			b.subscribers[len(s)-1], b.subscribers[i] = b.subscribers[i], b.subscribers[len(s)-1]
-			b.subscribers = b.subscribers[:len(s)-1]
-			return
-		}
+	b.replicationStatus.DecreaseQueued(len(logs))
+	b.replicationStatus.SetBuffered(b.replicator.GetBufferLen())
+	err := b.updateIndex()
+	if err != nil {
+		logger().Error("unable to update index", zap.Error(err))
+		return
 	}
+
+	// only store heads that has been verified and merges
+	heads := b.oplog.Heads()
+
+	headsBytes, err := json.Marshal(heads.Slice())
+	if err != nil {
+		logger().Error("unable to serialize heads cache", zap.Error(err))
+		return
+	}
+
+	err = b.cache.Put(datastore.NewKey("_remoteHeads"), headsBytes)
+	if err != nil {
+		logger().Error("unable to update heads cache", zap.Error(err))
+		return
+	}
+
+	logger().Debug(fmt.Sprintf("Saved heads %d", heads.Len()))
+
+	// logger.debug(`<replicated>`)
+	b.Emit(stores.NewEventReplicated(b.address, len(logs)))
 }
 
 var _ stores.Interface = &BaseStore{}

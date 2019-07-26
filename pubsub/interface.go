@@ -2,15 +2,13 @@ package pubsub
 
 import (
 	"context"
-	"github.com/berty/go-orbit-db/pubsub/peermonitor"
-	iface "github.com/ipfs/interface-go-ipfs-core"
+	"github.com/berty/go-orbit-db/events"
 	"io"
 )
 
 type Subscription interface {
+	events.EmitterInterface
 	io.Closer
-	MessageChan() chan iface.PubSubMessage
-	PeerChan() chan *peermonitor.Event
 }
 
 type Interface interface {

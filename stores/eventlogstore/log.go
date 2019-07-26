@@ -20,7 +20,7 @@ type orbitDBEventLogStore struct {
 func (o *orbitDBEventLogStore) List(ctx context.Context, options *StreamOptions) ([]operation.Operation, error) {
 	var err error
 	var operations []operation.Operation
-	c := make(chan operation.Operation)
+	c := make(chan operation.Operation, 10)
 
 	go func () {
 		err = o.Stream(ctx, c, options)

@@ -11,6 +11,7 @@ import (
 	"github.com/berty/go-orbit-db/accesscontroller/ipfs"
 	"github.com/berty/go-orbit-db/accesscontroller/utils"
 	"github.com/berty/go-orbit-db/address"
+	"github.com/berty/go-orbit-db/events"
 	"github.com/berty/go-orbit-db/stores"
 	"github.com/berty/go-orbit-db/stores/kvstore"
 	"github.com/pkg/errors"
@@ -20,9 +21,9 @@ type Event interface{}
 type EventUpdated struct{}
 
 type orbitDBAccessController struct {
+	events.EventEmitter
 	orbitdb    orbitdb.OrbitDB
 	kvStore    kvstore.OrbitDBKeyValue
-	eventsChan []chan Event
 	options    *base.CreateAccessControllerOptions
 }
 
@@ -86,12 +87,12 @@ func (o *orbitDBAccessController) getAuthorizations() (map[string][]string, erro
 }
 
 func (o *orbitDBAccessController) CanAppend(entry *entry.Entry, p identityprovider.Interface) error {
-	writeAccess, err := o.getAuthorizedByRole("write")
+	writeAccess, err := o.GetAuthorizedByRole("write")
 	if err != nil {
 		return errors.Wrap(err, "unable to get keys with write access")
 	}
 
-	adminAccess, err := o.getAuthorizedByRole("admin")
+	adminAccess, err := o.GetAuthorizedByRole("admin")
 	if err != nil {
 		return errors.Wrap(err, "unable to get keys with admin access")
 	}
@@ -108,7 +109,7 @@ func (o *orbitDBAccessController) CanAppend(entry *entry.Entry, p identityprovid
 }
 
 func (o *orbitDBAccessController) Grant(ctx context.Context, capability string, keyID string) error {
-	capabilities, err := o.getAuthorizedByRole(capability)
+	capabilities, err := o.GetAuthorizedByRole(capability)
 	if err != nil {
 		return errors.Wrap(err, "unable to fetch capabilities")
 	}
@@ -120,11 +121,16 @@ func (o *orbitDBAccessController) Grant(ctx context.Context, capability string, 
 		return errors.Wrap(err, "unable to marshal capabilities")
 	}
 
-	return o.kvStore.Put(ctx, capability, capabilitiesJSON)
+	_, err = o.kvStore.Put(ctx, capability, capabilitiesJSON)
+	if err!= nil {
+		return errors.Wrap(err, "unable to put data in store")
+	}
+
+	return nil
 }
 
 func (o *orbitDBAccessController) Revoke(ctx context.Context, capability string, keyID string) error {
-	capabilities, err := o.getAuthorizedByRole(capability)
+	capabilities, err := o.GetAuthorizedByRole(capability)
 	if err != nil {
 		return errors.Wrap(err, "unable to get capability")
 	}
@@ -142,12 +148,12 @@ func (o *orbitDBAccessController) Revoke(ctx context.Context, capability string,
 			return errors.Wrap(err, "unable to marshal capabilities")
 		}
 
-		err = o.kvStore.Put(ctx, capability, capabilitiesJSON)
+		_, err = o.kvStore.Put(ctx, capability, capabilitiesJSON)
 		if err != nil {
 			return errors.Wrap(err, "unable to persist capabilities")
 		}
 	} else {
-		err := o.kvStore.Delete(ctx, capability)
+		_, err := o.kvStore.Delete(ctx, capability)
 		if err != nil {
 			return errors.Wrap(err, "unable to remove capabilities")
 		}
@@ -179,7 +185,6 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 
 	store, err := o.orbitdb.KeyValue(ctx, utils.EnsureAddress(address), &orbitdb.CreateDBOptions{
 		AccessController: ipfsAccessController,
-		Sync:             true,
 	})
 	if err != nil {
 		return errors.Wrap(err, "unable to open key value store for access controller")
@@ -187,8 +192,7 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 
 	o.kvStore = store
 
-	eventChan := make(chan stores.Event)
-	o.kvStore.Subscribe(eventChan)
+	eventChan := o.kvStore.Subscribe()
 	go func() {
 		select {
 		case e := <-eventChan:
@@ -222,13 +226,7 @@ func (o *orbitDBAccessController) Close() error {
 }
 
 func (o *orbitDBAccessController) onUpdate() {
-	o.emit(&EventUpdated{})
-}
-
-func (o *orbitDBAccessController) emit(event Event) {
-	for _, c := range o.eventsChan {
-		c <- event
-	}
+	o.Emit(&EventUpdated{})
 }
 
 func NewOrbitDBAccessController(ctx context.Context, db orbitdb.OrbitDB, options *base.CreateAccessControllerOptions) (accesscontroller.Interface, error) {

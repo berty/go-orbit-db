@@ -24,7 +24,7 @@ func TestLogDatabase(t *testing.T) {
 		c.So(err, ShouldBeNil)
 
 		db1Path := path.Join(dbPath, "1")
-		db1IPFS := makeIPFS(ctx, t)
+		_, db1IPFS := makeIPFS(ctx, t)
 		infinity := -1
 
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, db1IPFS, &orbitdb.NewOrbitDBOptions{
@@ -418,5 +418,7 @@ func TestLogDatabase(t *testing.T) {
 				})
 			})
 		})
+
+		teardownNetwork()
 	})
 }

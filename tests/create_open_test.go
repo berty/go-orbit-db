@@ -27,12 +27,10 @@ func TestCreateOpen(t *testing.T) {
 	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
 
 	Convey("orbit-db - Create & Open", t, FailureHalts, func(c C) {
-		ipfs := makeIPFS(ctx, t)
+		_, ipfs := makeIPFS(ctx, t)
 		tempDir := getTempDirectory()
 
 		dbPath := path.Join(tempDir, "./orbitdb/tests/create-open", "1")
-
-		println(fmt.Sprintf("dbpath is %s", dbPath))
 
 		orbit, err := orbitdb.NewOrbitDB(ctx, ipfs, &orbitdb.NewOrbitDBOptions{Directory: &dbPath})
 		c.So(err, ShouldBeNil)
@@ -90,8 +88,6 @@ func TestCreateOpen(t *testing.T) {
 
 				localDataPath := path.Join(dbPath, db1.Address().GetRoot().String(), db1.Address().GetPath())
 
-				_ = localDataPath // TODO: remove
-
 				err = db1.Close()
 				c.So(err, ShouldBeNil)
 
@@ -127,7 +123,6 @@ func TestCreateOpen(t *testing.T) {
 					c.So(err, ShouldBeNil)
 
 					manifest := utils.Manifest{}
-					println("raw manifest data", string(manifestNode.RawData()))
 
 					err = cbor.UnmarshalAtlased(cbor.DecodeOptions{}, manifestNode.RawData(), &manifest, atlas.MustBuild(utils.AtlasManifest))
 					c.So(err, ShouldBeNil)
@@ -346,5 +341,7 @@ func TestCreateOpen(t *testing.T) {
 				c.So(string(res2.GetValue()), ShouldEqual, "hello2")
 			})
 		})
+
+		teardownNetwork()
 	})
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 	"github.com/berty/go-orbit-db/accesscontroller"
 	"github.com/berty/go-orbit-db/address"
+	"github.com/berty/go-orbit-db/events"
 	"github.com/berty/go-orbit-db/ipfs"
 	"github.com/berty/go-orbit-db/stores/operation"
 	"github.com/berty/go-orbit-db/stores/replicator"
@@ -15,6 +16,7 @@ import (
 )
 
 type Interface interface {
+	events.EmitterInterface
 	Close() error
 	Address() address.Address
 
@@ -27,8 +29,6 @@ type Interface interface {
 	LoadMoreFrom(ctx context.Context, amount uint, entries []cid.Cid)
 	SaveSnapshot(ctx context.Context) (cid.Cid, error)
 	LoadFromSnapshot(ctx context.Context) error
-	Subscribe(chan Event)
-	Unsubscribe(chan Event)
 	OpLog() *ipfslog.Log
 	Ipfs() ipfs.Services
 	DBName() string
@@ -46,7 +46,7 @@ type NewStoreOptions struct {
 	Index                  IndexConstructor
 	AccessController       accesscontroller.Interface
 	Cache                  datastore.Datastore
-	CacheDestroy 		   func () error
+	CacheDestroy           func() error
 	ReplicationConcurrency uint
 	ReferenceCount         *int
 	Replicate              *bool

@@ -9,10 +9,12 @@ import (
 )
 
 type CreateAccessControllerOptions struct {
-	Name        string
-	WriteAccess []string
-	AdminAccess []string
-	Address     string
+	Type         string
+	SkipManifest bool
+	Name         string
+	WriteAccess  []string
+	AdminAccess  []string
+	Address      string
 }
 
 type ControllerConstructor func(context.Context, orbitdb.OrbitDB, *CreateAccessControllerOptions) (accesscontroller.Interface, error)
@@ -41,7 +43,7 @@ func Create(ctx context.Context, db orbitdb.OrbitDB, controllerType string, opti
 func Resolve(ctx context.Context, db orbitdb.OrbitDB, manifestAddress string, params accesscontroller.ManifestParams) (accesscontroller.Interface, error) {
 	manifest, err := accesscontroller.ResolveManifest(ctx, db.IPFS(), manifestAddress, params)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "unable to resolve manifest")
 	}
 
 	accessControllerConstructor, ok := supportedTypes[manifest.Type]
@@ -50,7 +52,11 @@ func Resolve(ctx context.Context, db orbitdb.OrbitDB, manifestAddress string, pa
 	}
 
 	// TODO: options
-	accessController, err := accessControllerConstructor(ctx, db, &CreateAccessControllerOptions{})
+	accessController, err := accessControllerConstructor(ctx, db, &CreateAccessControllerOptions{
+		SkipManifest: manifest.Params.SkipManifest,
+		Address:      manifest.Params.Address.String(),
+		Type:         manifest.Params.Type,
+	})
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create access controller")
 	}
@@ -80,7 +86,13 @@ func AddAccessController(constructor ControllerConstructor) error {
 
 	controller, _ := constructor(context.Background(), nil, &CreateAccessControllerOptions{})
 
-	supportedTypes[controller.Type()] = constructor
+	controllerType := controller.Type()
+
+	if controller.Type() == "" {
+		panic("controller type cannot be empty")
+	}
+
+	supportedTypes[controllerType] = constructor
 
 	return nil
 }

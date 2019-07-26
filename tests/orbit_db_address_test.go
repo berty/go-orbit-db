@@ -1,17 +1,12 @@
 package tests
 
 import (
-	"context"
 	"github.com/berty/go-orbit-db/address"
 	. "github.com/smartystreets/goconvey/convey"
 	"testing"
-	"time"
 )
 
 func TestOrbitDbAddress(t *testing.T) {
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
-	_ = ctx
-
 	//.createInstance(ipfs, { directory: path.join(dbPath, '1') })
 	Convey("orbit-db - OrbitDB Address", t, FailureHalts, func(c C) {
 		c.Convey("Parse Address", FailureHalts, func(c C) {
@@ -70,5 +65,7 @@ func TestOrbitDbAddress(t *testing.T) {
 				c.So(err, ShouldNotBeNil)
 			})
 		})
+
+		teardownNetwork()
 	})
 }

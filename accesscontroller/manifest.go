@@ -76,10 +76,8 @@ func ResolveManifest(ctx context.Context, services ipfs.Services, manifestAddres
 				Address: params.GetAddress(),
 			},
 		}, nil
-
 	}
 
-	// TODO: ensure this is a valid multihash
 	if strings.HasPrefix(manifestAddress, "/ipfs") {
 		manifestAddress = strings.Split(manifestAddress, "/")[2]
 	}
@@ -95,7 +93,7 @@ func ResolveManifest(ctx context.Context, services ipfs.Services, manifestAddres
 	}
 
 	manifest := &Manifest{}
-	err = cbornode.DecodeInto(node.RawData(), &manifestAddress)
+	err = cbornode.DecodeInto(node.RawData(), &manifest)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to unmarshal")
 	}

@@ -1,6 +1,7 @@
 package orbitdb
 
 import (
+	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/keystore"
 	"context"
@@ -19,7 +20,6 @@ type CreateDBOptions struct {
 	Overwrite               *bool
 	LocalOnly               *bool
 	Create                  *bool
-	Sync                    bool
 	StoreType               *string
 	AccessControllerAddress string
 	AccessController        accesscontroller.Interface
@@ -33,6 +33,11 @@ type DetermineAddressOptions struct {
 	OnlyHash         *bool
 	Replicate        *bool
 	AccessController accesscontroller.Interface
+}
+
+type ExchangedHeads struct {
+	Address string         `json:"address,omitempty"`
+	Heads   []*entry.Entry `json:"heads,omitempty"`
 }
 
 type OrbitDB interface {

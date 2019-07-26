@@ -4,9 +4,4 @@ import (
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 )
 
-type Services interface {
-	Dag() coreapi.APIDagService
-	PubSub() coreapi.PubSubAPI
-	Key() coreapi.KeyAPI
-	Unixfs() coreapi.UnixfsAPI
-}
+type Services coreapi.CoreAPI

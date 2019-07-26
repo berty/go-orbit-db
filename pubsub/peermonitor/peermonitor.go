@@ -2,8 +2,13 @@ package peermonitor
 
 import (
 	"context"
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	"fmt"
+	"github.com/berty/go-orbit-db/events"
+	"github.com/berty/go-orbit-db/ipfs"
+	"github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"time"
 )
 
@@ -26,13 +31,13 @@ var defaultPeerMonitorOptions = &NewPeerMonitorOptions{
 }
 
 type peerMonitor struct {
+	events.EventEmitter
 	cancelFunc     func()
-	pubsub         coreapi.PubSubAPI
+	ipfs           ipfs.Services
 	topic          string
 	started        bool
 	pollInterval   time.Duration
 	peers          map[peer.ID]struct{}
-	peerChangeChan chan *Event
 }
 
 func (p *peerMonitor) Start(ctx context.Context) func() {
@@ -55,7 +60,9 @@ func (p *peerMonitor) Start(ctx context.Context) func() {
 
 			case <-time.After(p.pollInterval):
 				err := p.pollPeers(ctx)
-				_ = err // TODO: handle error
+				if err != nil {
+					logger().Error("error while polling peers", zap.Error(err))
+				}
 
 				break
 			}
@@ -89,7 +96,14 @@ func (p *peerMonitor) HasPeer(id peer.ID) bool {
 }
 
 func (p *peerMonitor) pollPeers(ctx context.Context) error {
-	peerIDs, err := p.pubsub.Peers(ctx)
+	self, err := p.ipfs.Key().Self(ctx)
+	if err != nil {
+		return errors.Wrap(err, "unable to get self")
+	}
+
+	peerIDs, err := p.ipfs.PubSub().Peers(ctx, options.PubSub.Topic(p.topic))
+
+	logger().Debug(fmt.Sprintf("pollPeers: %s found %d peers", self.ID().String(), len(peerIDs)))
 
 	currentPeers := map[peer.ID]struct{}{}
 	allPeers := map[peer.ID]struct{}{}
@@ -108,17 +122,11 @@ func (p *peerMonitor) pollPeers(ctx context.Context) error {
 
 		if _, ok := currentPeers[peerID]; ok {
 			delete(currentPeers, peerID)
+			p.Emit(NewEventPeerJoin(peerID))
 		} else if _, ok := allPeers[peerID]; !ok {
 			newPeers[peerID] = struct{}{}
+			p.Emit(NewEventPeerLeave(peerID))
 		}
-	}
-
-	for peerID := range currentPeers {
-		p.peerChangeChan <- &Event{Action: EventActionLeave, Peer: peerID}
-	}
-
-	for peerID := range newPeers {
-		p.peerChangeChan <- &Event{Action: EventActionJoin, Peer: peerID}
 	}
 
 	p.peers = allPeers
@@ -126,7 +134,7 @@ func (p *peerMonitor) pollPeers(ctx context.Context) error {
 	return nil
 }
 
-func NewPeerMonitor(ctx context.Context, pubsub coreapi.PubSubAPI, topic string, peerChangeChan chan *Event, options *NewPeerMonitorOptions) Interface {
+func NewPeerMonitor(ctx context.Context, services ipfs.Services, topic string, options *NewPeerMonitorOptions) Interface {
 	if options == nil {
 		options = defaultPeerMonitorOptions
 	}
@@ -140,10 +148,9 @@ func NewPeerMonitor(ctx context.Context, pubsub coreapi.PubSubAPI, topic string,
 	}
 
 	monitor := &peerMonitor{
-		pubsub:         pubsub,
+		ipfs:           services,
 		topic:          topic,
 		pollInterval:   *options.PollInterval,
-		peerChangeChan: peerChangeChan,
 	}
 
 	if *options.Start == true {

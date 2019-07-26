@@ -5,10 +5,13 @@ import (
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/io"
 	"context"
+	"encoding/json"
+	"fmt"
 	orbitdb "github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/accesscontroller"
 	"github.com/berty/go-orbit-db/accesscontroller/base"
 	"github.com/berty/go-orbit-db/address"
+	"github.com/berty/go-orbit-db/events"
 	"github.com/berty/go-orbit-db/ipfs"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
@@ -17,10 +20,11 @@ import (
 )
 
 type cborWriteAccess struct {
-	Write []string
+	Write string
 }
 
 type ipfsAccessController struct {
+	events.EventEmitter
 	ipfs        ipfs.Services
 	writeAccess []string
 }
@@ -61,12 +65,25 @@ func (i *ipfsAccessController) Revoke(ctx context.Context, capability string, ke
 }
 
 func (i *ipfsAccessController) Load(ctx context.Context, address string) error {
+	logger().Debug(fmt.Sprintf("reading IPFS access controller write access on hash %s", address))
+
 	c, err := cid.Decode(address)
 	if err != nil {
 		return errors.Wrap(err, "unable to parse cid")
 	}
 
 	res, err := io.ReadCBOR(ctx, i.ipfs, c)
+	if err != nil {
+		return errors.Wrap(err, "unable to load access controller manifest data")
+	}
+
+	manifest := &accesscontroller.Manifest{}
+	err = cbornode.DecodeInto(res.RawData(), manifest)
+	if err != nil {
+		return errors.Wrap(err, "unable to unmarshal access controller manifest data")
+	}
+
+	res, err = io.ReadCBOR(ctx, i.ipfs, manifest.Params.Address)
 	if err != nil {
 		return errors.Wrap(err, "unable to load access controller data")
 	}
@@ -77,16 +94,28 @@ func (i *ipfsAccessController) Load(ctx context.Context, address string) error {
 		return errors.Wrap(err, "unable to unmarshal access controller data")
 	}
 
-	i.writeAccess = writeAccessData.Write
+	var writeAccess []string
+	if err := json.Unmarshal([]byte(writeAccessData.Write), &writeAccess); err != nil {
+		return errors.Wrap(err, "unable to unmarshal json write access")
+	}
+
+	i.writeAccess = writeAccess
 
 	return nil
 }
 
 func (i *ipfsAccessController) Save(ctx context.Context) (accesscontroller.ManifestParams, error) {
-	c, err := io.WriteCBOR(ctx, i.ipfs, &cborWriteAccess{Write: i.writeAccess})
+	writeAccess, err := json.Marshal(i.writeAccess)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to serialize write access")
+	}
+
+	c, err := io.WriteCBOR(ctx, i.ipfs, &cborWriteAccess{Write: string(writeAccess)})
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to save access controller")
 	}
+
+	logger().Debug(fmt.Sprintf("saved IPFS access controller write access on hash %s", c.String()))
 
 	return accesscontroller.NewManifestParams(c, false, i.Type()), nil
 }

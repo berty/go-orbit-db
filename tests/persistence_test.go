@@ -26,7 +26,7 @@ func TestPersistence(t *testing.T) {
 		c.So(err, ShouldBeNil)
 
 		db1Path := path.Join(dbPath, "1")
-		db1IPFS := makeIPFS(ctx, t)
+		_, db1IPFS := makeIPFS(ctx, t)
 
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, db1IPFS, &orbitdb.NewOrbitDBOptions{
 			Directory: &db1Path,
@@ -136,11 +136,8 @@ func TestPersistence(t *testing.T) {
 			c.Convey("loading a database emits 'ready' event", FailureHalts, func(c C) {
 				db, err := orbitdb1.Log(ctx, address.String(), nil)
 				c.So(err, ShouldBeNil)
-				eventsChan := make(chan stores.Event, 10)
+				eventsChan := db.Subscribe()
 
-				db.Subscribe(eventsChan)
-
-				ctx, _ := context.WithTimeout(ctx, time.Second*2)
 				wg := sync.WaitGroup{}
 				wg.Add(1)
 
@@ -300,5 +297,7 @@ func TestPersistence(t *testing.T) {
 				}
 			})
 		})
+
+		teardownNetwork()
 	})
 }

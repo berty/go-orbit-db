@@ -79,7 +79,7 @@ func (l *levelDownCache) Load(directory string, dbAddress address.Address) (data
 
 func (l *levelDownCache) Close() error {
 	for k, c := range l.caches {
-		_ = c.Close() // TODO: handle error
+		_ = c.Close()
 		delete(l.caches, k)
 	}
 

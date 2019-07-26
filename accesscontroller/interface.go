@@ -5,9 +5,11 @@ import (
 	idp "berty.tech/go-ipfs-log/identityprovider"
 	"context"
 	"github.com/berty/go-orbit-db/address"
+	"github.com/berty/go-orbit-db/events"
 )
 
 type Interface interface {
+	events.EmitterInterface
 	Address() address.Address
 	CanAppend(entry *entry.Entry, p idp.Interface) error
 	Type() string

@@ -4,6 +4,7 @@ import (
 	ipfslog "berty.tech/go-ipfs-log"
 	"context"
 	"fmt"
+	"github.com/berty/go-orbit-db/events"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"github.com/prometheus/common/log"
@@ -13,7 +14,8 @@ import (
 var batchSize = 1
 
 type replicator struct {
-	subscribers         []chan Event
+	events.EventEmitter
+
 	cancelFunc          context.CancelFunc
 	store               StoreInterface
 	fetching            map[string]cid.Cid
@@ -23,6 +25,10 @@ type replicator struct {
 	buffer              []*ipfslog.Log
 	concurrency         uint
 	queue               map[string]cid.Cid
+}
+
+func (r *replicator) GetBufferLen() int {
+	return len(r.buffer)
 }
 
 func (r *replicator) Stop() {
@@ -52,7 +58,7 @@ func (r *replicator) Load(ctx context.Context, cids []cid.Cid) {
 		r.addToQueue(h)
 	}
 
-	go r.processQueue(ctx)
+	r.processQueue(ctx)
 }
 
 func NewReplicator(ctx context.Context, store StoreInterface, concurrency uint) Replicator {
@@ -66,6 +72,8 @@ func NewReplicator(ctx context.Context, store StoreInterface, concurrency uint) 
 		cancelFunc:  cancelFunc,
 		concurrency: concurrency,
 		store:       store,
+		queue: 		 map[string]cid.Cid{},
+		fetching:    map[string]cid.Cid{},
 	}
 
 	go func() {
@@ -74,7 +82,7 @@ func NewReplicator(ctx context.Context, store StoreInterface, concurrency uint) 
 			case <-time.After(time.Second * 3):
 				if r.tasksRunning() == 0 && len(r.queue) > 0 {
 					fmt.Printf("Had to flush the queue! %d items in the queue, %d %d tasks requested/finished", len(r.queue), r.tasksRequested(), r.tasksFinished())
-					go r.processQueue(ctx)
+					r.processQueue(ctx)
 				}
 			case <-ctx.Done():
 				return
@@ -117,7 +125,7 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 
 	r.fetching[h.String()] = h
 
-	r.emit(NewEventLoadAdded(h))
+	r.Emit(NewEventLoadAdded(h))
 
 	r.statsTasksStarted++
 
@@ -142,7 +150,7 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 	r.statsTasksProcessed++
 
 	// Notify subscribers that we made progress
-	r.emit(NewEventLoadProgress("", h, latest, nil, len(r.buffer))) // TODO JS: this._id should be undefined
+	r.Emit(NewEventLoadProgress("", h, latest, nil, len(r.buffer))) // TODO JS: this._id should be undefined
 
 	var nextValues []cid.Cid
 
@@ -163,9 +171,14 @@ func (r *replicator) processQueue(ctx context.Context) {
 
 	var hashesList [][]cid.Cid
 	capacity := r.concurrency - r.tasksRunning()
+	slicedQueue := r.queueSlice()
+	if uint(len(slicedQueue)) < capacity {
+		capacity = uint(len(slicedQueue))
+	}
+
 	items := map[string]cid.Cid{}
-	for _, c := range r.queueSlice()[:capacity] {
-		items[c.String()] = c
+	for _, h := range slicedQueue[:capacity] {
+		items[h.String()] = h
 	}
 
 	for _, e := range items {
@@ -183,39 +196,16 @@ func (r *replicator) processQueue(ctx context.Context) {
 		if (len(items) > 0 && len(r.buffer) > 0) ||
 			(r.tasksRunning() == 0 && len(r.buffer) > 0) {
 
-			logs := append(r.buffer[0:0], r.buffer[1:]...)
+			logs := r.buffer
 			r.buffer = []*ipfslog.Log{}
-			r.emit(NewEventLoadEnd(logs))
+
+			logger().Debug(fmt.Sprintf("load end logs, logs found :%d", len(logs)))
+
+			r.Emit(NewEventLoadEnd(logs))
 		}
 
 		if len(hashes) > 0 {
 			r.Load(ctx, hashes)
-		}
-	}
-}
-
-func (r *replicator) emit(evt Event) {
-	for _, s := range r.subscribers {
-		s <- evt
-	}
-}
-
-func (r *replicator) Subscribe(c chan Event) {
-	for _, s := range r.subscribers {
-		if s == c {
-			return
-		}
-	}
-
-	r.subscribers = append(r.subscribers, c)
-}
-
-func (r *replicator) Unsubscribe(c chan Event) {
-	for i, s := range r.subscribers {
-		if s == c {
-			r.subscribers[len(s)-1], r.subscribers[i] = r.subscribers[i], r.subscribers[len(s)-1]
-			r.subscribers = r.subscribers[:len(s)-1]
-			return
 		}
 	}
 }

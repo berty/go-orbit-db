@@ -1,6 +1,7 @@
 package orbitdb
 
 import (
+	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
 	idp "berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/io"
@@ -11,12 +12,15 @@ import (
 	"github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/accesscontroller"
 	"github.com/berty/go-orbit-db/accesscontroller/base"
-	ipfs2 "github.com/berty/go-orbit-db/accesscontroller/ipfs"
+	ipfsAccessController "github.com/berty/go-orbit-db/accesscontroller/ipfs"
 	"github.com/berty/go-orbit-db/address"
 	"github.com/berty/go-orbit-db/cache"
 	"github.com/berty/go-orbit-db/cache/cacheleveldown"
+	"github.com/berty/go-orbit-db/events"
 	"github.com/berty/go-orbit-db/ipfs"
 	"github.com/berty/go-orbit-db/pubsub"
+	"github.com/berty/go-orbit-db/pubsub/oneonone"
+	"github.com/berty/go-orbit-db/pubsub/peermonitor"
 	"github.com/berty/go-orbit-db/stores"
 	"github.com/berty/go-orbit-db/stores/eventlogstore"
 	"github.com/berty/go-orbit-db/stores/kvstore"
@@ -26,7 +30,6 @@ import (
 	"github.com/ipfs/go-ds-leveldb"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	p2pcore "github.com/libp2p/go-libp2p-core"
-	net "github.com/libp2p/go-libp2p-core/network"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"path"
@@ -57,7 +60,7 @@ type orbitDB struct {
 	pubsub            pubsub.Interface
 	keystore          *keystore.Keystore
 	stores            map[string]stores.Interface
-	directConnections map[string]net.Conn
+	directConnections map[p2pcore.PeerID]oneonone.Channel
 	directory         string
 	cache             cache.Interface
 }
@@ -105,13 +108,14 @@ func newOrbitDB(ctx context.Context, is ipfs.Services, identity *idp.Identity, o
 	}
 
 	return &orbitDB{
-		ipfs:      is,
-		identity:  identity,
-		id:        *options.PeerID,
-		pubsub:    ps,
-		cache:     options.Cache,
-		directory: *options.Directory,
-		stores:    map[string]stores.Interface{},
+		ipfs:              is,
+		identity:          identity,
+		id:                *options.PeerID,
+		pubsub:            ps,
+		cache:             options.Cache,
+		directory:         *options.Directory,
+		stores:            map[string]stores.Interface{},
+		directConnections: map[p2pcore.PeerID]oneonone.Channel{},
 	}, nil
 }
 
@@ -175,22 +179,37 @@ func (o *orbitDB) Close() error {
 	// FIXME: close keystore
 
 	for k, store := range o.stores {
-		_ = store.Close() // TODO: error handling
+		err := store.Close()
+		if err != nil {
+			//logger().Error("unable to close store", zap.Error(err))
+			_ = err
+		}
 		delete(o.stores, k)
 	}
 
 	for k, conn := range o.directConnections {
-		_ = conn.Close() // TODO: error handling
+		err := conn.Close()
+		if err != nil {
+			logger().Error("unable to close connection", zap.Error(err))
+		}
 		delete(o.directConnections, k)
 	}
 
 	if o.pubsub != nil {
-		_ = o.pubsub.Close() // TODO: error handling
+		err := o.pubsub.Close()
+		if err != nil {
+			logger().Debug("unable to close pubsub")
+			_ = err
+		}
 	}
 
 	o.stores = map[string]stores.Interface{}
 
-	_ = o.cache.Close() // TODO: error handling
+	err := o.cache.Close()
+	if err != nil {
+		logger().Debug("unable to close cache")
+		_ = err
+	}
 
 	return nil
 }
@@ -346,6 +365,10 @@ func (o *orbitDB) Open(ctx context.Context, dbAddress string, options *orbitdb.C
 		return nil, errors.Wrap(err, "unable to unmarshal manifest")
 	}
 
+	logger().Debug("Creating store instance")
+
+	options.AccessControllerAddress = manifest.AccessController
+
 	store, err := o.createStore(ctx, manifest.Type, parsedDBAddress, options)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create store")
@@ -374,7 +397,7 @@ func (o *orbitDB) DetermineAddress(ctx context.Context, name string, storeType s
 		return nil, errors.New("given database name is an address, give only the name of the database")
 	}
 
-	options.AccessController, err = ipfs2.NewIPFSAccessController(ctx, o, &base.CreateAccessControllerOptions{})
+	options.AccessController, err = ipfsAccessController.NewIPFSAccessController(ctx, o, &base.CreateAccessControllerOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to initialize access controller")
 	}
@@ -428,14 +451,14 @@ func (o *orbitDB) haveLocalData(c datastore.Datastore, dbAddress address.Address
 }
 
 func (o *orbitDB) addManifestToCache(directory string, dbAddress address.Address) error {
-	cache, err := o.loadCache(directory, dbAddress)
+	c, err := o.loadCache(directory, dbAddress)
 	if err != nil {
 		return errors.Wrap(err, "unable to load existing cache")
 	}
 
 	cacheKey := datastore.NewKey(path.Join(dbAddress.String(), "_manifest"))
 
-	if err := cache.Put(cacheKey, []byte(dbAddress.GetRoot().String())); err != nil {
+	if err := c.Put(cacheKey, []byte(dbAddress.GetRoot().String())); err != nil {
 		return errors.Wrap(err, "unable to set cache")
 	}
 
@@ -455,18 +478,22 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 
 	accessController := options.AccessController
 	if options.AccessControllerAddress != "" {
+		logger().Debug(fmt.Sprintf("Access controller address is %s", options.AccessControllerAddress))
+		options.AccessControllerAddress = strings.TrimPrefix(options.AccessControllerAddress, "/ipfs/")
+
 		c, err := cid.Decode(options.AccessControllerAddress)
 		if err != nil {
-			// TODO: check if a cid for options.AccessControllerAddress is more suited
 			return nil, errors.Wrap(err, "unable to parse access controller address")
 		}
 
 		accessController, err = base.Resolve(ctx, o, options.AccessControllerAddress, accesscontroller.NewManifestParams(
 			c, false, ""))
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to acquire a access controller")
+			return nil, errors.Wrap(err, "unable to acquire an access controller")
 		}
 	}
+
+	logger().Debug(fmt.Sprintf("loading cache for db %s", parsedDBAddress.String()))
 
 	c, err := o.loadCache(o.directory, parsedDBAddress)
 	if err != nil {
@@ -495,15 +522,28 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 		Cache:            options.Cache,
 		Replicate:        options.Replicate,
 		Directory:        *options.Directory,
-		CacheDestroy:     func () error { return o.cache.Destroy(o.directory, parsedDBAddress) },
+		CacheDestroy:     func() error { return o.cache.Destroy(o.directory, parsedDBAddress) },
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to instantiate store")
 	}
 
-	store.Subscribe(o.storeListener(ctx))
+	ch := store.Subscribe()
+	o.storeListener(ctx, ch)
 
 	o.stores[parsedDBAddress.String()] = store
+
+	// Subscribe to pubsub to get updates from peers,
+	// this is what hooks us into the message propagation layer
+	// and the p2p network
+	if *options.Replicate && o.pubsub != nil {
+		sub, err := o.pubsub.Subscribe(ctx, parsedDBAddress.String())
+		if err != nil {
+			return nil, errors.Wrap(err, "unable to subscribe to pubsub")
+		}
+
+		go o.pubSubChanListener(ctx, sub, parsedDBAddress)
+	}
 
 	return store, nil
 }
@@ -521,9 +561,7 @@ func (o *orbitDB) onClose(ctx context.Context, addr cid.Cid) error {
 	return nil
 }
 
-func (o *orbitDB) storeListener(ctx context.Context) chan stores.Event {
-	c := make(chan stores.Event)
-
+func (o *orbitDB) storeListener(ctx context.Context, c chan events.Event) {
 	go func() {
 		for {
 			select {
@@ -535,18 +573,76 @@ func (o *orbitDB) storeListener(ctx context.Context) chan stores.Event {
 			}
 		}
 	}()
+}
 
-	return c
+func (o *orbitDB) pubSubChanListener(ctx context.Context, sub pubsub.Subscription, addr address.Address) {
+	ch := sub.Subscribe()
+
+	for {
+		select {
+		case <-ctx.Done():
+			break
+
+		case e := <-ch:
+			logger().Debug("Got pub sub message")
+			switch e.(type) {
+			case *pubsub.MessageEvent:
+				evt := e.(*pubsub.MessageEvent)
+
+				addr := evt.Topic
+
+				store, ok := o.stores[addr]
+				if !ok {
+					logger().Error(fmt.Sprintf("unable to find store for address %s", addr))
+					continue
+				}
+
+				headsEntriesBytes := evt.Content
+				var headsEntries []*entry.Entry
+
+				err := json.Unmarshal(headsEntriesBytes, &headsEntries)
+				if err != nil {
+					logger().Error("unable to unmarshal head entries")
+				}
+
+				if len(headsEntries) == 0 {
+					logger().Debug(fmt.Sprintf("Nothing to synchronize for %s:", addr))
+				}
+
+				logger().Debug(fmt.Sprintf("Received %d heads for %s:", len(headsEntries), addr))
+
+				if err := store.Sync(ctx, headsEntries); err != nil {
+					logger().Debug(fmt.Sprintf("Error while syncing heads for %s:", addr))
+				}
+			case *peermonitor.EventPeerJoin:
+				evt := e.(*peermonitor.EventPeerJoin)
+				o.onNewPeerJoined(ctx, evt.Peer, addr)
+				logger().Debug(fmt.Sprintf("peer %s joined from %s self is %s", evt.Peer.String(), addr, o.id))
+
+			case *peermonitor.EventPeerLeave:
+				evt := e.(*peermonitor.EventPeerLeave)
+				logger().Debug(fmt.Sprintf("peer %s left from %s self is %s", evt.Peer.String(), addr, o.id))
+
+			default:
+				logger().Debug("unhandled event, can't match type")
+			}
+
+			break
+		}
+	}
 }
 
 func (o *orbitDB) storeListenerSwitch(ctx context.Context, evt stores.Event) {
 	switch evt.(type) {
 	case *stores.EventClosed:
+		logger().Debug("received stores.close event")
+
 		e := evt.(*stores.EventClosed)
 		err := o.onClose(ctx, e.Address.GetRoot())
 		logger().Debug(fmt.Sprintf("unable to perform onClose %v", err))
 
 	case *stores.EventWrite:
+		logger().Debug("received stores.write event")
 		e := evt.(*stores.EventWrite)
 		if len(e.Heads) == 0 {
 			logger().Debug(fmt.Sprintf("'heads' are not defined"))
@@ -565,8 +661,129 @@ func (o *orbitDB) storeListenerSwitch(ctx context.Context, evt stores.Event) {
 				logger().Debug(fmt.Sprintf("unable to publish message on pubsub %v", err))
 				return
 			}
+
+			logger().Debug("stores.write event: published event on pub sub")
 		}
 	}
+}
+
+func (o *orbitDB) onNewPeerJoined(ctx context.Context, p p2pcore.PeerID, addr address.Address) {
+	self, err := o.ipfs.Key().Self(ctx)
+	if err == nil {
+		logger().Debug(fmt.Sprintf("%s: New peer '%s' connected to %s", self.ID(), p, addr.String()))
+	} else {
+		logger().Debug(fmt.Sprintf("New peer '%s' connected to %s", p, addr.String()))
+	}
+
+	_, err = o.exchangeHeads(ctx, p, addr)
+
+	if err != nil {
+		logger().Error("unable to exchange heads", zap.Error(err))
+		return
+	}
+
+	store, ok := o.stores[addr.String()]
+	if !ok {
+		logger().Error(fmt.Sprintf("unable to get store for address %s", addr.String()))
+		return
+	}
+
+	store.Emit(stores.NewEventNewPeer(p))
+}
+
+func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, addr address.Address) (oneonone.Channel, error) {
+	store, ok := o.stores[addr.String()]
+	if !ok {
+		return nil, errors.New(fmt.Sprintf("unable to get store for address %s", addr.String()))
+	}
+
+	channel, err := o.getDirectConnection(ctx, p)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to get a connection to peer")
+	}
+
+	logger().Debug(fmt.Sprintf("connecting to %s", p))
+
+	err = channel.Connect(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to connect to peer")
+	}
+
+	logger().Debug(fmt.Sprintf("connected to %s", p))
+
+	exchangedHeads := &orbitdb.ExchangedHeads{
+		Address: addr.String(),
+		Heads:   store.OpLog().Heads().Slice(),
+	}
+
+	exchangedHeadsBytes, err := json.Marshal(exchangedHeads)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to serialize heads to exchange")
+	}
+
+	err = channel.Send(ctx, exchangedHeadsBytes)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to send heads on pubsub")
+	}
+
+	return channel, nil
+}
+
+func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, ch chan events.Event) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+
+		case evt := <-ch:
+			logger().Debug("received one on one message")
+
+			switch evt.(type) {
+			case *oneonone.EventMessage:
+				e := evt.(*oneonone.EventMessage)
+
+				heads := &orbitdb.ExchangedHeads{}
+				err := json.Unmarshal(e.Payload, &heads)
+				if err != nil {
+					logger().Error("unable to unmarshal heads", zap.Error(err))
+				}
+
+				logger().Debug(fmt.Sprintf("%s: Received %d heads for '%s':", o.id.String(), len(heads.Heads), heads.Address))
+				store, ok := o.stores[heads.Address]
+				if !ok {
+					logger().Debug("Heads from unknown store, skipping")
+					continue
+				}
+
+				if len(heads.Heads) > 0 {
+					logger().Debug(fmt.Sprintf("before update we had %d values", store.OpLog().Values().Len()))
+					if err := store.Sync(ctx, heads.Heads); err != nil {
+						logger().Error("unable to sync heads", zap.Error(err))
+					}
+					logger().Debug(fmt.Sprintf("after  update we had %d values", store.OpLog().Values().Len()))
+				}
+
+			default:
+				logger().Debug("unhandled event type")
+			}
+		}
+	}
+}
+
+func (o *orbitDB) getDirectConnection(ctx context.Context, peerID p2pcore.PeerID) (oneonone.Channel, error) {
+	if conn, ok := o.directConnections[peerID]; ok {
+		return conn, nil
+	}
+
+	channel, err := oneonone.NewChannel(ctx, o.ipfs, peerID)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to create a direct connection with peer")
+	}
+
+	o.directConnections[peerID] = channel
+	go o.watchOneOnOneMessage(ctx, channel.Subscribe())
+
+	return channel, nil
 }
 
 var _ orbitdb.OrbitDB = &orbitDB{}

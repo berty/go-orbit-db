@@ -7,7 +7,7 @@ import (
 )
 
 type operation struct {
-	Key   *string       `json:"key,omitempty"`
+	Key   *string      `json:"key,omitempty"`
 	Op    string       `json:"op,omitempty"`
 	Value []byte       `json:"value,omitempty"`
 	Entry *entry.Entry `json:"-"`

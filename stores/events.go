@@ -3,12 +3,14 @@ package stores
 import (
 	"berty.tech/go-ipfs-log/entry"
 	"github.com/berty/go-orbit-db/address"
+	"github.com/berty/go-orbit-db/events"
 	"github.com/berty/go-orbit-db/stores/replicator"
 	"github.com/ipfs/go-cid"
+	p2pcore "github.com/libp2p/go-libp2p-core"
 	"go.uber.org/zap"
 )
 
-type Event interface{}
+type Event events.Event
 
 type EventReplicate struct {
 	Address address.Address
@@ -40,11 +42,13 @@ func NewEventReplicateProgress(addr address.Address, h cid.Cid, e *entry.Entry, 
 
 type EventReplicated struct {
 	Address address.Address
+	LogLength int
 }
 
-func NewEventReplicated(addr address.Address) *EventReplicated {
+func NewEventReplicated(addr address.Address, logLength int) *EventReplicated {
 	return &EventReplicated{
 		Address: addr,
+		LogLength: logLength,
 	}
 }
 
@@ -113,5 +117,15 @@ func NewEventClosed(addr address.Address) *EventClosed {
 	logger().Debug("emitting stores.closed event", zap.String("addr", addr.String()))
 	return &EventClosed{
 		Address: addr,
+	}
+}
+
+type EventNewPeer struct {
+	Peer p2pcore.PeerID
+}
+
+func NewEventNewPeer(p p2pcore.PeerID) *EventNewPeer {
+	return &EventNewPeer{
+		Peer: p,
 	}
 }
