@@ -20,6 +20,7 @@ func (b *baseIndex) UpdateIndex(log *ipfslog.Log, entries []*entry.Entry) error 
 	return nil
 }
 
+// NewBaseIndex Creates a new basic index
 func NewBaseIndex(publicKey []byte) orbitdb.StoreIndex {
 	return &baseIndex{
 		id: publicKey,

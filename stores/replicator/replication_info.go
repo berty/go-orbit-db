@@ -50,6 +50,7 @@ func (r *replicationInfo) DecreaseQueued(amount int) {
 	r.Queued -= amount
 }
 
+// NewReplicationInfo Creates a new ReplicationInfo instance
 func NewReplicationInfo() ReplicationInfo {
 	return &replicationInfo{}
 }

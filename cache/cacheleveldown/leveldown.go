@@ -1,3 +1,4 @@
+// cacheleveldown is a package returning level db data stores for OrbitDB
 package cacheleveldown
 
 import (
@@ -102,6 +103,7 @@ func (l *levelDownCache) Destroy(directory string, dbAddress address.Address) er
 	return nil
 }
 
+// New Creates a new leveldb data store
 func New() cache.Interface {
 	if singleton != nil {
 		return singleton

@@ -1,3 +1,4 @@
+// tests is a package containing tests and tools for testing orbitdb
 package tests
 
 import (
@@ -19,6 +20,7 @@ func init() {
 	//zap.ReplaceGlobals(logger)
 }
 
+// GetTempDirectory Gets a temporary directory
 func GetTempDirectory() string {
 	storagePath := configdir.New("go-orbit-db", "go-orbit-db")
 	storageDirs := storagePath.QueryFolders(configdir.Cache)
@@ -34,8 +36,10 @@ func GetTempDirectory() string {
 	return storageDirs[0].Path
 }
 
+// TestNetwork is a pointer for the mocked network used in tests
 var TestNetwork mocknet.Mocknet
 
+// MakeIPFS Creates a new IPFS node for testing purposes
 func MakeIPFS(ctx context.Context, t *testing.T) (*ipfsCore.IpfsNode, iface.CoreAPI) {
 	if TestNetwork == nil {
 		TestNetwork = mocknet.New(ctx)
@@ -61,6 +65,7 @@ func MakeIPFS(ctx context.Context, t *testing.T) (*ipfsCore.IpfsNode, iface.Core
 	return core, api
 }
 
+// TeardownNetwork Clears the mock net pointer
 func TeardownNetwork() {
 	TestNetwork = nil
 }

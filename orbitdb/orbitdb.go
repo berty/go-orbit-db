@@ -1,3 +1,4 @@
+// orbitdb implements the OrbitDB interface
 package orbitdb
 
 import (
@@ -44,6 +45,7 @@ func stringPtr(val string) *string {
 	return &val
 }
 
+// NewOrbitDBOptions Options for a new OrbitDB instance
 type NewOrbitDBOptions struct {
 	ID        *string
 	PeerID    *p2pcore.PeerID
@@ -119,6 +121,7 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 	}, nil
 }
 
+// NewOrbitDB Creates a new OrbitDB instance
 func NewOrbitDB(ctx context.Context, ipfs coreapi.CoreAPI, options *NewOrbitDBOptions) (orbitdb.OrbitDB, error) {
 	if ipfs == nil {
 		return nil, errors.New("ipfs is a required argument")
@@ -410,7 +413,7 @@ func (o *orbitDB) DetermineAddress(ctx context.Context, name string, storeType s
 	}
 
 	// Save the manifest to IPFS
-	manifestHash, err := utils.CreateDBManifest(ctx, o.ipfs, name, storeType, accessControllerAddress.String(), nil)
+	manifestHash, err := utils.CreateDBManifest(ctx, o.ipfs, name, storeType, accessControllerAddress.String())
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to save manifest on ipfs")
 	}

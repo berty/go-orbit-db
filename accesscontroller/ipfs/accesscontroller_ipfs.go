@@ -1,3 +1,4 @@
+// ipfs is an access controller
 package ipfs
 
 import (
@@ -124,6 +125,7 @@ func (i *ipfsAccessController) Close() error {
 	return errors.New("not implemented - does not exist in JS version")
 }
 
+// NewIPFSAccessController Returns an access controller for IPFS
 func NewIPFSAccessController(_ context.Context, db orbitdb.OrbitDB, options *base.CreateAccessControllerOptions) (accesscontroller.Interface, error) {
 	if db == nil {
 		return &ipfsAccessController{}, errors.New("an OrbitDB instance is required")

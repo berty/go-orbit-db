@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// NewPeerMonitorOptions Options for creating a new PeerMonitor instance
 type NewPeerMonitorOptions struct {
 	Start        *bool
 	PollInterval *time.Duration
@@ -134,6 +135,7 @@ func (p *peerMonitor) pollPeers(ctx context.Context) error {
 	return nil
 }
 
+// NewPeerMonitor Creates a new PeerMonitor instance
 func NewPeerMonitor(ctx context.Context, ipfs coreapi.CoreAPI, topic string, options *NewPeerMonitorOptions) Interface {
 	if options == nil {
 		options = defaultPeerMonitorOptions

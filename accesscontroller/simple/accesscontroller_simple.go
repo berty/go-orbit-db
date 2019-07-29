@@ -1,3 +1,4 @@
+// simple is an access controller without any persistence
 package simple
 
 import (
@@ -60,6 +61,7 @@ func (o *simpleAccessController) CanAppend(e *entry.Entry, p identityprovider.In
 	return errors.New("not allowed to write entry")
 }
 
+// NewSimpleAccessController Returns a non configurable access controller
 func NewSimpleAccessController(_ context.Context, _ orbitdb.OrbitDB, options *base.CreateAccessControllerOptions) (accesscontroller.Interface, error) {
 	if options.Access == nil {
 		options.Access = map[string][]string{}

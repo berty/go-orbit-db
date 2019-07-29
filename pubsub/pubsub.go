@@ -14,6 +14,7 @@ type pubSub struct {
 	subscriptions map[string]Subscription
 }
 
+// NewPubSub Creates a new pubsub client
 func NewPubSub(is coreapi.CoreAPI, id peer.ID) (Interface, error) {
 	if is == nil {
 		return nil, errors.New("ipfs is not defined")

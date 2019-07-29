@@ -20,6 +20,7 @@ type subscription struct {
 	id        p2pcore.PeerID
 }
 
+// NewSubscription Creates a new pub sub subscription
 func NewSubscription(ctx context.Context, ipfs coreapi.CoreAPI, topic string) (Subscription, error) {
 	_, cancel := context.WithCancel(ctx)
 

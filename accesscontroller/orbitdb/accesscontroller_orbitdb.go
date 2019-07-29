@@ -1,3 +1,4 @@
+// orbitdb is an access controller for OrbitDB stores
 package orbitdb
 
 import (
@@ -234,6 +235,7 @@ func (o *orbitDBAccessController) onUpdate() {
 	o.Emit(&EventUpdated{})
 }
 
+// NewIPFSAccessController Returns a default access controller for OrbitDB database
 func NewOrbitDBAccessController(ctx context.Context, db orbitdb.OrbitDB, options *base.CreateAccessControllerOptions) (accesscontroller.Interface, error) {
 	if db == nil {
 		return &orbitDBAccessController{}, errors.New("an OrbitDB instance is required")

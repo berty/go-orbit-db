@@ -11,6 +11,7 @@ import (
 	"strings"
 )
 
+// Manifest An access controller manifest
 type Manifest struct {
 	Type   string
 	Params *manifestParams
@@ -26,6 +27,7 @@ func (m *manifestParams) GetType() string {
 	return m.Type
 }
 
+// Create a new manifest parameters instance
 func NewManifestParams(address cid.Cid, skipManifest bool, manifestType string) ManifestParams {
 	return &manifestParams{
 		Address:      address,
@@ -42,12 +44,14 @@ func (m *manifestParams) GetAddress() cid.Cid {
 	return m.Address
 }
 
+// ManifestParams List of getters for a manifest parameters
 type ManifestParams interface {
 	GetSkipManifest() bool
 	GetAddress() cid.Cid
 	GetType() string
 }
 
+// CreateManifest Creates a new manifest and returns its CID
 func CreateManifest(ctx context.Context, ipfs coreapi.CoreAPI, controllerType string, params ManifestParams) (cid.Cid, error) {
 	if params.GetSkipManifest() {
 		return params.GetAddress(), nil
@@ -64,6 +68,7 @@ func CreateManifest(ctx context.Context, ipfs coreapi.CoreAPI, controllerType st
 	return io.WriteCBOR(ctx, ipfs, manifest)
 }
 
+// ResolveManifest Retrieves a manifest from its address
 func ResolveManifest(ctx context.Context, ipfs coreapi.CoreAPI, manifestAddress string, params ManifestParams) (*Manifest, error) {
 	if params.GetSkipManifest() {
 		if params.GetType() == "" {
@@ -103,20 +108,20 @@ func ResolveManifest(ctx context.Context, ipfs coreapi.CoreAPI, manifestAddress 
 
 var _ ManifestParams = &manifestParams{}
 
-var AtlasManifest = atlas.BuildEntry(Manifest{}).
-	StructMap().
-	AddField("Type", atlas.StructMapEntry{SerialName: "type"}).
-	AddField("Params", atlas.StructMapEntry{SerialName: "manifest"}).
-	Complete()
-
-var AtlasManifestParams = atlas.BuildEntry(manifestParams{}).
-	StructMap().
-	AddField("SkipManifest", atlas.StructMapEntry{SerialName: "skip_manifest"}).
-	AddField("Address", atlas.StructMapEntry{SerialName: "address"}).
-	AddField("Type", atlas.StructMapEntry{SerialName: "type"}).
-	Complete()
-
 func init() {
-	cbornode.RegisterCborType(AtlasManifest)
-	cbornode.RegisterCborType(AtlasManifestParams)
+	atlasManifest := atlas.BuildEntry(Manifest{}).
+		StructMap().
+		AddField("Type", atlas.StructMapEntry{SerialName: "type"}).
+		AddField("Params", atlas.StructMapEntry{SerialName: "manifest"}).
+		Complete()
+
+	atlasManifestParams := atlas.BuildEntry(manifestParams{}).
+		StructMap().
+		AddField("SkipManifest", atlas.StructMapEntry{SerialName: "skip_manifest"}).
+		AddField("Address", atlas.StructMapEntry{SerialName: "address"}).
+		AddField("Type", atlas.StructMapEntry{SerialName: "type"}).
+		Complete()
+
+	cbornode.RegisterCborType(atlasManifest)
+	cbornode.RegisterCborType(atlasManifestParams)
 }

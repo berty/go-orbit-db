@@ -1,3 +1,4 @@
+// base is a set of functions common to all access controllers
 package base
 
 import (
@@ -8,20 +9,21 @@ import (
 	"github.com/pkg/errors"
 )
 
+// CreateAccessControllerOptions Options used to create an Access Controller
 type CreateAccessControllerOptions struct {
 	Type         string
 	SkipManifest bool
 	Name         string
 	Access       map[string][]string
-	WriteAccess  []string
-	AdminAccess  []string
 	Address      string
 }
 
+// Required prototype for custom controllers constructors
 type ControllerConstructor func(context.Context, orbitdb.OrbitDB, *CreateAccessControllerOptions) (accesscontroller.Interface, error)
 
 var supportedTypes = map[string]ControllerConstructor{}
 
+// Create Creates a new access controller and returns the manifest CID
 func Create(ctx context.Context, db orbitdb.OrbitDB, controllerType string, options *CreateAccessControllerOptions) (cid.Cid, error) {
 	AccessController, ok := supportedTypes[controllerType]
 	if !ok {
@@ -41,6 +43,7 @@ func Create(ctx context.Context, db orbitdb.OrbitDB, controllerType string, opti
 	return accesscontroller.CreateManifest(ctx, db.IPFS(), controllerType, params)
 }
 
+// Resolve Resolves an access controller using its manifest address
 func Resolve(ctx context.Context, db orbitdb.OrbitDB, manifestAddress string, params accesscontroller.ManifestParams) (accesscontroller.Interface, error) {
 	manifest, err := accesscontroller.ResolveManifest(ctx, db.IPFS(), manifestAddress, params)
 	if err != nil {
@@ -70,16 +73,14 @@ func Resolve(ctx context.Context, db orbitdb.OrbitDB, manifestAddress string, pa
 	return accessController, nil
 }
 
+// IsSupported Checks whether an access controller type is supported
 func IsSupported(controllerType string) bool {
 	_, ok := supportedTypes[controllerType]
 
 	return ok
 }
 
-type AddAccessControllerOptions struct {
-	ControllerConstructor ControllerConstructor
-}
-
+// AddAccessController Registers an access controller type using its constructor
 func AddAccessController(constructor ControllerConstructor) error {
 	if constructor == nil {
 		return errors.New("accessController class needs to be given as an option")
@@ -98,6 +99,7 @@ func AddAccessController(constructor ControllerConstructor) error {
 	return nil
 }
 
+// RemoveAccessController Unregister an access controller type
 func RemoveAccessController(controllerType string) {
 	delete(supportedTypes, controllerType)
 }

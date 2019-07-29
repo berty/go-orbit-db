@@ -34,6 +34,7 @@ func (o *operation) GetEntry() *entry.Entry {
 	return o.Entry
 }
 
+// ParseOperation Gets the operation from an entry
 func ParseOperation(e *entry.Entry) (Operation, error) {
 	op := operation{}
 
@@ -47,6 +48,7 @@ func ParseOperation(e *entry.Entry) (Operation, error) {
 	return &op, nil
 }
 
+// NewOperation Creates a new operation
 func NewOperation(key *string, op string, value []byte) Operation {
 	return &operation{
 		Key:   key,

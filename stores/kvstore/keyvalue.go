@@ -73,10 +73,11 @@ func init() {
 	stores.RegisterStore("keyvalue", NewOrbitDBKeyValue)
 }
 
+// NewOrbitDBKeyValue Instantiates a new KeyValueStore
 func NewOrbitDBKeyValue(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *orbitdb.NewStoreOptions) (i orbitdb.Store, e error) {
 	store := &orbitDBKeyValue{}
 
-	options.Index = NewEventIndex
+	options.Index = NewKVIndex
 
 	err := store.InitBaseStore(ctx, ipfs, identity, addr, options)
 	if err != nil {

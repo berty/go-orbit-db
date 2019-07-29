@@ -24,6 +24,7 @@ func (i *eventIndex) UpdateIndex(log *ipfslog.Log, _ []*entry.Entry) error {
 	return nil
 }
 
+// NewEventIndex Creates a new index for an EventLog Store
 func NewEventIndex(_ []byte) orbitdb.StoreIndex {
 	return &eventIndex{}
 }

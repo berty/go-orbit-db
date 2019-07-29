@@ -17,7 +17,7 @@ type Manifest struct {
 	AccessController string
 }
 
-func CreateDBManifest(ctx context.Context, ipfs coreapi.CoreAPI, name string, dbType string, accessControllerAddress string, options interface{}) (cid.Cid, error) {
+func CreateDBManifest(ctx context.Context, ipfs coreapi.CoreAPI, name string, dbType string, accessControllerAddress string) (cid.Cid, error) {
 	manifest := &Manifest{
 		Name:             name,
 		Type:             dbType,

@@ -28,6 +28,7 @@ import (
 	"time"
 )
 
+// BaseStore The base of other stores
 type BaseStore struct {
 	events.EventEmitter
 
@@ -78,6 +79,7 @@ func (b *BaseStore) AccessController() accesscontroller.Interface {
 	return b.access
 }
 
+// InitBaseStore Initializes the store base
 func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *orbitdb.NewStoreOptions) error {
 	var err error
 

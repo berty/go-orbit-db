@@ -6,7 +6,6 @@ import (
 	"context"
 	orbitdb "github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/address"
-	"github.com/berty/go-orbit-db/stores"
 	"github.com/berty/go-orbit-db/stores/basestore"
 	"github.com/berty/go-orbit-db/stores/operation"
 	"github.com/ipfs/go-cid"
@@ -38,10 +37,6 @@ func (o *orbitDBEventLogStore) List(ctx context.Context, options *orbitdb.Stream
 	}
 
 	return operations, nil
-}
-
-func (o *orbitDBEventLogStore) All() []*entry.Entry {
-	return o.OpLog().Values().Slice()
 }
 
 func (o *orbitDBEventLogStore) Add(ctx context.Context, value []byte) (operation.Operation, error) {
@@ -198,10 +193,7 @@ func (o *orbitDBEventLogStore) Type() string {
 	return "eventlog"
 }
 
-func init() {
-	stores.RegisterStore("eventlog", NewOrbitDBEventLogStore)
-}
-
+// NewOrbitDBEventLogStore Instantiates a new EventLogStore
 func NewOrbitDBEventLogStore(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *orbitdb.NewStoreOptions) (i orbitdb.Store, e error) {
 	store := &orbitDBEventLogStore{}
 	options.Index = NewEventIndex

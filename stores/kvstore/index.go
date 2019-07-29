@@ -48,11 +48,12 @@ func (i *kvIndex) UpdateIndex(oplog *ipfslog.Log, _ []*entry.Entry) error {
 	return nil
 }
 
-func NewEventIndex(_ []byte) orbitdb.StoreIndex {
+// NewKVIndex Creates a new Index instance for a KeyValue store
+func NewKVIndex(_ []byte) orbitdb.StoreIndex {
 	return &kvIndex{
 		index: map[string][]byte{},
 	}
 }
 
-var _ orbitdb.IndexConstructor = NewEventIndex
+var _ orbitdb.IndexConstructor = NewKVIndex
 var _ orbitdb.StoreIndex = &kvIndex{}

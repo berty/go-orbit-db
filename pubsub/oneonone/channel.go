@@ -1,3 +1,4 @@
+// oneonone is a pubsub channel for communication between two peers
 package oneonone
 
 import (
@@ -104,6 +105,7 @@ func (c *channel) Close() error {
 	return nil
 }
 
+// NewChannel Creates a new pubsub topic for communication between two peers
 func NewChannel(ctx context.Context, ipfs coreapi.CoreAPI, pid p2pcore.PeerID) (Channel, error) {
 	selfKey, err := ipfs.Key().Self(ctx)
 	if err != nil {

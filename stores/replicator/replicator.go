@@ -61,6 +61,7 @@ func (r *replicator) Load(ctx context.Context, cids []cid.Cid) {
 	r.processQueue(ctx)
 }
 
+// NewReplicator Creates a new Replicator instance
 func NewReplicator(ctx context.Context, store StoreInterface, concurrency uint) Replicator {
 	ctx, cancelFunc := context.WithCancel(ctx)
 
@@ -72,7 +73,7 @@ func NewReplicator(ctx context.Context, store StoreInterface, concurrency uint) 
 		cancelFunc:  cancelFunc,
 		concurrency: concurrency,
 		store:       store,
-		queue:       map[string]cid.Cid{},
+		queue: 		 map[string]cid.Cid{},
 		fetching:    map[string]cid.Cid{},
 	}
 
