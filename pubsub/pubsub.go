@@ -41,7 +41,9 @@ func (p *pubSub) Subscribe(ctx context.Context, topic string) (Subscription, err
 
 	logger().Debug(fmt.Sprintf("starting pubsub listener for peer %s on topic %s", p.id, topic))
 
-	s, err := NewSubscription(ctx, p.ipfs, topic)
+	ctx, cancelFunc := context.WithCancel(ctx)
+
+	s, err := NewSubscription(ctx, p.ipfs, topic, cancelFunc)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create new pubsub subscription")
 	}

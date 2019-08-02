@@ -1,6 +1,10 @@
 // events defines an event subscriber and dispatcher
 package events
 
+import (
+	"context"
+)
+
 type Event interface{}
 
 // EmitterInterface Root interface for events dispatch
@@ -8,52 +12,72 @@ type EmitterInterface interface {
 	// Emit Sends an event to the subscribed listeners
 	Emit(Event)
 
-	// Subscribe Get a channel that will receive emitted events
-	Subscribe() chan Event
-
-	// Unsubscribe Unregister a channel
-	Unsubscribe(chan Event)
+	// Subscribe Registers a callback that will receive emitted events
+	Subscribe(context.Context, func(Event))
 
 	// UnsubscribeAll removes all listeners
 	UnsubscribeAll()
 }
 
+type EventSubscription struct {
+	Chan   chan Event
+	Cancel context.CancelFunc
+}
+
 // EventEmitter Registers listeners and dispatches events to them
 type EventEmitter struct {
-	Subscribers []chan Event
+	Subscribers []*EventSubscription
 }
 
 func (e *EventEmitter) UnsubscribeAll() {
-	e.Subscribers = []chan Event{}
+	oldSubscribers := e.Subscribers
+	e.Subscribers = nil
+	for _, c := range oldSubscribers {
+		c.Cancel()
+	}
 }
 
 func (e *EventEmitter) Emit(evt Event) {
 	for _, s := range e.Subscribers {
-		s <- evt
-	}
-}
-
-func (e *EventEmitter) Subscribe() chan Event {
-	return e.subscribeWithChan(make(chan Event))
-}
-
-func (e *EventEmitter) subscribeWithChan(c chan Event) chan Event {
-	for _, s := range e.Subscribers {
-		if s == c {
-			return nil
+		select {
+		case s.Chan <- evt:
+			break
+		default:
+			break
 		}
 	}
-
-	e.Subscribers = append(e.Subscribers, c)
-
-	return c
 }
 
-func (e *EventEmitter) Unsubscribe(c chan Event) {
+func (e *EventEmitter) Subscribe(ctx context.Context, handler func(Event)) {
+	ctx, cancelFunc := context.WithCancel(ctx)
+
+	ch := make(chan Event, 50)
+
+	sub := &EventSubscription{
+		Chan:   ch,
+		Cancel: cancelFunc,
+	}
+
+	e.Subscribers = append(e.Subscribers, sub)
+
+	for {
+		select {
+		case <-ctx.Done():
+			e.unsubscribe(sub)
+			return
+
+		case evt := <-ch:
+			handler(evt)
+		}
+	}
+}
+
+func (e *EventEmitter) unsubscribe(c *EventSubscription) {
 	for i, s := range e.Subscribers {
 		if s == c {
-			e.Subscribers[len(s)-1], e.Subscribers[i] = e.Subscribers[i], e.Subscribers[len(s)-1]
-			e.Subscribers = e.Subscribers[:len(s)-1]
+			c.Cancel()
+			e.Subscribers[len(e.Subscribers)-1], e.Subscribers[i] = e.Subscribers[i], e.Subscribers[len(e.Subscribers)-1]
+			e.Subscribers = e.Subscribers[:len(e.Subscribers)-1]
 			return
 		}
 	}

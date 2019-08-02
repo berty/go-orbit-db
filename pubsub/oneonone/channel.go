@@ -24,6 +24,7 @@ type channel struct {
 	ipfs       coreapi.CoreAPI
 	peers      []p2pcore.PeerID
 	sub        iface.PubSubSubscription
+	done       bool
 }
 
 func (c *channel) ID() string {
@@ -59,9 +60,6 @@ func (c *channel) waitForPeers(ctx context.Context, peersToWait []p2pcore.PeerID
 	for _, p := range peersToWait {
 		peersToWaitStrs = append(peersToWaitStrs, p.String())
 	}
-
-	logger().Debug(fmt.Sprintf("found from %s peers: %s", c.senderID.String(), strings.Join(peersStrs, ", ")))
-	logger().Debug(fmt.Sprintf("expec from %s peers: %s", c.senderID.String(), strings.Join(peersToWaitStrs, ", ")))
 
 	foundAllPeers := true
 	for _, p1 := range peersToWait {
@@ -101,6 +99,7 @@ func (c *channel) Send(ctx context.Context, data []byte) error {
 func (c *channel) Close() error {
 	c.UnsubscribeAll()
 	_ = c.sub.Close() // TODO: handle errors
+	c.done = true
 
 	return nil
 }
@@ -134,8 +133,16 @@ func NewChannel(ctx context.Context, ipfs coreapi.CoreAPI, pid p2pcore.PeerID) (
 
 	go func() {
 		for {
+			if ctx.Err() != nil || ch.done {
+				return
+			}
+
 			msg, err := sub.Next(ctx)
 			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+
 				logger().Error("unable to get pub sub message", zap.Error(err))
 				continue
 			}
@@ -143,11 +150,8 @@ func NewChannel(ctx context.Context, ipfs coreapi.CoreAPI, pid p2pcore.PeerID) (
 			// Make sure the message is coming from the correct peer
 			// Filter out all messages that didn't come from the second peer
 			if msg.From().String() == ch.senderID.String() {
-				logger().Debug(fmt.Sprintf("got message from self (%s)", ch.senderID))
 				continue
 			}
-
-			logger().Debug("got new one on one message")
 
 			ch.Emit(NewEventMessage(msg.Data()))
 		}

@@ -198,18 +198,12 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 
 	o.kvStore = store
 
-	eventChan := o.kvStore.Subscribe()
-	go func() {
-		select {
-		case e := <-eventChan:
-			switch e.(type) {
-			case stores.EventReady, stores.EventWrite, stores.EventReplicated:
-				o.onUpdate()
-			}
-		case <-ctx.Done():
-			break
+	go o.kvStore.Subscribe(ctx, func (e events.Event) {
+		switch e.(type) {
+		case stores.EventReady, stores.EventWrite, stores.EventReplicated:
+			o.onUpdate()
 		}
-	}()
+	})
 
 	err = o.kvStore.Load(ctx, -1)
 	if err != nil {

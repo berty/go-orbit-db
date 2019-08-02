@@ -184,8 +184,7 @@ func (o *orbitDB) Close() error {
 	for k, store := range o.stores {
 		err := store.Close()
 		if err != nil {
-			//logger().Error("unable to close store", zap.Error(err))
-			_ = err
+			logger().Error("unable to close store", zap.Error(err))
 		}
 		delete(o.stores, k)
 	}
@@ -201,8 +200,7 @@ func (o *orbitDB) Close() error {
 	if o.pubsub != nil {
 		err := o.pubsub.Close()
 		if err != nil {
-			logger().Debug("unable to close pubsub")
-			_ = err
+			logger().Error("unable to close pubsub", zap.Error(err))
 		}
 	}
 
@@ -210,8 +208,7 @@ func (o *orbitDB) Close() error {
 
 	err := o.cache.Close()
 	if err != nil {
-		logger().Debug("unable to close cache")
-		_ = err
+		logger().Error("unable to close cache", zap.Error(err))
 	}
 
 	return nil
@@ -327,8 +324,6 @@ func (o *orbitDB) Open(ctx context.Context, dbAddress string, options *orbitdb.C
 	logger().Debug("Look from ", zap.String("directory", directory))
 
 	if err := address.IsValid(dbAddress); err != nil {
-		logger().Debug(fmt.Sprintf("address '%s' is invalid", directory))
-
 		if !*options.Create {
 			return nil, errors.New("'options.Create' set to 'false'. If you want to create a database, set 'options.Create' to 'true'")
 		} else if *options.Create && (options.StoreType == nil || *options.StoreType == "") {
@@ -439,13 +434,9 @@ func (o *orbitDB) haveLocalData(c datastore.Datastore, dbAddress address.Address
 
 	cacheKey := datastore.NewKey(path.Join(dbAddress.String(), "_manifest"))
 
-	logger().Debug(fmt.Sprintf("haveLocalData: checking data for key %s", cacheKey.String()))
-
 	data, err := c.Get(cacheKey)
 	if err != nil {
-		if err == datastore.ErrNotFound {
-			logger().Debug("haveLocalData: no cache entry found")
-		} else {
+		if err != datastore.ErrNotFound {
 			logger().Error("haveLocalData: error while getting value from cache", zap.Error(err))
 		}
 
@@ -534,8 +525,7 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 		return nil, errors.Wrap(err, "unable to instantiate store")
 	}
 
-	ch := store.Subscribe()
-	o.storeListener(ctx, ch)
+	o.storeListener(ctx, store)
 
 	o.stores[parsedDBAddress.String()] = store
 
@@ -548,7 +538,7 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 			return nil, errors.Wrap(err, "unable to subscribe to pubsub")
 		}
 
-		go o.pubSubChanListener(ctx, sub, parsedDBAddress)
+		o.pubSubChanListener(ctx, sub, parsedDBAddress)
 	}
 
 	return store, nil
@@ -567,110 +557,88 @@ func (o *orbitDB) onClose(ctx context.Context, addr cid.Cid) error {
 	return nil
 }
 
-func (o *orbitDB) storeListener(ctx context.Context, c chan events.Event) {
-	go func() {
-		for {
-			select {
-			case evt := <-c:
-				o.storeListenerSwitch(ctx, evt)
+func (o *orbitDB) storeListener(ctx context.Context, store orbitdb.Store) {
+	go store.Subscribe(ctx, func (evt events.Event) {
+		switch evt.(type) {
+		case *stores.EventClosed:
+			logger().Debug("received stores.close event")
 
-			case <-ctx.Done():
+			e := evt.(*stores.EventClosed)
+			err := o.onClose(ctx, e.Address.GetRoot())
+			logger().Debug(fmt.Sprintf("unable to perform onClose %v", err))
+
+		case *stores.EventWrite:
+			logger().Debug("received stores.write event")
+			e := evt.(*stores.EventWrite)
+			if len(e.Heads) == 0 {
+				logger().Debug(fmt.Sprintf("'heads' are not defined"))
 				return
 			}
+
+			if o.pubsub != nil {
+				headsBytes, err := json.Marshal(e.Heads)
+				if err != nil {
+					logger().Debug(fmt.Sprintf("unable to serialize heads %v", err))
+					return
+				}
+
+				err = o.pubsub.Publish(ctx, e.Address.String(), headsBytes)
+				if err != nil {
+					logger().Debug(fmt.Sprintf("unable to publish message on pubsub %v", err))
+					return
+				}
+
+				logger().Debug("stores.write event: published event on pub sub")
+			}
 		}
-	}()
+	})
 }
 
 func (o *orbitDB) pubSubChanListener(ctx context.Context, sub pubsub.Subscription, addr address.Address) {
-	ch := sub.Subscribe()
+	go sub.Subscribe(ctx, func (e events.Event) {
+		logger().Debug("Got pub sub message")
+		switch e.(type) {
+		case *pubsub.MessageEvent:
+			evt := e.(*pubsub.MessageEvent)
 
-	for {
-		select {
-		case <-ctx.Done():
-			break
+			addr := evt.Topic
 
-		case e := <-ch:
-			logger().Debug("Got pub sub message")
-			switch e.(type) {
-			case *pubsub.MessageEvent:
-				evt := e.(*pubsub.MessageEvent)
-
-				addr := evt.Topic
-
-				store, ok := o.stores[addr]
-				if !ok {
-					logger().Error(fmt.Sprintf("unable to find store for address %s", addr))
-					continue
-				}
-
-				headsEntriesBytes := evt.Content
-				var headsEntries []*entry.Entry
-
-				err := json.Unmarshal(headsEntriesBytes, &headsEntries)
-				if err != nil {
-					logger().Error("unable to unmarshal head entries")
-				}
-
-				if len(headsEntries) == 0 {
-					logger().Debug(fmt.Sprintf("Nothing to synchronize for %s:", addr))
-				}
-
-				logger().Debug(fmt.Sprintf("Received %d heads for %s:", len(headsEntries), addr))
-
-				if err := store.Sync(ctx, headsEntries); err != nil {
-					logger().Debug(fmt.Sprintf("Error while syncing heads for %s:", addr))
-				}
-			case *peermonitor.EventPeerJoin:
-				evt := e.(*peermonitor.EventPeerJoin)
-				o.onNewPeerJoined(ctx, evt.Peer, addr)
-				logger().Debug(fmt.Sprintf("peer %s joined from %s self is %s", evt.Peer.String(), addr, o.id))
-
-			case *peermonitor.EventPeerLeave:
-				evt := e.(*peermonitor.EventPeerLeave)
-				logger().Debug(fmt.Sprintf("peer %s left from %s self is %s", evt.Peer.String(), addr, o.id))
-
-			default:
-				logger().Debug("unhandled event, can't match type")
-			}
-
-			break
-		}
-	}
-}
-
-func (o *orbitDB) storeListenerSwitch(ctx context.Context, evt stores.Event) {
-	switch evt.(type) {
-	case *stores.EventClosed:
-		logger().Debug("received stores.close event")
-
-		e := evt.(*stores.EventClosed)
-		err := o.onClose(ctx, e.Address.GetRoot())
-		logger().Debug(fmt.Sprintf("unable to perform onClose %v", err))
-
-	case *stores.EventWrite:
-		logger().Debug("received stores.write event")
-		e := evt.(*stores.EventWrite)
-		if len(e.Heads) == 0 {
-			logger().Debug(fmt.Sprintf("'heads' are not defined"))
-			return
-		}
-
-		if o.pubsub != nil {
-			headsBytes, err := json.Marshal(e.Heads)
-			if err != nil {
-				logger().Debug(fmt.Sprintf("unable to serialize heads %v", err))
+			store, ok := o.stores[addr]
+			if !ok {
+				logger().Error(fmt.Sprintf("unable to find store for address %s", addr))
 				return
 			}
 
-			err = o.pubsub.Publish(ctx, e.Address.String(), headsBytes)
+			headsEntriesBytes := evt.Content
+			var headsEntries []*entry.Entry
+
+			err := json.Unmarshal(headsEntriesBytes, &headsEntries)
 			if err != nil {
-				logger().Debug(fmt.Sprintf("unable to publish message on pubsub %v", err))
-				return
+				logger().Error("unable to unmarshal head entries")
 			}
 
-			logger().Debug("stores.write event: published event on pub sub")
+			if len(headsEntries) == 0 {
+				logger().Debug(fmt.Sprintf("Nothing to synchronize for %s:", addr))
+			}
+
+			logger().Debug(fmt.Sprintf("Received %d heads for %s:", len(headsEntries), addr))
+
+			if err := store.Sync(ctx, headsEntries); err != nil {
+				logger().Debug(fmt.Sprintf("Error while syncing heads for %s:", addr))
+			}
+		case *peermonitor.EventPeerJoin:
+			evt := e.(*peermonitor.EventPeerJoin)
+			o.onNewPeerJoined(ctx, evt.Peer, addr)
+			logger().Debug(fmt.Sprintf("peer %s joined from %s self is %s", evt.Peer.String(), addr, o.id))
+
+		case *peermonitor.EventPeerLeave:
+			evt := e.(*peermonitor.EventPeerLeave)
+			logger().Debug(fmt.Sprintf("peer %s left from %s self is %s", evt.Peer.String(), addr, o.id))
+
+		default:
+			logger().Debug("unhandled event, can't match type")
 		}
-	}
+	})
 }
 
 func (o *orbitDB) onNewPeerJoined(ctx context.Context, p p2pcore.PeerID, addr address.Address) {
@@ -735,45 +703,37 @@ func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, addr addr
 	return channel, nil
 }
 
-func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, ch chan events.Event) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
+func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel oneonone.Channel) {
+	go channel.Subscribe(ctx, func (evt events.Event) {
+		logger().Debug("received one on one message")
 
-		case evt := <-ch:
-			logger().Debug("received one on one message")
+		switch evt.(type) {
+		case *oneonone.EventMessage:
+			e := evt.(*oneonone.EventMessage)
 
-			switch evt.(type) {
-			case *oneonone.EventMessage:
-				e := evt.(*oneonone.EventMessage)
-
-				heads := &orbitdb.ExchangedHeads{}
-				err := json.Unmarshal(e.Payload, &heads)
-				if err != nil {
-					logger().Error("unable to unmarshal heads", zap.Error(err))
-				}
-
-				logger().Debug(fmt.Sprintf("%s: Received %d heads for '%s':", o.id.String(), len(heads.Heads), heads.Address))
-				store, ok := o.stores[heads.Address]
-				if !ok {
-					logger().Debug("Heads from unknown store, skipping")
-					continue
-				}
-
-				if len(heads.Heads) > 0 {
-					logger().Debug(fmt.Sprintf("before update we had %d values", store.OpLog().Values().Len()))
-					if err := store.Sync(ctx, heads.Heads); err != nil {
-						logger().Error("unable to sync heads", zap.Error(err))
-					}
-					logger().Debug(fmt.Sprintf("after  update we had %d values", store.OpLog().Values().Len()))
-				}
-
-			default:
-				logger().Debug("unhandled event type")
+			heads := &orbitdb.ExchangedHeads{}
+			err := json.Unmarshal(e.Payload, &heads)
+			if err != nil {
+				logger().Error("unable to unmarshal heads", zap.Error(err))
 			}
+
+			logger().Debug(fmt.Sprintf("%s: Received %d heads for '%s':", o.id.String(), len(heads.Heads), heads.Address))
+			store, ok := o.stores[heads.Address]
+			if !ok {
+				logger().Debug("Heads from unknown store, skipping")
+				return
+			}
+
+			if len(heads.Heads) > 0 {
+				if err := store.Sync(ctx, heads.Heads); err != nil {
+					logger().Error("unable to sync heads", zap.Error(err))
+				}
+			}
+
+		default:
+			logger().Debug("unhandled event type")
 		}
-	}
+	})
 }
 
 func (o *orbitDB) getDirectConnection(ctx context.Context, peerID p2pcore.PeerID) (oneonone.Channel, error) {
@@ -787,7 +747,7 @@ func (o *orbitDB) getDirectConnection(ctx context.Context, peerID p2pcore.PeerID
 	}
 
 	o.directConnections[peerID] = channel
-	go o.watchOneOnOneMessage(ctx, channel.Subscribe())
+	o.watchOneOnOneMessage(ctx, channel)
 
 	return channel, nil
 }

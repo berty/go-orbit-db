@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	iface "github.com/berty/go-orbit-db"
+	"github.com/berty/go-orbit-db/events"
 	"github.com/berty/go-orbit-db/orbitdb"
 	"github.com/berty/go-orbit-db/stores"
 	"github.com/berty/go-orbit-db/stores/operation"
@@ -136,48 +137,36 @@ func TestPersistence(t *testing.T) {
 			c.Convey("loading a database emits 'ready' event", FailureHalts, func(c C) {
 				db, err := orbitdb1.Log(ctx, address.String(), nil)
 				c.So(err, ShouldBeNil)
-				eventsChan := db.Subscribe()
 
 				wg := sync.WaitGroup{}
 				wg.Add(1)
-
 				var items []operation.Operation
 
-				go func() {
-					for {
-						select {
-						case evt := <-eventsChan:
-							switch evt.(type) {
-							case *stores.EventReady:
-								items, err = db.List(ctx, &iface.StreamOptions{Amount: &infinity})
-								wg.Done()
-								return
-							}
-							break
-						case <-ctx.Done():
-							wg.Done()
-							return
-						}
+				go db.Subscribe(ctx, func(evt events.Event) {
+					switch evt.(type) {
+					case *stores.EventReady:
+						items, err = db.List(ctx, &iface.StreamOptions{Amount: &infinity})
+						wg.Done()
+						return
 					}
-				}()
+				})
 
 				err = db.Load(ctx, infinity)
 				c.So(err, ShouldBeNil)
 				wg.Wait()
 
 				c.So(err, ShouldBeNil)
-
 				c.So(len(items), ShouldEqual, entryCount)
-				c.So(string(items[0].GetValue()), ShouldEqual, string("hello0"))
+				c.So(string(items[0].GetValue()), ShouldEqual, "hello0")
 				c.So(string(items[len(items)-1].GetValue()), ShouldEqual, fmt.Sprintf("hello%d", entryCount-1))
 			})
 
-			c.Convey("loading a database emits 'load.progress' event", FailureHalts, func (c C) {
+			c.Convey("loading a database emits 'load.progress' event", FailureHalts, func(c C) {
 				// TODO:
 			})
 
-			c.Convey("load from empty snapshot", FailureHalts, func (c C) {
-				c.Convey("loads database from an empty snapshot", FailureHalts, func (c C) {
+			c.Convey("load from empty snapshot", FailureHalts, func(c C) {
+				c.Convey("loads database from an empty snapshot", FailureHalts, func(c C) {
 					db, err := orbitdb1.Log(ctx, "empty-snapshot", nil)
 					c.So(err, ShouldBeNil)
 
@@ -196,13 +185,13 @@ func TestPersistence(t *testing.T) {
 					err = db.LoadFromSnapshot(ctx)
 					c.So(err, ShouldBeNil)
 
-					items, err := db.List(ctx, &iface.StreamOptions{ Amount: &infinity })
+					items, err := db.List(ctx, &iface.StreamOptions{Amount: &infinity})
 					c.So(err, ShouldBeNil)
 					c.So(len(items), ShouldEqual, 0)
 				})
 			})
 
-			c.Convey("load from snapshot", FailureHalts, func (c C) {
+			c.Convey("load from snapshot", FailureHalts, func(c C) {
 				dbName := time.Now().String()
 				var entryArr []operation.Operation
 
@@ -211,8 +200,8 @@ func TestPersistence(t *testing.T) {
 
 				address := db.Address().String()
 
-				for i := 0; i < entryCount; i ++ {
-					op, err :=  db.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
+				for i := 0; i < entryCount; i++ {
+					op, err := db.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
 					c.So(err, ShouldBeNil)
 
 					entryArr = append(entryArr, op)
@@ -225,40 +214,40 @@ func TestPersistence(t *testing.T) {
 				c.So(err, ShouldBeNil)
 				db = nil
 
-				c.Convey("loads database from snapshot", FailureHalts, func (c C) {
+				c.Convey("loads database from snapshot", FailureHalts, func(c C) {
 					db, err = orbitdb1.Log(ctx, address, nil)
 					c.So(err, ShouldBeNil)
 
 					err = db.LoadFromSnapshot(ctx)
 					c.So(err, ShouldBeNil)
 
-					items, err := db.List(ctx, &iface.StreamOptions{ Amount: &infinity })
+					items, err := db.List(ctx, &iface.StreamOptions{Amount: &infinity})
 					c.So(err, ShouldBeNil)
 
 					c.So(len(items), ShouldEqual, entryCount)
 					c.So(string(items[0].GetValue()), ShouldEqual, "hello0")
-					c.So(string(items[entryCount - 1].GetValue()), ShouldEqual, fmt.Sprintf("hello%d", entryCount - 1))
+					c.So(string(items[entryCount-1].GetValue()), ShouldEqual, fmt.Sprintf("hello%d", entryCount-1))
 				})
 
-				c.Convey("load, add one and save snapshot several times", FailureHalts, func (c C) {
+				c.Convey("load, add one and save snapshot several times", FailureHalts, func(c C) {
 					const amount = 4
 
-					for i := 0; i < amount; i ++ {
+					for i := 0; i < amount; i++ {
 						db, err := orbitdb1.Log(ctx, address, nil)
 						c.So(err, ShouldBeNil)
 
 						err = db.LoadFromSnapshot(ctx)
 						c.So(err, ShouldBeNil)
 
-						_, err = db.Add(ctx, []byte(fmt.Sprintf("hello%d", entryCount + i)))
+						_, err = db.Add(ctx, []byte(fmt.Sprintf("hello%d", entryCount+i)))
 						c.So(err, ShouldBeNil)
 
-						items, err := db.List(ctx, &iface.StreamOptions{ Amount: &infinity })
+						items, err := db.List(ctx, &iface.StreamOptions{Amount: &infinity})
 						c.So(err, ShouldBeNil)
 
-						c.So(len(items), ShouldEqual, entryCount + i + 1)
+						c.So(len(items), ShouldEqual, entryCount+i+1)
 						c.So(string(items[0].GetValue()), ShouldEqual, "hello0")
-						c.So(string(items[len(items)- 1].GetValue()), ShouldEqual, fmt.Sprintf("hello%d", entryCount + i))
+						c.So(string(items[len(items)-1].GetValue()), ShouldEqual, fmt.Sprintf("hello%d", entryCount+i))
 
 						_, err = db.SaveSnapshot(ctx)
 						c.So(err, ShouldBeNil)
@@ -268,7 +257,7 @@ func TestPersistence(t *testing.T) {
 					}
 				})
 
-				c.Convey("throws an error when trying to load a missing snapshot", FailureHalts, func (c C) {
+				c.Convey("throws an error when trying to load a missing snapshot", FailureHalts, func(c C) {
 					db, err := orbitdb1.Log(ctx, address, nil)
 					c.So(err, ShouldBeNil)
 
@@ -283,11 +272,11 @@ func TestPersistence(t *testing.T) {
 					c.So(err.Error(), ShouldContainSubstring, "not found")
 				})
 
-				c.Convey("loading a database emits 'ready' event", FailureHalts, func (c C) {
+				c.Convey("loading a database emits 'ready' event", FailureHalts, func(c C) {
 					// TODO
 				})
 
-				c.Convey("loading a database emits 'load.progress' event", FailureHalts, func (c C) {
+				c.Convey("loading a database emits 'load.progress' event", FailureHalts, func(c C) {
 					// TODO
 				})
 

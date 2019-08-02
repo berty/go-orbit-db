@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 	"path"
 	"strings"
 )
@@ -44,22 +43,16 @@ func IsValid(name string) error {
 	name = strings.TrimPrefix(name, "/orbitdb/")
 	parts := strings.Split(name, "/")
 
-	logger().Debug(fmt.Sprintf("Address.IsValid: Tested name: %s (from %s)", parts[0], name))
-
 	var accessControllerHash cid.Cid
 
 	accessControllerHash, err := cid.Decode(parts[0])
 	if err != nil {
-		logger().Debug("address is invalid", zap.Error(err))
 		return errors.Wrap(err, "address is invalid")
 	}
 
 	if accessControllerHash.String() == "" {
-		logger().Debug("accessControllerHash is empty")
 		return errors.New("address is invalid")
 	}
-
-	logger().Debug("Address.IsValid: seems ok, returning nil")
 
 	return nil
 }

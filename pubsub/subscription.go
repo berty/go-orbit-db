@@ -21,9 +21,7 @@ type subscription struct {
 }
 
 // NewSubscription Creates a new pub sub subscription
-func NewSubscription(ctx context.Context, ipfs coreapi.CoreAPI, topic string) (Subscription, error) {
-	_, cancel := context.WithCancel(ctx)
-
+func NewSubscription(ctx context.Context, ipfs coreapi.CoreAPI, topic string, cancel context.CancelFunc) (Subscription, error) {
 	pubSubSub, err := ipfs.PubSub().Subscribe(ctx, topic)
 	if err != nil {
 		return nil, err
@@ -48,51 +46,47 @@ func NewSubscription(ctx context.Context, ipfs coreapi.CoreAPI, topic string) (S
 }
 
 func (s *subscription) Close() error {
-	s.cancel()
+	err := s.pubSubSub.Close()
+	if err != nil {
+		logger().Error("error while closing subscription", zap.Error(err))
+	}
 
 	return nil
 }
 
 func (s *subscription) topicMonitor(ctx context.Context, topic string) {
 	pm := peermonitor.NewPeerMonitor(ctx, s.ipfs, topic, nil)
-	ch := pm.Subscribe()
+	go pm.Subscribe(ctx, func (evt events.Event) {
+		switch evt.(type) {
+		case *peermonitor.EventPeerJoin:
+			e := evt.(*peermonitor.EventPeerJoin)
+			logger().Debug(fmt.Sprintf("peer %s joined topic %s", e.Peer, topic))
+			break
+
+		case *peermonitor.EventPeerLeave:
+			e := evt.(*peermonitor.EventPeerLeave)
+			logger().Debug(fmt.Sprintf("peer %s left topic %s", e.Peer, topic))
+			break
+		}
+
+		s.Emit(evt)
+	})
 	pm.Start(ctx)
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-
-		case evt := <-ch:
-			switch evt.(type) {
-			case *peermonitor.EventPeerJoin:
-				e := evt.(*peermonitor.EventPeerJoin)
-				logger().Debug(fmt.Sprintf("peer %s joined topic %s", e.Peer, topic))
-				break
-
-			case *peermonitor.EventPeerLeave:
-				e := evt.(*peermonitor.EventPeerLeave)
-				logger().Debug(fmt.Sprintf("peer %s left topic %s", e.Peer, topic))
-				break
-			}
-
-			s.Emit(evt)
-		}
-	}
 }
 
 func (s *subscription) listener(ctx context.Context, subSubscription iface.PubSubSubscription, topic string) {
 	for {
 		msg, err := subSubscription.Next(ctx)
 		if err != nil {
-			logger().Error(fmt.Sprintf("unable to get pub sub message"), zap.Error(err))
+			if ctx.Err() == nil {
+				logger().Error(fmt.Sprintf("unable to get pub sub message"), zap.Error(err))
+			}
+
 			break
 		}
 
-		logger().Debug(fmt.Sprintf("got pub sub message from %s", s.id))
-
 		if msg.From() == s.id {
-			logger().Debug(fmt.Sprintf("message sender is self (%s), ignoring", s.id))
 			continue
 		}
 
@@ -102,6 +96,8 @@ func (s *subscription) listener(ctx context.Context, subSubscription iface.PubSu
 			logger().Debug("message is from another topic, ignoring")
 			continue
 		}
+
+		logger().Debug(fmt.Sprintf("got pub sub message from %s", s.id))
 
 		s.Emit(NewMessageEvent(topic, msg.Data()))
 	}

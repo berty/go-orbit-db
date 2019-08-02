@@ -63,22 +63,6 @@ type StreamOptions struct {
 	Amount *int
 }
 
-type EventLogStore interface {
-	Store
-	Add(ctx context.Context, data []byte) (operation.Operation, error)
-	Get(ctx context.Context, cid cid.Cid) (operation.Operation, error)
-	Stream(ctx context.Context, resultChan chan operation.Operation, options *StreamOptions) error
-	List(ctx context.Context, options *StreamOptions) ([]operation.Operation, error)
-}
-
-type KeyValueStore interface {
-	Store
-	All() map[string][]byte
-	Put(ctx context.Context, key string, value []byte) (operation.Operation, error)
-	Delete(ctx context.Context, key string) (operation.Operation, error)
-	Get(ctx context.Context, key string) ([]byte, error)
-}
-
 type Store interface {
 	events.EmitterInterface
 	Close() error
@@ -99,6 +83,23 @@ type Store interface {
 	Identity() *identityprovider.Identity
 	AccessController() accesscontroller.Interface
 	AddOperation(ctx context.Context, op operation.Operation, onProgressCallback chan<- *entry.Entry) (*entry.Entry, error)
+}
+
+
+type EventLogStore interface {
+	Store
+	Add(ctx context.Context, data []byte) (operation.Operation, error)
+	Get(ctx context.Context, cid cid.Cid) (operation.Operation, error)
+	Stream(ctx context.Context, resultChan chan operation.Operation, options *StreamOptions) error
+	List(ctx context.Context, options *StreamOptions) ([]operation.Operation, error)
+}
+
+type KeyValueStore interface {
+	Store
+	All() map[string][]byte
+	Put(ctx context.Context, key string, value []byte) (operation.Operation, error)
+	Delete(ctx context.Context, key string) (operation.Operation, error)
+	Get(ctx context.Context, key string) ([]byte, error)
 }
 
 type StoreIndex interface {

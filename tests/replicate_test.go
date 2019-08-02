@@ -18,7 +18,7 @@ func TestReplication(t *testing.T) {
 	Convey("orbit-db - Replication", t, FailureHalts, func(c C) {
 		var db1, db2 iface.EventLogStore
 
-		ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
+		ctx, _ := context.WithTimeout(context.Background(), time.Second*180)
 		dbPath1 := "./orbitdb/tests/replication/1"
 		dbPath2 := "./orbitdb/tests/replication/2"
 
@@ -72,11 +72,34 @@ func TestReplication(t *testing.T) {
 			_, err = db1.Add(ctx, []byte("hello"))
 			c.So(err, ShouldBeNil)
 
-			<-time.After(time.Second * 3)
+			<-time.After(time.Millisecond * 500)
 			items, err := db2.List(ctx, nil)
 			c.So(err, ShouldBeNil)
 			c.So(len(items), ShouldEqual, 1)
 			c.So(string(items[0].GetValue()), ShouldEqual, "hello")
+		})
+
+		c.Convey("replicates database of 100 entries", FailureHalts, func (c C) {
+			db2, err = orbitdb2.Log(ctx, db1.Address().String(), &iface.CreateDBOptions{
+				Directory: &dbPath2,
+				AccessController: access,
+			})
+			c.So(err, ShouldBeNil)
+
+			const entryCount = 100
+			infinity := -1
+
+			for i := 0; i < entryCount; i ++ {
+				_, err = db1.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
+				c.So(err, ShouldBeNil)
+			}
+
+			<-time.After(time.Millisecond * 2000)
+			items, err := db2.List(ctx, &iface.StreamOptions{Amount: &infinity})
+			c.So(err, ShouldBeNil)
+			c.So(len(items), ShouldEqual, 100)
+			c.So(string(items[0].GetValue()), ShouldEqual, "hello0")
+			c.So(string(items[len(items) - 1].GetValue()), ShouldEqual, "hello99")
 		})
 
 		if db1 != nil {

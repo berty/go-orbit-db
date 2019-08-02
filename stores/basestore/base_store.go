@@ -128,7 +128,6 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 	b.stats.snapshot.bytesLoaded = -1
 
 	b.replicator = replicator.NewReplicator(ctx, b, options.ReplicationConcurrency)
-	replicatorChan := b.replicator.Subscribe()
 	b.loader = b.replicator
 
 	b.referenceCount = 64
@@ -148,26 +147,32 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 
 	b.options = options
 
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case e := <-replicatorChan:
-				switch e.(type) {
-				case *replicator.EventLoadAdded:
-					evt := e.(*replicator.EventLoadAdded)
-					b.replicationLoadAdded(evt.Hash)
+	go b.replicator.Subscribe(ctx, func(e events.Event) {
+		switch e.(type) {
+		case *replicator.EventLoadAdded:
+			evt := e.(*replicator.EventLoadAdded)
+			b.replicationLoadAdded(evt.Hash)
+			b.replicationStatus.IncQueued()
 
-				case *replicator.EventLoadEnd:
-					evt := e.(*replicator.EventLoadEnd)
-					b.replicationLoadComplete(evt.Logs)
-				}
+		case *replicator.EventLoadEnd:
+			evt := e.(*replicator.EventLoadEnd)
+			b.replicationLoadComplete(evt.Logs)
 
-				break
+		case *replicator.EventLoadProgress:
+			evt := e.(*replicator.EventLoadProgress)
+
+			if b.replicationStatus.GetBuffered() > evt.BufferLength {
+				b.recalculateReplicationProgress(b.replicationStatus.GetProgress() + evt.BufferLength)
+			} else {
+				b.recalculateReplicationProgress(b.oplog.Values().Len() + evt.BufferLength)
 			}
+
+			b.replicationStatus.SetBuffered(evt.BufferLength)
+			b.recalculateReplicationMax(b.replicationStatus.GetProgress())
+			// logger.debug(`<replicate.progress>`)
+			b.Emit(stores.NewEventReplicateProgress(b.Address(), evt.Hash, evt.Latest, b.replicationStatus))
 		}
-	}()
+	})
 
 	return nil
 }
@@ -182,6 +187,7 @@ func (b *BaseStore) replicationLoadAdded(e cid.Cid) {
 
 func (b *BaseStore) Close() error {
 	if b.onClose != nil {
+		logger().Debug("\nCLOSING. OnClose\n")
 		b.onClose(b.address)
 	}
 
@@ -195,11 +201,9 @@ func (b *BaseStore) Close() error {
 	b.stats.snapshot.bytesLoaded = -1
 	b.stats.syncRequestsReceived = 0
 
-	for _, s := range b.Subscribers {
-		s <- stores.NewEventClosed(b.address)
-	}
+	b.Emit(stores.NewEventClosed(b.address))
 
-	b.Subscribers = []chan events.Event{}
+	b.UnsubscribeAll()
 
 	err := b.cache.Close()
 	if err != nil {
@@ -451,14 +455,29 @@ func (b *BaseStore) SaveSnapshot(ctx context.Context) (cid.Cid, error) {
 func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 	b.Emit(stores.NewEventLoad(b.address, nil))
 
-	queue, err := b.cache.Get(datastore.NewKey("queue"))
+	queueJSON, err := b.cache.Get(datastore.NewKey("queue"))
 	if err != nil && err != datastore.ErrNotFound {
 		return errors.Wrap(err, "unable to get value from cache")
 	}
 
-	_ = queue
-	// TODO: unmarshal queue
-	// TODO: this.sync(queue || [])
+	if err != datastore.ErrNotFound {
+		_ = queueJSON
+		var queue []cid.Cid
+
+		var entries []*entry.Entry
+
+		if err := json.Unmarshal(queueJSON, &queue); err != nil {
+			return errors.Wrap(err, "unable to deserialize queued CIDs")
+		}
+
+		for _, h := range queue {
+			entries = append(entries, &entry.Entry{Hash: h})
+		}
+
+		if err := b.Sync(ctx, entries); err != nil {
+			return errors.Wrap(err, "unable to sync queued CIDs")
+		}
+	}
 
 	snapshot, err := b.cache.Get(datastore.NewKey("snapshot"))
 	if err == datastore.ErrNotFound {
@@ -637,7 +656,6 @@ func (b *BaseStore) updateIndex() error {
 func (b *BaseStore) replicationLoadComplete(logs []*ipfslog.Log) {
 	logger().Debug("replication load complete")
 	for _, log := range logs {
-		logger().Debug(fmt.Sprintf("joining log with %d entries", log.Values().Len()))
 		_, err := b.oplog.Join(log, -1)
 		if err != nil {
 			logger().Error("unable to join logs", zap.Error(err))

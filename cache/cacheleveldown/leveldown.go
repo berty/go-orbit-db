@@ -23,6 +23,7 @@ type wrappedCache struct {
 	wrappedCache datastore.Datastore
 	manager      *levelDownCache
 	id           string
+	closed       bool
 }
 
 func (w *wrappedCache) Get(key datastore.Key) (value []byte, err error) {
@@ -50,6 +51,11 @@ func (w *wrappedCache) Delete(key datastore.Key) error {
 }
 
 func (w *wrappedCache) Close() error {
+	if w.closed {
+		return nil
+	}
+
+	w.closed = true
 	err := w.wrappedCache.Close()
 	delete(w.manager.caches, w.id)
 	return err

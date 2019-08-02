@@ -2,12 +2,10 @@ package peermonitor
 
 import (
 	"context"
-	"fmt"
 	"github.com/berty/go-orbit-db/events"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"time"
 )
@@ -97,14 +95,7 @@ func (p *peerMonitor) HasPeer(id peer.ID) bool {
 }
 
 func (p *peerMonitor) pollPeers(ctx context.Context) error {
-	self, err := p.ipfs.Key().Self(ctx)
-	if err != nil {
-		return errors.Wrap(err, "unable to get self")
-	}
-
 	peerIDs, err := p.ipfs.PubSub().Peers(ctx, options.PubSub.Topic(p.topic))
-
-	logger().Debug(fmt.Sprintf("pollPeers: %s found %d peers", self.ID().String(), len(peerIDs)))
 
 	currentPeers := map[peer.ID]struct{}{}
 	allPeers := map[peer.ID]struct{}{}

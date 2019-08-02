@@ -82,7 +82,7 @@ func NewReplicator(ctx context.Context, store StoreInterface, concurrency uint) 
 			select {
 			case <-time.After(time.Second * 3):
 				if r.tasksRunning() == 0 && len(r.queue) > 0 {
-					fmt.Printf("Had to flush the queue! %d items in the queue, %d %d tasks requested/finished", len(r.queue), r.tasksRequested(), r.tasksFinished())
+					logger().Debug(fmt.Sprintf("Had to flush the queue! %d items in the queue, %d %d tasks requested/finished", len(r.queue), r.tasksRequested(), r.tasksFinished()))
 					r.processQueue(ctx)
 				}
 			case <-ctx.Done():

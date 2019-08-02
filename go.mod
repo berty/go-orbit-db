@@ -22,5 +22,3 @@ require (
 	github.com/smartystreets/goconvey v0.0.0-20190222223459-a17d461953aa
 	go.uber.org/zap v1.10.0
 )
-
-replace berty.tech/go-ipfs-log => /Users/guillaume/go/src/berty.tech/go-ipfs-log

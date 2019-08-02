@@ -7,22 +7,21 @@ import (
 	"github.com/berty/go-orbit-db/stores/replicator"
 	"github.com/ipfs/go-cid"
 	p2pcore "github.com/libp2p/go-libp2p-core"
-	"go.uber.org/zap"
 )
 
 type Event events.Event
 
-type EventReplicate struct {
-	Address address.Address
-	Entry   *entry.Entry
-}
-
-func NewEventReplicate(addr address.Address, e *entry.Entry) *EventReplicate {
-	return &EventReplicate{
-		Address: addr,
-		Entry:   e,
-	}
-}
+//type EventReplicate struct {
+//	Address address.Address
+//	Entry   *entry.Entry
+//}
+//
+//func NewEventReplicate(addr address.Address, e *entry.Entry) *EventReplicate {
+//	return &EventReplicate{
+//		Address: addr,
+//		Entry:   e,
+//	}
+//}
 
 type EventReplicateProgress struct {
 	Address           address.Address
@@ -58,28 +57,27 @@ type EventLoad struct {
 }
 
 func NewEventLoad(addr address.Address, heads []*entry.Entry) *EventLoad {
-	logger().Debug("emitting stores.load event", zap.String("addr", addr.String()))
 	return &EventLoad{
 		Address: addr,
 		Heads:   heads,
 	}
 }
 
-type EventLoadProgress struct {
-	Address           address.Address
-	Hash              cid.Cid
-	Entry             *entry.Entry
-	ReplicationStatus replicator.ReplicationInfo
-}
-
-func NewEventLoadProgress(addr address.Address, h cid.Cid, e *entry.Entry, replicationStatus replicator.ReplicationInfo) *EventLoadProgress {
-	return &EventLoadProgress{
-		Address:           addr,
-		Hash:              h,
-		Entry:             e,
-		ReplicationStatus: replicationStatus,
-	}
-}
+//type EventLoadProgress struct {
+//	Address           address.Address
+//	Hash              cid.Cid
+//	Entry             *entry.Entry
+//	ReplicationStatus replicator.ReplicationInfo
+//}
+//
+//func NewEventLoadProgress(addr address.Address, h cid.Cid, e *entry.Entry, replicationStatus replicator.ReplicationInfo) *EventLoadProgress {
+//	return &EventLoadProgress{
+//		Address:           addr,
+//		Hash:              h,
+//		Entry:             e,
+//		ReplicationStatus: replicationStatus,
+//	}
+//}
 
 type EventReady struct {
 	Address address.Address
@@ -87,7 +85,6 @@ type EventReady struct {
 }
 
 func NewEventReady(addr address.Address, heads []*entry.Entry) *EventReady {
-	logger().Debug("emitting stores.ready event", zap.String("addr", addr.String()))
 	return &EventReady{
 		Address: addr,
 		Heads:   heads,
@@ -101,7 +98,6 @@ type EventWrite struct {
 }
 
 func NewEventWrite(addr address.Address, e *entry.Entry, heads []*entry.Entry) *EventWrite {
-	logger().Debug("emitting stores.write event", zap.String("addr", addr.String()))
 	return &EventWrite{
 		Address: addr,
 		Entry:   e,
@@ -114,7 +110,6 @@ type EventClosed struct {
 }
 
 func NewEventClosed(addr address.Address) *EventClosed {
-	logger().Debug("emitting stores.closed event", zap.String("addr", addr.String()))
 	return &EventClosed{
 		Address: addr,
 	}

@@ -9,15 +9,18 @@ import (
 	iface "github.com/ipfs/interface-go-ipfs-core"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/shibukawa/configdir"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest"
 	"testing"
 )
 
 func init() {
-	//zaptest.Level(zapcore.DebugLevel)
-	//config := zap.NewDevelopmentConfig()
-	//config.OutputPaths = []string{"stdout"}
-	//logger, _ := config.Build()
-	//zap.ReplaceGlobals(logger)
+	zaptest.Level(zapcore.DebugLevel)
+	config := zap.NewDevelopmentConfig()
+	config.OutputPaths = []string{"stdout"}
+	logger, _ := config.Build()
+	zap.ReplaceGlobals(logger)
 }
 
 // GetTempDirectory Gets a temporary directory
