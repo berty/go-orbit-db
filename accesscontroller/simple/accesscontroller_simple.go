@@ -53,7 +53,7 @@ func (o *simpleAccessController) GetAuthorizedByRole(role string) ([]string, err
 
 func (o *simpleAccessController) CanAppend(e *entry.Entry, p identityprovider.Interface) error {
 	for _, id := range o.allowedKeys["write"] {
-		if e.Identity.ID == id {
+		if e.Identity.ID == id || id == "*" {
 			return nil
 		}
 	}
