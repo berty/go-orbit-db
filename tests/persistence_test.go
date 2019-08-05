@@ -22,6 +22,8 @@ func TestPersistence(t *testing.T) {
 	entryCount := 65
 	infinity := -1
 
+	defer os.RemoveAll(dbPath)
+
 	Convey("orbit-db - Create & Open", t, FailureHalts, func(c C) {
 		err := os.RemoveAll(dbPath)
 		c.So(err, ShouldBeNil)

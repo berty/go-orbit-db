@@ -10,6 +10,7 @@ import (
 	"github.com/berty/go-orbit-db/orbitdb"
 	"github.com/berty/go-orbit-db/stores"
 	"github.com/berty/go-orbit-db/stores/operation"
+	"os"
 
 	//"github.com/berty/go-orbit-db/stores/operation"
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
@@ -27,6 +28,8 @@ func TestReplicateAutomatically(t *testing.T) {
 		ctx, _ := context.WithTimeout(context.Background(), time.Second*180)
 		dbPath1 := "./orbitdb/tests/replicate-automatically/1"
 		dbPath2 := "./orbitdb/tests/replicate-automatically/2"
+
+		defer os.RemoveAll("./orbitdb/tests/replicate-automatically/")
 
 		ipfsd1, ipfs1 := MakeIPFS(ctx, t)
 		ipfsd2, ipfs2 := MakeIPFS(ctx, t)

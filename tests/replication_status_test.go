@@ -5,6 +5,7 @@ import (
 	iface "github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/orbitdb"
 	. "github.com/smartystreets/goconvey/convey"
+	"os"
 	"testing"
 	"time"
 )
@@ -16,8 +17,10 @@ func TestReplicationStatus(t *testing.T) {
 		ctx, _ := context.WithTimeout(context.Background(), time.Second*60)
 		infinity := -1
 		create := false
-		dbPath1 := "./orbitdb/tests/create-open/1"
-		dbPath2 := "./orbitdb/tests/create-open/2"
+		dbPath1 := "./orbitdb/tests/replication-status/1"
+		dbPath2 := "./orbitdb/tests/replication-status/2"
+
+		defer os.RemoveAll("./orbitdb/tests/replication-status/")
 
 		_, ipfs := MakeIPFS(ctx, t)
 

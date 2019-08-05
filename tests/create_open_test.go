@@ -28,9 +28,10 @@ func TestCreateOpen(t *testing.T) {
 
 	Convey("orbit-db - Create & Open", t, FailureHalts, func(c C) {
 		_, ipfs := MakeIPFS(ctx, t)
-		tempDir := GetTempDirectory()
 
-		dbPath := path.Join(tempDir, "./orbitdb/tests/create-open", "1")
+		dbPath := path.Join("./orbitdb/tests/create-open", "1")
+
+		defer os.RemoveAll("./orbitdb/tests/create-open")
 
 		orbit, err := orbitdb.NewOrbitDB(ctx, ipfs, &orbitdb.NewOrbitDBOptions{Directory: &dbPath})
 		c.So(err, ShouldBeNil)
@@ -133,7 +134,7 @@ func TestCreateOpen(t *testing.T) {
 				})
 
 				c.Convey("can pass local database directory as an option", FailureHalts, func(c C) {
-					dir := path.Join(tempDir, "./orbitdb/tests/another-feed")
+					dir := path.Join("./orbitdb/tests/create-open/another-feed")
 					db, err := orbit.Create(ctx, "third", "eventlog", &iface.CreateDBOptions{Directory: &dir})
 					c.So(err, ShouldBeNil)
 

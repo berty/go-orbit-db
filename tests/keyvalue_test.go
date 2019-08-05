@@ -15,6 +15,8 @@ func TestKeyValueStore(t *testing.T) {
 	dbPath := "./orbitdb/tests/keystore"
 	dbname := "orbit-db-tests"
 
+	defer os.RemoveAll(dbPath)
+
 	Convey("orbit-db - Key-Value Database", t, FailureHalts, func(c C) {
 		err := os.RemoveAll(dbPath)
 		c.So(err, ShouldBeNil)

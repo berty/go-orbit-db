@@ -17,6 +17,7 @@ import (
 func TestLogDatabase(t *testing.T) {
 	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
 	const dbPath = "./orbitdb/tests/eventlog"
+	defer os.RemoveAll(dbPath)
 
 	//.createInstance(ipfs, { directory: path.join(dbPath, '1') })
 	Convey("creates and opens a database", t, FailureHalts, func(c C) {
