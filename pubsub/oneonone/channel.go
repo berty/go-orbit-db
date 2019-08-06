@@ -51,16 +51,6 @@ func (c *channel) waitForPeers(ctx context.Context, peersToWait []p2pcore.PeerID
 		return err
 	}
 
-	var peersStrs []string
-	for _, p := range peers {
-		peersStrs = append(peersStrs, p.String())
-	}
-
-	var peersToWaitStrs []string
-	for _, p := range peersToWait {
-		peersToWaitStrs = append(peersToWaitStrs, p.String())
-	}
-
 	foundAllPeers := true
 	for _, p1 := range peersToWait {
 		foundPeer := false

@@ -198,7 +198,7 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 
 	o.kvStore = store
 
-	go o.kvStore.Subscribe(ctx, func (e events.Event) {
+	go o.kvStore.Subscribe(ctx, func(e events.Event) {
 		switch e.(type) {
 		case stores.EventReady, stores.EventWrite, stores.EventReplicated:
 			o.onUpdate()

@@ -47,12 +47,13 @@ func stringPtr(val string) *string {
 
 // NewOrbitDBOptions Options for a new OrbitDB instance
 type NewOrbitDBOptions struct {
-	ID        *string
-	PeerID    *p2pcore.PeerID
-	Directory *string
-	Keystore  *keystore.Keystore
-	Cache     cache.Interface
-	Identity  *idp.Identity
+	ID            *string
+	PeerID        *p2pcore.PeerID
+	Directory     *string
+	Keystore      *keystore.Keystore
+	Cache         cache.Interface
+	Identity      *idp.Identity
+	CloseKeystore func() error
 }
 
 type orbitDB struct {
@@ -61,6 +62,7 @@ type orbitDB struct {
 	id                p2pcore.PeerID
 	pubsub            pubsub.Interface
 	keystore          *keystore.Keystore
+	closeKeystore     func() error
 	stores            map[string]orbitdb.Store
 	directConnections map[p2pcore.PeerID]oneonone.Channel
 	directory         string
@@ -118,6 +120,7 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 		directory:         *options.Directory,
 		stores:            map[string]orbitdb.Store{},
 		directConnections: map[p2pcore.PeerID]oneonone.Channel{},
+		closeKeystore:     options.CloseKeystore,
 	}, nil
 }
 
@@ -154,6 +157,7 @@ func NewOrbitDB(ctx context.Context, ipfs coreapi.CoreAPI, options *NewOrbitDBOp
 		}
 
 		options.Keystore = ks
+		options.CloseKeystore = ds.Close
 	}
 
 	if options.ID == nil {
@@ -179,8 +183,6 @@ func NewOrbitDB(ctx context.Context, ipfs coreapi.CoreAPI, options *NewOrbitDBOp
 }
 
 func (o *orbitDB) Close() error {
-	// FIXME: close keystore
-
 	for k, store := range o.stores {
 		err := store.Close()
 		if err != nil {
@@ -209,6 +211,13 @@ func (o *orbitDB) Close() error {
 	err := o.cache.Close()
 	if err != nil {
 		logger().Error("unable to close cache", zap.Error(err))
+	}
+
+	if o.closeKeystore != nil {
+		err = o.closeKeystore()
+		if err != nil {
+			logger().Error("unable to close key store", zap.Error(err))
+		}
 	}
 
 	return nil
@@ -558,7 +567,7 @@ func (o *orbitDB) onClose(ctx context.Context, addr cid.Cid) error {
 }
 
 func (o *orbitDB) storeListener(ctx context.Context, store orbitdb.Store) {
-	go store.Subscribe(ctx, func (evt events.Event) {
+	go store.Subscribe(ctx, func(evt events.Event) {
 		switch evt.(type) {
 		case *stores.EventClosed:
 			logger().Debug("received stores.close event")
@@ -595,7 +604,7 @@ func (o *orbitDB) storeListener(ctx context.Context, store orbitdb.Store) {
 }
 
 func (o *orbitDB) pubSubChanListener(ctx context.Context, sub pubsub.Subscription, addr address.Address) {
-	go sub.Subscribe(ctx, func (e events.Event) {
+	go sub.Subscribe(ctx, func(e events.Event) {
 		logger().Debug("Got pub sub message")
 		switch e.(type) {
 		case *pubsub.MessageEvent:
@@ -704,7 +713,7 @@ func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, addr addr
 }
 
 func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel oneonone.Channel) {
-	go channel.Subscribe(ctx, func (evt events.Event) {
+	go channel.Subscribe(ctx, func(evt events.Event) {
 		logger().Debug("received one on one message")
 
 		switch evt.(type) {

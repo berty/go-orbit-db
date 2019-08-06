@@ -3,7 +3,7 @@ module github.com/berty/go-orbit-db
 go 1.12
 
 require (
-	berty.tech/go-ipfs-log v0.0.0-20190704124513-045bd8d35e7a
+	berty.tech/go-ipfs-log v0.0.0-20190806125710-494b5ea5ca35
 	github.com/ipfs/go-cid v0.0.2
 	github.com/ipfs/go-datastore v0.0.5
 	github.com/ipfs/go-ds-leveldb v0.0.2
@@ -21,6 +21,5 @@ require (
 	github.com/shibukawa/configdir v0.0.0-20170330084843-e180dbdc8da0 // indirect
 	github.com/smartystreets/goconvey v0.0.0-20190222223459-a17d461953aa
 	go.uber.org/zap v1.10.0
+	google.golang.org/appengine v1.4.0 // indirect
 )
-
-replace berty.tech/go-ipfs-log => /Users/guillaume/go/src/berty.tech/go-ipfs-log

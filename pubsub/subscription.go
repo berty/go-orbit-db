@@ -56,7 +56,7 @@ func (s *subscription) Close() error {
 
 func (s *subscription) topicMonitor(ctx context.Context, topic string) {
 	pm := peermonitor.NewPeerMonitor(ctx, s.ipfs, topic, nil)
-	go pm.Subscribe(ctx, func (evt events.Event) {
+	go pm.Subscribe(ctx, func(evt events.Event) {
 		switch evt.(type) {
 		case *peermonitor.EventPeerJoin:
 			e := evt.(*peermonitor.EventPeerJoin)

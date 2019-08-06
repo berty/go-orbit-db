@@ -85,7 +85,6 @@ type Store interface {
 	AddOperation(ctx context.Context, op operation.Operation, onProgressCallback chan<- *entry.Entry) (*entry.Entry, error)
 }
 
-
 type EventLogStore interface {
 	Store
 	Add(ctx context.Context, data []byte) (operation.Operation, error)

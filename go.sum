@@ -2,6 +2,8 @@ bazil.org/fuse v0.0.0-20180421153158-65cc252bf669 h1:FNCRpXiquG1aoyqcIWVFmpTSKVc
 bazil.org/fuse v0.0.0-20180421153158-65cc252bf669/go.mod h1:Xbm+BRKSBEpa4q4hTSxohYNQpsxXPbPry4JJWOB3LB8=
 berty.tech/go-ipfs-log v0.0.0-20190704124513-045bd8d35e7a h1:jRGTFFmP9elHJY5b+xfdChiVae5awBYuBLzQ7AowBp8=
 berty.tech/go-ipfs-log v0.0.0-20190704124513-045bd8d35e7a/go.mod h1:xHexCtLoQ2iw2tL1EdaC4WkUlp2LGvB+/bSGHTWvY1k=
+berty.tech/go-ipfs-log v0.0.0-20190806125710-494b5ea5ca35 h1:aALBzbzhUnfnRg5VKD8ddusm3eYku37FSYexSIF8ie0=
+berty.tech/go-ipfs-log v0.0.0-20190806125710-494b5ea5ca35/go.mod h1:aRDBLcoPtdnF3tM+ZgP4Fnjlrl/YJv5DWkSp6O8aGwM=
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/AndreasBriese/bbloom v0.0.0-20180913140656-343706a395b7 h1:PqzgE6kAMi81xWQA2QIVxjWkFHptGgC547vchpUbtFo=
 github.com/AndreasBriese/bbloom v0.0.0-20180913140656-343706a395b7/go.mod h1:bOvUY6CB00SOBii9/FifXqc0awNKxLFCL/+pkDPuyl8=
