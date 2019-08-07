@@ -1,4 +1,5 @@
 tests/orbitdb/
+orbitdb/orbitdb/
 
 # Created by .ignore support plugin (hsz.mobi)
 ### Go template
@@ -14,6 +15,7 @@ tests/orbitdb/
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+coverage.txt
 
 # Dependency directories (remove the comment below to include it)
 vendor/
@@ -212,4 +214,3 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
-
