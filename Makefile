@@ -3,8 +3,8 @@ all: test lint
 
 .PHONY: lint
 lint:
-	golangci-lint run
+	golangci-lint run --verbose ./...
 
 .PHONY: test
 test:
-	go test -v ./...
+	go test -cover -coverprofile=coverage.txt -covermode=atomic -v ./...

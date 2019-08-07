@@ -1,0 +1,29 @@
+version: 2.1
+
+orbs:
+  codecov: codecov/codecov@1.0.5
+  moul: moul/build@1.5.0
+  tools: gotest/tools@0.0.9
+
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:1.12
+    working_directory: /go/src/berty.tech/go-ipfs-log
+    environment:
+      GO111MODULE: "on"
+      GOPROXY: "https://goproxy.io"
+    steps:
+      - checkout
+      - tools/mod-download
+      - tools/mod-tidy-check
+      - run: make test
+      - moul/install_golangci-lint
+      - run: make lint
+      - codecov/upload:
+          file: coverage.txt
+
+workflows:
+  main:
+    jobs:
+      - build

@@ -18,7 +18,6 @@ require (
 	github.com/pkg/errors v0.8.1
 	github.com/polydawn/refmt v0.0.0-20190221155625-df39d6c2d992
 	github.com/prometheus/common v0.4.0
-	github.com/shibukawa/configdir v0.0.0-20170330084843-e180dbdc8da0 // indirect
 	github.com/smartystreets/goconvey v0.0.0-20190222223459-a17d461953aa
 	go.uber.org/zap v1.10.0
 	google.golang.org/appengine v1.4.0 // indirect
