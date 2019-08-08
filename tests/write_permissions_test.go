@@ -2,11 +2,10 @@ package tests
 
 import (
 	"context"
-	iface "github.com/berty/go-orbit-db"
+	"github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/accesscontroller/base"
 	"github.com/berty/go-orbit-db/accesscontroller/simple"
 	"github.com/berty/go-orbit-db/events"
-	"github.com/berty/go-orbit-db/orbitdb"
 	"github.com/berty/go-orbit-db/stores"
 	. "github.com/smartystreets/goconvey/convey"
 	"os"
@@ -26,8 +25,7 @@ func TestWritePermissions(t *testing.T) {
 		dbPath1 := path.Join(dbPath, "/1")
 		dbPath2 := path.Join(dbPath, "/2")
 
-		defer os.RemoveAll(dbPath1)
-		defer os.RemoveAll(dbPath2)
+		defer os.RemoveAll(dbPath)
 
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs, &orbitdb.NewOrbitDBOptions{Directory: &dbPath1})
 		c.So(err, ShouldBeNil)
@@ -49,13 +47,13 @@ func TestWritePermissions(t *testing.T) {
 				})
 				c.So(err, ShouldBeNil)
 
-				db1, err := orbitdb1.Log(ctx, "sync-test", &iface.CreateDBOptions{
+				db1, err := orbitdb1.Log(ctx, "sync-test", &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
 				c.So(err, ShouldBeNil)
 				defer db1.Close()
 
-				db2, err := orbitdb2.Log(ctx, db1.Address().String(), &iface.CreateDBOptions{
+				db2, err := orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
 				c.So(err, ShouldBeNil)
@@ -93,13 +91,13 @@ func TestWritePermissions(t *testing.T) {
 				})
 				c.So(err, ShouldBeNil)
 
-				db1, err := orbitdb1.Log(ctx, "sync-test", &iface.CreateDBOptions{
+				db1, err := orbitdb1.Log(ctx, "sync-test", &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
 				c.So(err, ShouldBeNil)
 				defer db1.Close()
 
-				db2, err := orbitdb2.Log(ctx, db1.Address().String(), &iface.CreateDBOptions{
+				db2, err := orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
 				c.So(err, ShouldBeNil)
@@ -134,13 +132,13 @@ func TestWritePermissions(t *testing.T) {
 				})
 				c.So(err, ShouldBeNil)
 
-				db1, err := orbitdb1.Log(ctx, "sync-test-public-dbs", &iface.CreateDBOptions{
+				db1, err := orbitdb1.Log(ctx, "sync-test-public-dbs", &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
 				c.So(err, ShouldBeNil)
 				defer db1.Close()
 
-				db2, err := orbitdb2.Log(ctx, db1.Address().String(), &iface.CreateDBOptions{
+				db2, err := orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
 				c.So(err, ShouldBeNil)
@@ -173,13 +171,13 @@ func TestWritePermissions(t *testing.T) {
 				})
 				c.So(err, ShouldBeNil)
 
-				db1, err := orbitdb1.Log(ctx, "write error test 1", &iface.CreateDBOptions{
+				db1, err := orbitdb1.Log(ctx, "write error test 1", &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
 				c.So(err, ShouldBeNil)
 				defer db1.Close()
 
-				db2, err := orbitdb2.Log(ctx, "write error test 1", &iface.CreateDBOptions{
+				db2, err := orbitdb2.Log(ctx, "write error test 1", &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
 				c.So(err, ShouldBeNil)
@@ -231,13 +229,13 @@ func TestWritePermissions(t *testing.T) {
 				})
 				c.So(err, ShouldBeNil)
 
-				db1, err := orbitdb1.Log(ctx, "write error test 2", &iface.CreateDBOptions{
+				db1, err := orbitdb1.Log(ctx, "write error test 2", &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
 				c.So(err, ShouldBeNil)
 				defer db1.Close()
 
-				db2, err := orbitdb2.Log(ctx, db1.Address().String(), &iface.CreateDBOptions{
+				db2, err := orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
 				c.So(err, ShouldBeNil)

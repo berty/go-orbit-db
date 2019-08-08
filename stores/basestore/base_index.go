@@ -3,7 +3,7 @@ package basestore
 import (
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/entry"
-	orbitdb "github.com/berty/go-orbit-db"
+	"github.com/berty/go-orbit-db/iface"
 )
 
 type baseIndex struct {
@@ -21,10 +21,10 @@ func (b *baseIndex) UpdateIndex(log *ipfslog.Log, entries []*entry.Entry) error 
 }
 
 // NewBaseIndex Creates a new basic index
-func NewBaseIndex(publicKey []byte) orbitdb.StoreIndex {
+func NewBaseIndex(publicKey []byte) iface.StoreIndex {
 	return &baseIndex{
 		id: publicKey,
 	}
 }
 
-var _ orbitdb.IndexConstructor = NewBaseIndex
+var _ iface.IndexConstructor = NewBaseIndex

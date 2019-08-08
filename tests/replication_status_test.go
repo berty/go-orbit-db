@@ -2,8 +2,7 @@ package tests
 
 import (
 	"context"
-	iface "github.com/berty/go-orbit-db"
-	"github.com/berty/go-orbit-db/orbitdb"
+	"github.com/berty/go-orbit-db"
 	. "github.com/smartystreets/goconvey/convey"
 	"os"
 	"testing"
@@ -12,7 +11,7 @@ import (
 
 func TestReplicationStatus(t *testing.T) {
 	Convey("orbit-db - Replication Status", t, FailureHalts, func(c C) {
-		var db, db2 iface.EventLogStore
+		var db, db2 orbitdb.EventLogStore
 
 		ctx, _ := context.WithTimeout(context.Background(), time.Second*60)
 		infinity := -1
@@ -73,7 +72,7 @@ func TestReplicationStatus(t *testing.T) {
 				c.So(db.ReplicationStatus().GetProgress(), ShouldEqual, 2)
 				c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 2)
 
-				db2, err = orbitdb2.Log(ctx, db.Address().String(), &iface.CreateDBOptions{ Create: &create })
+				db2, err = orbitdb2.Log(ctx, db.Address().String(), &orbitdb.CreateDBOptions{ Create: &create })
 				c.So(err, ShouldBeNil)
 
 				err = db2.Sync(ctx, db.OpLog().Heads().Slice())

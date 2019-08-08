@@ -5,23 +5,25 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
-type Event events.Event
-
+// EventPeerJoin Is an event triggered when a peer joins the channel
 type EventPeerJoin struct {
 	Peer peer.ID
 }
 
+// EventPeerLeave Is an event triggered when a peer leave the channel
 type EventPeerLeave struct {
 	Peer peer.ID
 }
 
-func NewEventPeerJoin(p peer.ID) *EventPeerJoin {
+// NewEventPeerJoin creates a new EventPeerJoin event
+func NewEventPeerJoin(p peer.ID) events.Event {
 	return &EventPeerJoin{
 		Peer: p,
 	}
 }
 
-func NewEventPeerLeave(p peer.ID) *EventPeerLeave {
+// NewEventPeerLeave creates a new EventPeerLeave event
+func NewEventPeerLeave(p peer.ID) events.Event {
 	return &EventPeerLeave{
 		Peer: p,
 	}

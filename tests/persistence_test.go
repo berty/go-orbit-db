@@ -3,9 +3,8 @@ package tests
 import (
 	"context"
 	"fmt"
-	iface "github.com/berty/go-orbit-db"
+	orbitdb "github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/events"
-	"github.com/berty/go-orbit-db/orbitdb"
 	"github.com/berty/go-orbit-db/stores"
 	"github.com/berty/go-orbit-db/stores/operation"
 	. "github.com/smartystreets/goconvey/convey"
@@ -55,7 +54,7 @@ func TestPersistence(t *testing.T) {
 				err = db.Load(ctx, infinity)
 				c.So(err, ShouldBeNil)
 
-				items, err := db.List(ctx, &iface.StreamOptions{Amount: &infinity})
+				items, err := db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 				c.So(len(items), ShouldEqual, entryCount)
 				c.So(string(items[0].GetValue()), ShouldEqual, "hello0")
 				c.So(string(items[len(items)-1].GetValue()), ShouldEqual, fmt.Sprintf("hello%d", entryCount-1))
@@ -69,7 +68,7 @@ func TestPersistence(t *testing.T) {
 				err = db.Load(ctx, amount)
 				c.So(err, ShouldBeNil)
 
-				items, err := db.List(ctx, &iface.StreamOptions{Amount: &infinity})
+				items, err := db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 				c.So(err, ShouldBeNil)
 
 				c.So(len(items), ShouldEqual, amount)
@@ -87,7 +86,7 @@ func TestPersistence(t *testing.T) {
 					err = db.Load(ctx, infinity)
 					c.So(err, ShouldBeNil)
 
-					items, err := db.List(ctx, &iface.StreamOptions{Amount: &infinity})
+					items, err := db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 					c.So(err, ShouldBeNil)
 
 					c.So(len(items), ShouldEqual, entryCount)
@@ -125,7 +124,7 @@ func TestPersistence(t *testing.T) {
 					_, err = db.Add(ctx, []byte(fmt.Sprintf("hello%d", entryCount+i)))
 					c.So(err, ShouldBeNil)
 
-					items, err := db.List(ctx, &iface.StreamOptions{Amount: &infinity})
+					items, err := db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 					c.So(err, ShouldBeNil)
 
 					c.So(len(items), ShouldEqual, entryCount+i+1)
@@ -147,7 +146,7 @@ func TestPersistence(t *testing.T) {
 				go db.Subscribe(ctx, func(evt events.Event) {
 					switch evt.(type) {
 					case *stores.EventReady:
-						items, err = db.List(ctx, &iface.StreamOptions{Amount: &infinity})
+						items, err = db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 						wg.Done()
 						return
 					}
@@ -181,13 +180,13 @@ func TestPersistence(t *testing.T) {
 
 					dbUntyped, err := orbitdb1.Open(ctx, address, nil)
 					c.So(err, ShouldBeNil)
-					db, ok := dbUntyped.(iface.EventLogStore)
+					db, ok := dbUntyped.(orbitdb.EventLogStore)
 					c.So(ok, ShouldBeTrue)
 
 					err = db.LoadFromSnapshot(ctx)
 					c.So(err, ShouldBeNil)
 
-					items, err := db.List(ctx, &iface.StreamOptions{Amount: &infinity})
+					items, err := db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 					c.So(err, ShouldBeNil)
 					c.So(len(items), ShouldEqual, 0)
 				})
@@ -223,7 +222,7 @@ func TestPersistence(t *testing.T) {
 					err = db.LoadFromSnapshot(ctx)
 					c.So(err, ShouldBeNil)
 
-					items, err := db.List(ctx, &iface.StreamOptions{Amount: &infinity})
+					items, err := db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 					c.So(err, ShouldBeNil)
 
 					c.So(len(items), ShouldEqual, entryCount)
@@ -244,7 +243,7 @@ func TestPersistence(t *testing.T) {
 						_, err = db.Add(ctx, []byte(fmt.Sprintf("hello%d", entryCount+i)))
 						c.So(err, ShouldBeNil)
 
-						items, err := db.List(ctx, &iface.StreamOptions{Amount: &infinity})
+						items, err := db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 						c.So(err, ShouldBeNil)
 
 						c.So(len(items), ShouldEqual, entryCount+i+1)

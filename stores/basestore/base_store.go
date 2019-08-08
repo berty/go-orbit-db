@@ -1,3 +1,4 @@
+// basestore defines a set of operations common to the different store types
 package basestore
 
 import (
@@ -9,12 +10,12 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	orbitdb "github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/accesscontroller"
 	"github.com/berty/go-orbit-db/accesscontroller/base"
 	"github.com/berty/go-orbit-db/accesscontroller/simple"
 	"github.com/berty/go-orbit-db/address"
 	"github.com/berty/go-orbit-db/events"
+	"github.com/berty/go-orbit-db/iface"
 	"github.com/berty/go-orbit-db/stores"
 	"github.com/berty/go-orbit-db/stores/operation"
 	"github.com/berty/go-orbit-db/stores/replicator"
@@ -42,7 +43,7 @@ type BaseStore struct {
 	oplog             *ipfslog.Log
 	replicator        replicator.Replicator
 	storeType         string
-	index             orbitdb.StoreIndex
+	index             iface.StoreIndex
 	replicationStatus replicator.ReplicationInfo
 	loader            replicator.Replicator
 	onClose           func(address.Address)
@@ -55,7 +56,7 @@ type BaseStore struct {
 	referenceCount int
 	replicate      bool
 	directory      string
-	options        *orbitdb.NewStoreOptions
+	options        *iface.NewStoreOptions
 	cacheDestroy   func() error
 }
 
@@ -63,7 +64,7 @@ func (b *BaseStore) DBName() string {
 	return b.dbName
 }
 
-func (b *BaseStore) Ipfs() coreapi.CoreAPI {
+func (b *BaseStore) IPFS() coreapi.CoreAPI {
 	return b.ipfs
 }
 
@@ -80,7 +81,7 @@ func (b *BaseStore) AccessController() accesscontroller.Interface {
 }
 
 // InitBaseStore Initializes the store base
-func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *orbitdb.NewStoreOptions) error {
+func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) error {
 	var err error
 
 	if identity == nil {
@@ -217,7 +218,7 @@ func (b *BaseStore) Address() address.Address {
 	return b.address
 }
 
-func (b *BaseStore) Index() orbitdb.StoreIndex {
+func (b *BaseStore) Index() iface.StoreIndex {
 	return b.index
 }
 
@@ -691,4 +692,4 @@ func (b *BaseStore) replicationLoadComplete(logs []*ipfslog.Log) {
 	b.Emit(stores.NewEventReplicated(b.address, len(logs)))
 }
 
-var _ orbitdb.Store = &BaseStore{}
+var _ iface.Store = &BaseStore{}

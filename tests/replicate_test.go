@@ -3,10 +3,9 @@ package tests
 import (
 	"context"
 	"fmt"
-	iface "github.com/berty/go-orbit-db"
+	"github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/accesscontroller/base"
 	"github.com/berty/go-orbit-db/accesscontroller/simple"
-	"github.com/berty/go-orbit-db/orbitdb"
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
 	. "github.com/smartystreets/goconvey/convey"
 	"go.uber.org/zap"
@@ -17,7 +16,7 @@ import (
 
 func TestReplication(t *testing.T) {
 	Convey("orbit-db - Replication", t, FailureHalts, func(c C) {
-		var db1, db2 iface.EventLogStore
+		var db1, db2 orbitdb.EventLogStore
 
 		ctx, _ := context.WithTimeout(context.Background(), time.Second*180)
 		dbPath1 := "./orbitdb/tests/replication/1"
@@ -59,14 +58,14 @@ func TestReplication(t *testing.T) {
 
 		c.So(err, ShouldBeNil)
 
-		db1, err = orbitdb1.Log(ctx, "replication-tests", &iface.CreateDBOptions{
+		db1, err = orbitdb1.Log(ctx, "replication-tests", &orbitdb.CreateDBOptions{
 			Directory:        &dbPath1,
 			AccessController: access,
 		})
 		c.So(err, ShouldBeNil)
 
 		c.Convey("replicates database of 1 entry", FailureHalts, func(c C) {
-			db2, err = orbitdb2.Log(ctx, db1.Address().String(), &iface.CreateDBOptions{
+			db2, err = orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
 				Directory: &dbPath2,
 				AccessController: access,
 			})
@@ -83,7 +82,7 @@ func TestReplication(t *testing.T) {
 		})
 
 		c.Convey("replicates database of 100 entries", FailureHalts, func (c C) {
-			db2, err = orbitdb2.Log(ctx, db1.Address().String(), &iface.CreateDBOptions{
+			db2, err = orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
 				Directory: &dbPath2,
 				AccessController: access,
 			})
@@ -98,7 +97,7 @@ func TestReplication(t *testing.T) {
 			}
 
 			<-time.After(time.Millisecond * 2000)
-			items, err := db2.List(ctx, &iface.StreamOptions{Amount: &infinity})
+			items, err := db2.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 			c.So(err, ShouldBeNil)
 			c.So(len(items), ShouldEqual, 100)
 			c.So(string(items[0].GetValue()), ShouldEqual, "hello0")

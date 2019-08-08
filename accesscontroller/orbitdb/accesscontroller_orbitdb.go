@@ -6,24 +6,27 @@ import (
 	"berty.tech/go-ipfs-log/identityprovider"
 	"context"
 	"encoding/json"
-	orbitdb "github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/accesscontroller"
 	"github.com/berty/go-orbit-db/accesscontroller/base"
 	"github.com/berty/go-orbit-db/accesscontroller/ipfs"
 	"github.com/berty/go-orbit-db/accesscontroller/utils"
 	"github.com/berty/go-orbit-db/address"
 	"github.com/berty/go-orbit-db/events"
+	"github.com/berty/go-orbit-db/iface"
 	"github.com/berty/go-orbit-db/stores"
 	"github.com/pkg/errors"
 )
 
-type Event interface{}
+// CreateDBOptions An alias for iface.CreateDBOptions
+type CreateDBOptions = iface.CreateDBOptions
+
+// EventUpdated An event sent when the access controller has been updated
 type EventUpdated struct{}
 
 type orbitDBAccessController struct {
 	events.EventEmitter
-	orbitdb orbitdb.OrbitDB
-	kvStore orbitdb.KeyValueStore
+	orbitdb iface.OrbitDB
+	kvStore iface.KeyValueStore
 	options *base.CreateAccessControllerOptions
 }
 
@@ -189,7 +192,7 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 		return errors.New("unable to create IPFS access controller")
 	}
 
-	store, err := o.orbitdb.KeyValue(ctx, utils.EnsureAddress(address), &orbitdb.CreateDBOptions{
+	store, err := o.orbitdb.KeyValue(ctx, utils.EnsureAddress(address), &CreateDBOptions{
 		AccessController: ipfsAccessController,
 	})
 	if err != nil {
@@ -230,7 +233,7 @@ func (o *orbitDBAccessController) onUpdate() {
 }
 
 // NewIPFSAccessController Returns a default access controller for OrbitDB database
-func NewOrbitDBAccessController(ctx context.Context, db orbitdb.OrbitDB, options *base.CreateAccessControllerOptions) (accesscontroller.Interface, error) {
+func NewOrbitDBAccessController(ctx context.Context, db iface.OrbitDB, options *base.CreateAccessControllerOptions) (accesscontroller.Interface, error) {
 	if db == nil {
 		return &orbitDBAccessController{}, errors.New("an OrbitDB instance is required")
 	}

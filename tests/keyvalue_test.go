@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"github.com/berty/go-orbit-db/orbitdb"
+	orbitdb2 "github.com/berty/go-orbit-db"
 	. "github.com/smartystreets/goconvey/convey"
 	"os"
 	"path"
@@ -24,7 +24,7 @@ func TestKeyValueStore(t *testing.T) {
 		db1Path := path.Join(dbPath, "1")
 		_, db1IPFS := MakeIPFS(ctx, t)
 
-		orbitdb1, err := orbitdb.NewOrbitDB(ctx, db1IPFS, &orbitdb.NewOrbitDBOptions{
+		orbitdb1, err := orbitdb2.NewOrbitDB(ctx, db1IPFS, &orbitdb2.NewOrbitDBOptions{
 			Directory: &db1Path,
 		})
 		defer orbitdb1.Close()

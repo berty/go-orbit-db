@@ -3,8 +3,8 @@ package base
 
 import (
 	"context"
-	orbitdb "github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/accesscontroller"
+	"github.com/berty/go-orbit-db/iface"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 )
@@ -19,12 +19,12 @@ type CreateAccessControllerOptions struct {
 }
 
 // Required prototype for custom controllers constructors
-type ControllerConstructor func(context.Context, orbitdb.OrbitDB, *CreateAccessControllerOptions) (accesscontroller.Interface, error)
+type ControllerConstructor func(context.Context, iface.OrbitDB, *CreateAccessControllerOptions) (accesscontroller.Interface, error)
 
 var supportedTypes = map[string]ControllerConstructor{}
 
 // Create Creates a new access controller and returns the manifest CID
-func Create(ctx context.Context, db orbitdb.OrbitDB, controllerType string, options *CreateAccessControllerOptions) (cid.Cid, error) {
+func Create(ctx context.Context, db iface.OrbitDB, controllerType string, options *CreateAccessControllerOptions) (cid.Cid, error) {
 	AccessController, ok := supportedTypes[controllerType]
 	if !ok {
 		return cid.Cid{}, errors.New("unrecognized access controller on create")
@@ -44,7 +44,7 @@ func Create(ctx context.Context, db orbitdb.OrbitDB, controllerType string, opti
 }
 
 // Resolve Resolves an access controller using its manifest address
-func Resolve(ctx context.Context, db orbitdb.OrbitDB, manifestAddress string, params accesscontroller.ManifestParams) (accesscontroller.Interface, error) {
+func Resolve(ctx context.Context, db iface.OrbitDB, manifestAddress string, params accesscontroller.ManifestParams) (accesscontroller.Interface, error) {
 	manifest, err := accesscontroller.ResolveManifest(ctx, db.IPFS(), manifestAddress, params)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to resolve manifest")

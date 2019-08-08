@@ -1,10 +1,11 @@
+// kvstore a key value store for OrbitDB
 package kvstore
 
 import (
 	"berty.tech/go-ipfs-log/identityprovider"
 	"context"
-	orbitdb "github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/address"
+	"github.com/berty/go-orbit-db/iface"
 	"github.com/berty/go-orbit-db/stores"
 	"github.com/berty/go-orbit-db/stores/basestore"
 	"github.com/berty/go-orbit-db/stores/operation"
@@ -74,7 +75,7 @@ func init() {
 }
 
 // NewOrbitDBKeyValue Instantiates a new KeyValueStore
-func NewOrbitDBKeyValue(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *orbitdb.NewStoreOptions) (i orbitdb.Store, e error) {
+func NewOrbitDBKeyValue(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) (i iface.Store, e error) {
 	store := &orbitDBKeyValue{}
 
 	options.Index = NewKVIndex
@@ -87,4 +88,4 @@ func NewOrbitDBKeyValue(ctx context.Context, ipfs coreapi.CoreAPI, identity *ide
 	return store, nil
 }
 
-var _ orbitdb.KeyValueStore = &orbitDBKeyValue{}
+var _ iface.KeyValueStore = &orbitDBKeyValue{}

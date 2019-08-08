@@ -1,12 +1,14 @@
 // stores registers constructors for OrbitDB stores
 package stores
 
-import orbitdb "github.com/berty/go-orbit-db"
+import (
+	"github.com/berty/go-orbit-db/iface"
+)
 
-var storeTypes = map[string]orbitdb.StoreConstructor{}
+var storeTypes = map[string]iface.StoreConstructor{}
 
 // RegisterStore Registers a new store type which can be used by its name
-func RegisterStore(storeType string, constructor orbitdb.StoreConstructor) {
+func RegisterStore(storeType string, constructor iface.StoreConstructor) {
 	storeTypes[storeType] = constructor
 }
 
@@ -27,7 +29,7 @@ func StoreTypesNames() []string {
 }
 
 // GetConstructor Gets a store constructor
-func GetConstructor(storeType string) (orbitdb.StoreConstructor, bool) {
+func GetConstructor(storeType string) (iface.StoreConstructor, bool) {
 	constructor, ok := storeTypes[storeType]
 
 	return constructor, ok

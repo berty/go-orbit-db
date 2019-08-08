@@ -6,10 +6,9 @@ import (
 	"berty.tech/go-ipfs-log/keystore"
 	"context"
 	"fmt"
-	iface "github.com/berty/go-orbit-db"
+	orbitdb "github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/accesscontroller/base"
 	"github.com/berty/go-orbit-db/accesscontroller/simple"
-	"github.com/berty/go-orbit-db/orbitdb"
 	"github.com/berty/go-orbit-db/stores/operation"
 	"github.com/berty/go-orbit-db/utils"
 	"github.com/ipfs/go-datastore"
@@ -57,11 +56,11 @@ func TestCreateOpen(t *testing.T) {
 				c.Convey("throws an error if database already exists", FailureHalts, func(c C) {
 					replicate := false
 
-					db1, err := orbit.Create(ctx, "first", "eventlog", &iface.CreateDBOptions{Replicate: &replicate})
+					db1, err := orbit.Create(ctx, "first", "eventlog", &orbitdb.CreateDBOptions{Replicate: &replicate})
 					c.So(err, ShouldBeNil)
 					c.So(db1, ShouldNotBeNil)
 
-					db2, err := orbit.Create(ctx, "first", "eventlog", &iface.CreateDBOptions{Replicate: &replicate})
+					db2, err := orbit.Create(ctx, "first", "eventlog", &orbitdb.CreateDBOptions{Replicate: &replicate})
 					c.So(err, ShouldNotBeNil)
 					c.So(db2, ShouldBeNil)
 					c.So(err.Error(), ShouldContainSubstring, "already exists")
@@ -70,7 +69,7 @@ func TestCreateOpen(t *testing.T) {
 				c.Convey("throws an error if database type doesn't match", FailureHalts, func(c C) {
 					replicate := false
 
-					db1, err := orbit.KeyValue(ctx, "keyvalue", &iface.CreateDBOptions{Replicate: &replicate})
+					db1, err := orbit.KeyValue(ctx, "keyvalue", &orbitdb.CreateDBOptions{Replicate: &replicate})
 					c.So(err, ShouldBeNil)
 					c.So(db1, ShouldNotBeNil)
 
@@ -83,7 +82,7 @@ func TestCreateOpen(t *testing.T) {
 
 			c.Convey("Success", FailureHalts, func(c C) {
 				replicate := false
-				db1, err := orbit.Create(ctx, "second", "eventlog", &iface.CreateDBOptions{Replicate: &replicate})
+				db1, err := orbit.Create(ctx, "second", "eventlog", &orbitdb.CreateDBOptions{Replicate: &replicate})
 				c.So(err, ShouldBeNil)
 				c.So(db1, ShouldNotBeNil)
 
@@ -135,7 +134,7 @@ func TestCreateOpen(t *testing.T) {
 
 				c.Convey("can pass local database directory as an option", FailureHalts, func(c C) {
 					dir := path.Join("./orbitdb/tests/create-open/another-feed")
-					db, err := orbit.Create(ctx, "third", "eventlog", &iface.CreateDBOptions{Directory: &dir})
+					db, err := orbit.Create(ctx, "third", "eventlog", &orbitdb.CreateDBOptions{Directory: &dir})
 					c.So(err, ShouldBeNil)
 
 					localDataPath = path.Join(dir, db.Address().GetRoot().String(), db.Address().GetPath())
@@ -167,7 +166,7 @@ func TestCreateOpen(t *testing.T) {
 
 						overwrite := true
 
-						db, err := orbit.Create(ctx, "fourth", "eventlog", &iface.CreateDBOptions{
+						db, err := orbit.Create(ctx, "fourth", "eventlog", &orbitdb.CreateDBOptions{
 							AccessController: access,
 							Overwrite: &overwrite,
 						})
@@ -208,7 +207,7 @@ func TestCreateOpen(t *testing.T) {
 
 			c.Convey("Success", FailureHalts, func(c C) {
 				replicate := false
-				addr, err := orbit.DetermineAddress(ctx, "third", "eventlog", &iface.DetermineAddressOptions{Replicate: &replicate})
+				addr, err := orbit.DetermineAddress(ctx, "third", "eventlog", &orbitdb.DetermineAddressOptions{Replicate: &replicate})
 				c.So(err, ShouldBeNil)
 				c.So(addr, ShouldNotBeNil)
 
@@ -223,7 +222,7 @@ func TestCreateOpen(t *testing.T) {
 					_, err := os.Stat(localDataPath)
 					c.So(os.IsNotExist(err), ShouldBeTrue)
 
-					db, err := orbit.Create(ctx, "third", "eventlog", &iface.CreateDBOptions{Replicate: &replicate})
+					db, err := orbit.Create(ctx, "third", "eventlog", &orbitdb.CreateDBOptions{Replicate: &replicate})
 
 					c.So(err, ShouldBeNil)
 					c.So(addr.String(), ShouldStartWith, "/orbitdb")
@@ -238,7 +237,7 @@ func TestCreateOpen(t *testing.T) {
 			overwrite := true
 			storeType := "eventlog"
 
-			db, err := orbit.Open(ctx, "abc", &iface.CreateDBOptions{ Create: &create, StoreType: &storeType })
+			db, err := orbit.Open(ctx, "abc", &orbitdb.CreateDBOptions{ Create: &create, StoreType: &storeType })
 
 			c.So(err, ShouldBeNil)
 			c.So(db, ShouldNotBeNil)
@@ -246,14 +245,14 @@ func TestCreateOpen(t *testing.T) {
 			c.Convey("throws an error if trying to open a database with name only and 'create' is not set to 'true'", FailureHalts, func(c C) {
 				create := false
 
-				db, err := orbit.Open(ctx, "XXX", &iface.CreateDBOptions{ Create: &create, StoreType: &storeType })
+				db, err := orbit.Open(ctx, "XXX", &orbitdb.CreateDBOptions{ Create: &create, StoreType: &storeType })
 				c.So(err, ShouldNotBeNil)
 				c.So(db, ShouldBeNil)
 				c.So(err.Error(), ShouldContainSubstring, "'options.Create' set to 'false'. If you want to create a database, set 'options.Create' to 'true'")
 			})
 
 			c.Convey("throws an error if trying to open a database with name only and 'create' is not set to true", FailureHalts, func (c C) {
-				db, err := orbit.Open(ctx, "YYY", &iface.CreateDBOptions{ Create: &create })
+				db, err := orbit.Open(ctx, "YYY", &orbitdb.CreateDBOptions{ Create: &create })
 
 				c.So(err, ShouldNotBeNil)
 				c.So(db, ShouldBeNil)
@@ -261,7 +260,7 @@ func TestCreateOpen(t *testing.T) {
 			})
 
 			c.Convey("opens a database - name only", FailureHalts, func (c C) {
-				db, err := orbit.Open(ctx, "abc", &iface.CreateDBOptions{ Create: &create, StoreType: &storeType, Overwrite: &overwrite })
+				db, err := orbit.Open(ctx, "abc", &orbitdb.CreateDBOptions{ Create: &create, StoreType: &storeType, Overwrite: &overwrite })
 
 				c.So(err, ShouldBeNil)
 				c.So(db.Address().String(), ShouldStartWith, "/orbitdb")
@@ -280,7 +279,7 @@ func TestCreateOpen(t *testing.T) {
 				c.So(err, ShouldBeNil)
 				c.So(identity, ShouldNotBeNil)
 
-				db, err = orbit.Open(ctx, "abc", &iface.CreateDBOptions{ Create: &create, StoreType: &storeType, Overwrite: &overwrite, Identity: identity })
+				db, err = orbit.Open(ctx, "abc", &orbitdb.CreateDBOptions{ Create: &create, StoreType: &storeType, Overwrite: &overwrite, Identity: identity })
 				c.So(err, ShouldBeNil)
 
 				c.So(err, ShouldBeNil)
@@ -300,7 +299,7 @@ func TestCreateOpen(t *testing.T) {
 			})
 
 			c.Convey("opens a database and adds the creator as the only writer", FailureHalts, func (c C) {
-				db, err := orbit.Open(ctx, "abc", &iface.CreateDBOptions{Create: &create, StoreType: &storeType, Overwrite: &overwrite})
+				db, err := orbit.Open(ctx, "abc", &orbitdb.CreateDBOptions{Create: &create, StoreType: &storeType, Overwrite: &overwrite})
 
 				c.So(err, ShouldBeNil)
 				allowed, err := db.AccessController().GetAuthorizedByRole("write")
@@ -318,10 +317,10 @@ func TestCreateOpen(t *testing.T) {
 			})
 
 			c.Convey("open the database and it has the added entries", FailureHalts, func (c C) {
-				db, err := orbit.Open(ctx, "ZZZ", &iface.CreateDBOptions{ Create: &create, StoreType: &storeType })
+				db, err := orbit.Open(ctx, "ZZZ", &orbitdb.CreateDBOptions{ Create: &create, StoreType: &storeType })
 				c.So(err, ShouldBeNil)
 
-				logStore, ok := db.(iface.EventLogStore)
+				logStore, ok := db.(orbitdb.EventLogStore)
 				c.So(ok, ShouldBeTrue)
 
 				_, err = logStore.Add(ctx, []byte("hello1"))
@@ -339,7 +338,7 @@ func TestCreateOpen(t *testing.T) {
 				res := make(chan operation.Operation, 100)
 				infinity := -1
 
-				err = logStore.Stream(ctx, res, &iface.StreamOptions{Amount: &infinity})
+				err = logStore.Stream(ctx, res, &orbitdb.StreamOptions{Amount: &infinity})
 
 				c.So(err, ShouldBeNil)
 				c.So(len(res), ShouldEqual, 2)

@@ -11,10 +11,10 @@ import (
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 )
 
-// StoreInterface An interface used to avoid import cycles
-type StoreInterface interface {
+// storeInterface An interface used to avoid import cycles
+type storeInterface interface {
 	OpLog() *ipfslog.Log
-	Ipfs() coreapi.CoreAPI
+	IPFS() coreapi.CoreAPI
 	Identity() *identityprovider.Identity
 	AccessController() accesscontroller.Interface
 }

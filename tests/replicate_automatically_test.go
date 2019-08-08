@@ -3,11 +3,10 @@ package tests
 import (
 	"context"
 	"fmt"
-	iface "github.com/berty/go-orbit-db"
+	"github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/accesscontroller/base"
 	"github.com/berty/go-orbit-db/accesscontroller/simple"
 	"github.com/berty/go-orbit-db/events"
-	"github.com/berty/go-orbit-db/orbitdb"
 	"github.com/berty/go-orbit-db/stores"
 	"github.com/berty/go-orbit-db/stores/operation"
 	"os"
@@ -22,8 +21,8 @@ import (
 
 func TestReplicateAutomatically(t *testing.T) {
 	Convey("orbit-db - Replication", t, FailureHalts, func(c C) {
-		var db1, db2 iface.EventLogStore
-		var db3, db4 iface.KeyValueStore
+		var db1, db2 orbitdb.EventLogStore
+		var db3, db4 orbitdb.KeyValueStore
 
 		ctx, _ := context.WithTimeout(context.Background(), time.Second*180)
 		dbPath1 := "./orbitdb/tests/replicate-automatically/1"
@@ -65,13 +64,13 @@ func TestReplicateAutomatically(t *testing.T) {
 
 		c.So(err, ShouldBeNil)
 
-		db1, err = orbitdb1.Log(ctx, "replicate-automatically-tests", &iface.CreateDBOptions{
+		db1, err = orbitdb1.Log(ctx, "replicate-automatically-tests", &orbitdb.CreateDBOptions{
 			Directory:        &dbPath1,
 			AccessController: access,
 		})
 		c.So(err, ShouldBeNil)
 
-		db3, err = orbitdb1.KeyValue(ctx, "replicate-automatically-tests-kv", &iface.CreateDBOptions{
+		db3, err = orbitdb1.KeyValue(ctx, "replicate-automatically-tests-kv", &orbitdb.CreateDBOptions{
 			Directory:        &dbPath1,
 			AccessController: access,
 		})
@@ -85,7 +84,7 @@ func TestReplicateAutomatically(t *testing.T) {
 				c.So(err, ShouldBeNil)
 			}
 
-			db2, err = orbitdb2.Log(ctx, db1.Address().String(), &iface.CreateDBOptions{
+			db2, err = orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
 				Directory:        &dbPath2,
 				AccessController: access,
 			})
@@ -99,10 +98,10 @@ func TestReplicateAutomatically(t *testing.T) {
 				case *stores.EventReplicated:
 					infinity := -1
 
-					result1, err := db1.List(ctx, &iface.StreamOptions{Amount: &infinity})
+					result1, err := db1.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 					c.So(err, ShouldBeNil)
 
-					result2, err := db2.List(ctx, &iface.StreamOptions{Amount: &infinity})
+					result2, err := db2.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 					c.So(err, ShouldBeNil)
 
 					if len(result1) != len(result2) {
@@ -129,13 +128,13 @@ func TestReplicateAutomatically(t *testing.T) {
 				c.So(err, ShouldBeNil)
 			}
 
-			db2, err := orbitdb2.Log(ctx, db1.Address().String(), &iface.CreateDBOptions{
+			db2, err := orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
 				Directory: &dbPath2,
 				AccessController: access,
 			})
 			c.So(err, ShouldBeNil)
 
-			db4, err := orbitdb2.KeyValue(ctx, db3.Address().String(), &iface.CreateDBOptions{
+			db4, err := orbitdb2.KeyValue(ctx, db3.Address().String(), &orbitdb.CreateDBOptions{
 				Directory: &dbPath2,
 				AccessController: access,
 			})
@@ -168,10 +167,10 @@ func TestReplicateAutomatically(t *testing.T) {
 					c.So(e.Entry.Clock, ShouldNotBeNil)
 
 				case *stores.EventReplicated:
-					result1, err := db1.List(ctx, &iface.StreamOptions{Amount: &infinity})
+					result1, err := db1.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 					c.So(err, ShouldBeNil)
 
-					result2, err := db2.List(ctx, &iface.StreamOptions{Amount: &infinity})
+					result2, err := db2.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 					c.So(err, ShouldBeNil)
 
 					if len(result1) != len(result2) {
