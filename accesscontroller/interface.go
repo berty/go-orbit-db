@@ -9,12 +9,14 @@ import (
 	"github.com/berty/go-orbit-db/events"
 )
 
+// Interface The interface for OrbitDB Access Controllers
 type Interface interface {
 	events.EmitterInterface
 	// Address Returns an access controller address
 	Address() address.Address
 
-	// CanAppend Checks whether an entry creator can insert it in the store
+	// CanAppend Checks whether an entry creator can insert it in the store,
+	// returns an error if access has been denied
 	CanAppend(entry *entry.Entry, p idp.Interface) error
 
 	// Type Returns the type of the store as a string
@@ -23,7 +25,7 @@ type Interface interface {
 	// GetAuthorizedByRole Returns the list of keys authorized for a given role
 	GetAuthorizedByRole(role string) ([]string, error)
 
-	// Grant Allows a key for a given role
+	// Grant Allows a new key for a given role
 	Grant(ctx context.Context, capability string, keyID string) error
 
 	// Revoke Removes the permission of a key to perform an action
@@ -33,7 +35,7 @@ type Interface interface {
 	// address
 	Load(ctx context.Context, address string) error
 
-	// Save Persists the store configuration
+	// Save Persists the store configuration (its manifest)
 	Save(ctx context.Context) (ManifestParams, error)
 
 	// Close Closes the store

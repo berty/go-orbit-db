@@ -19,7 +19,7 @@ type Manifest struct {
 	AccessController string
 }
 
-// CreateDBManifest creates a new database manifest
+// CreateDBManifest creates a new database manifest and saves it on IPFS
 func CreateDBManifest(ctx context.Context, ipfs coreapi.CoreAPI, name string, dbType string, accessControllerAddress string) (cid.Cid, error) {
 	manifest := &Manifest{
 		Name:             name,
