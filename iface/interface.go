@@ -165,12 +165,26 @@ type KeyValueStore interface {
 	Get(ctx context.Context, key string) ([]byte, error)
 }
 
-// StoreIndex Provides an index for the store
+// StoreIndex Index contains the state of a datastore,
+// ie. what data we currently have.
+//
+// Index receives a call from a Store when the operations log for the Store
+// was updated, ie. new operations were added. In updateIndex, the Index
+// implements its CRDT logic: add, remove or update items in the data
+// structure. Each new operation received from the operations log is applied
+// in order onto the current state, ie. each new operation changes the data
+// and the state changes.
+//
+// Implementing each CRDT as an Index, we can implement both operation-based
+// and state-based CRDTs with the same higher level abstractions.
+// To read the current state of the database, Index provides a single public
+// function: `get()`. It is up to the Store to decide what kind of query
+// capabilities it provides to the consumer.
 type StoreIndex interface {
-	// Get Returns a value for the index
+	// Get Returns the state of the datastore, ie. most up-to-date data
 	Get(key string) interface{}
 
-	// UpdateIndex Updates the index using the log
+	// UpdateIndex Applies operations to the Index and updates the state
 	UpdateIndex(log *ipfslog.Log, entries []*entry.Entry) error
 }
 
