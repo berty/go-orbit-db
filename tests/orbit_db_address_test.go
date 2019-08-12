@@ -1,9 +1,10 @@
 package tests
 
 import (
-	"github.com/berty/go-orbit-db/address"
-	. "github.com/smartystreets/goconvey/convey"
 	"testing"
+
+	"berty.tech/go-orbit-db/address"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestOrbitDbAddress(t *testing.T) {
@@ -19,8 +20,8 @@ func TestOrbitDbAddress(t *testing.T) {
 
 			c.Convey("parse address successfully", FailureHalts, func(c C) {
 				refAddr := "/orbitdb/bafyreieecvmpthaoyasxzhnew2d25uaebwldeokea2wigyq5wr4dwiaimi/first-database"
-        		result, err := address.Parse(refAddr)
-        		c.So(err, ShouldBeNil)
+				result, err := address.Parse(refAddr)
+				c.So(err, ShouldBeNil)
 				c.So(result, ShouldNotBeNil)
 
 				c.So(result.GetRoot().String(), ShouldEqual, "bafyreieecvmpthaoyasxzhnew2d25uaebwldeokea2wigyq5wr4dwiaimi")

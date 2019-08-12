@@ -1,9 +1,9 @@
-// operation a serializable operation that can be appended to IPFS log
 package operation
 
 import (
-	"berty.tech/go-ipfs-log/entry"
 	"encoding/json"
+
+	"berty.tech/go-ipfs-log/entry"
 	"github.com/pkg/errors"
 )
 

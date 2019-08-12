@@ -2,11 +2,12 @@ package tests
 
 import (
 	"context"
-	"github.com/berty/go-orbit-db"
-	. "github.com/smartystreets/goconvey/convey"
 	"os"
 	"testing"
 	"time"
+
+	orbitdb "berty.tech/go-orbit-db"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestReplicationStatus(t *testing.T) {
@@ -29,11 +30,10 @@ func TestReplicationStatus(t *testing.T) {
 		orbitdb2, err := orbitdb.NewOrbitDB(ctx, ipfs, &orbitdb.NewOrbitDBOptions{Directory: &dbPath2})
 		c.So(err, ShouldBeNil)
 
-
 		db, err = orbitdb1.Log(ctx, "replication status tests", nil)
 		c.So(err, ShouldBeNil)
 
-		c.Convey("has correct initial state", FailureHalts, func (c C) {
+		c.Convey("has correct initial state", FailureHalts, func(c C) {
 			c.So(db.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
 			c.So(db.ReplicationStatus().GetQueued(), ShouldEqual, 0)
 			c.So(db.ReplicationStatus().GetProgress(), ShouldEqual, 0)
@@ -55,7 +55,7 @@ func TestReplicationStatus(t *testing.T) {
 			c.So(db.ReplicationStatus().GetProgress(), ShouldEqual, 1)
 			c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 1)
 
-			c.Convey("has correct replication info after close", FailureHalts, func (c C) {
+			c.Convey("has correct replication info after close", FailureHalts, func(c C) {
 				c.So(db.Close(), ShouldBeNil)
 				c.So(db.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
 				c.So(db.ReplicationStatus().GetQueued(), ShouldEqual, 0)
@@ -63,7 +63,7 @@ func TestReplicationStatus(t *testing.T) {
 				c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 0)
 			})
 
-			c.Convey("has correct replication info after sync", FailureHalts, func (c C) {
+			c.Convey("has correct replication info after sync", FailureHalts, func(c C) {
 				_, err = db.Add(ctx, []byte("hello2"))
 				c.So(err, ShouldBeNil)
 
@@ -72,13 +72,13 @@ func TestReplicationStatus(t *testing.T) {
 				c.So(db.ReplicationStatus().GetProgress(), ShouldEqual, 2)
 				c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 2)
 
-				db2, err = orbitdb2.Log(ctx, db.Address().String(), &orbitdb.CreateDBOptions{ Create: &create })
+				db2, err = orbitdb2.Log(ctx, db.Address().String(), &orbitdb.CreateDBOptions{Create: &create})
 				c.So(err, ShouldBeNil)
 
 				err = db2.Sync(ctx, db.OpLog().Heads().Slice())
 				c.So(err, ShouldBeNil)
 
-				<- time.After(100 * time.Millisecond)
+				<-time.After(100 * time.Millisecond)
 
 				c.So(db2.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
 				c.So(db2.ReplicationStatus().GetQueued(), ShouldEqual, 0)

@@ -1,10 +1,10 @@
-// base is a set of functions common to all access controllers
 package base
 
 import (
 	"context"
-	"github.com/berty/go-orbit-db/accesscontroller"
-	"github.com/berty/go-orbit-db/iface"
+
+	"berty.tech/go-orbit-db/accesscontroller"
+	"berty.tech/go-orbit-db/iface"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 )

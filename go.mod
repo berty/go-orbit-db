@@ -1,4 +1,4 @@
-module github.com/berty/go-orbit-db
+module berty.tech/go-orbit-db
 
 go 1.12
 

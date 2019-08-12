@@ -2,14 +2,15 @@
 package replicator
 
 import (
-	ipfslog "berty.tech/go-ipfs-log"
 	"context"
 	"fmt"
-	"github.com/berty/go-orbit-db/events"
+	"time"
+
+	ipfslog "berty.tech/go-ipfs-log"
+	"berty.tech/go-orbit-db/events"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"github.com/prometheus/common/log"
-	"time"
 )
 
 var batchSize = 1

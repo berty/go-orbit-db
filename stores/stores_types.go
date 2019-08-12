@@ -2,7 +2,7 @@
 package stores
 
 import (
-	"github.com/berty/go-orbit-db/iface"
+	"berty.tech/go-orbit-db/iface"
 )
 
 var storeTypes = map[string]iface.StoreConstructor{}

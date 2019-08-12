@@ -1,7 +1,7 @@
 package peermonitor
 
 import (
-	"github.com/berty/go-orbit-db/events"
+	"berty.tech/go-orbit-db/events"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 

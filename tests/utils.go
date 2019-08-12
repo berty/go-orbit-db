@@ -1,14 +1,14 @@
-// tests is a package containing tests and tools for testing orbitdb
 package tests
 
 import (
 	"context"
+	"testing"
+
 	ipfsCore "github.com/ipfs/go-ipfs/core"
 	"github.com/ipfs/go-ipfs/core/coreapi"
 	mock "github.com/ipfs/go-ipfs/core/mock"
 	iface "github.com/ipfs/interface-go-ipfs-core"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
-	"testing"
 )
 
 func init() {

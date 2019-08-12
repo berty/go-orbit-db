@@ -3,8 +3,9 @@ package pubsub
 import (
 	"context"
 	"fmt"
-	"github.com/berty/go-orbit-db/events"
-	"github.com/berty/go-orbit-db/pubsub/peermonitor"
+
+	"berty.tech/go-orbit-db/events"
+	"berty.tech/go-orbit-db/pubsub/peermonitor"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	iface "github.com/ipfs/interface-go-ipfs-core"
 	p2pcore "github.com/libp2p/go-libp2p-core"

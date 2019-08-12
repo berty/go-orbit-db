@@ -1,12 +1,12 @@
-// replicator is a package managing the replication of data among peers
 package replicator
 
 import (
+	"context"
+
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/identityprovider"
-	"context"
-	"github.com/berty/go-orbit-db/accesscontroller"
-	"github.com/berty/go-orbit-db/events"
+	"berty.tech/go-orbit-db/accesscontroller"
+	"berty.tech/go-orbit-db/events"
 	"github.com/ipfs/go-cid"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 )

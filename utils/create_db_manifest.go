@@ -1,15 +1,15 @@
-// utils contains functions that are useful in some context
 package utils
 
 import (
-	"berty.tech/go-ipfs-log/io"
 	"context"
+	"path"
+
+	"berty.tech/go-ipfs-log/io"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/pkg/errors"
 	"github.com/polydawn/refmt/obj/atlas"
-	"path"
 )
 
 // Manifest defines a database manifest describing its type and access controller

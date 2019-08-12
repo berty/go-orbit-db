@@ -1,24 +1,25 @@
-// basestore defines a set of operations common to the different store types
 package basestore
 
 import (
-	ipfslog "berty.tech/go-ipfs-log"
-	"berty.tech/go-ipfs-log/entry"
-	"berty.tech/go-ipfs-log/identityprovider"
-	"berty.tech/go-ipfs-log/io"
 	"context"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"github.com/berty/go-orbit-db/accesscontroller"
-	"github.com/berty/go-orbit-db/accesscontroller/base"
-	"github.com/berty/go-orbit-db/accesscontroller/simple"
-	"github.com/berty/go-orbit-db/address"
-	"github.com/berty/go-orbit-db/events"
-	"github.com/berty/go-orbit-db/iface"
-	"github.com/berty/go-orbit-db/stores"
-	"github.com/berty/go-orbit-db/stores/operation"
-	"github.com/berty/go-orbit-db/stores/replicator"
+	"time"
+
+	ipfslog "berty.tech/go-ipfs-log"
+	"berty.tech/go-ipfs-log/entry"
+	"berty.tech/go-ipfs-log/identityprovider"
+	"berty.tech/go-ipfs-log/io"
+	"berty.tech/go-orbit-db/accesscontroller"
+	"berty.tech/go-orbit-db/accesscontroller/base"
+	"berty.tech/go-orbit-db/accesscontroller/simple"
+	"berty.tech/go-orbit-db/address"
+	"berty.tech/go-orbit-db/events"
+	"berty.tech/go-orbit-db/iface"
+	"berty.tech/go-orbit-db/stores"
+	"berty.tech/go-orbit-db/stores/operation"
+	"berty.tech/go-orbit-db/stores/replicator"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	files "github.com/ipfs/go-ipfs-files"
@@ -26,7 +27,6 @@ import (
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"time"
 )
 
 // BaseStore The base of other stores

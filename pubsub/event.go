@@ -1,6 +1,6 @@
 package pubsub
 
-import "github.com/berty/go-orbit-db/events"
+import "berty.tech/go-orbit-db/events"
 
 // MessageEvent Indicates a new message posted on a pubsub topic
 type MessageEvent struct {

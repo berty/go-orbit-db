@@ -1,10 +1,10 @@
-// pubsub a publish subscribe client for IPFS PubSub
 package pubsub
 
 import (
 	"context"
-	"github.com/berty/go-orbit-db/events"
 	"io"
+
+	"berty.tech/go-orbit-db/events"
 )
 
 // Subscription is a pub sub subscription to a topic

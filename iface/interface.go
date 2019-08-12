@@ -1,17 +1,17 @@
-// iface package containing common structures and interfaces of orbitdb
 package iface
 
 import (
+	"context"
+
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/keystore"
-	"context"
-	"github.com/berty/go-orbit-db/accesscontroller"
-	"github.com/berty/go-orbit-db/address"
-	"github.com/berty/go-orbit-db/events"
-	"github.com/berty/go-orbit-db/stores/operation"
-	"github.com/berty/go-orbit-db/stores/replicator"
+	"berty.tech/go-orbit-db/accesscontroller"
+	"berty.tech/go-orbit-db/address"
+	"berty.tech/go-orbit-db/events"
+	"berty.tech/go-orbit-db/stores/operation"
+	"berty.tech/go-orbit-db/stores/replicator"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"

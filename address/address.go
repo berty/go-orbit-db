@@ -1,12 +1,12 @@
-// address is a package for managing OrbitDB addresses
 package address
 
 import (
 	"fmt"
-	"github.com/ipfs/go-cid"
-	"github.com/pkg/errors"
 	"path"
 	"strings"
+
+	"github.com/ipfs/go-cid"
+	"github.com/pkg/errors"
 )
 
 // Address A store address

@@ -1,10 +1,10 @@
 package kvstore
 
 import (
-	"berty.tech/go-ipfs-log"
+	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/entry"
-	"github.com/berty/go-orbit-db/iface"
-	"github.com/berty/go-orbit-db/stores/operation"
+	"berty.tech/go-orbit-db/iface"
+	"berty.tech/go-orbit-db/stores/operation"
 	"github.com/pkg/errors"
 )
 

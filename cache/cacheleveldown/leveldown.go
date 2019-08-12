@@ -1,16 +1,16 @@
-// cacheleveldown is a package returning level db data stores for OrbitDB
 package cacheleveldown
 
 import (
 	"fmt"
-	"github.com/berty/go-orbit-db/address"
-	"github.com/berty/go-orbit-db/cache"
+	"os"
+	"path"
+
+	"berty.tech/go-orbit-db/address"
+	"berty.tech/go-orbit-db/cache"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"github.com/pkg/errors"
-	"os"
-	"path"
 )
 
 var singleton cache.Interface
