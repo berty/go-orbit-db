@@ -1,3 +1,4 @@
+// utils contains functions that are useful in some context
 package utils
 
 import (
@@ -11,12 +12,14 @@ import (
 	"path"
 )
 
+// Manifest defines a database manifest describing its type and access controller
 type Manifest struct {
 	Name             string
 	Type             string
 	AccessController string
 }
 
+// CreateDBManifest creates a new database manifest and saves it on IPFS
 func CreateDBManifest(ctx context.Context, ipfs coreapi.CoreAPI, name string, dbType string, accessControllerAddress string) (cid.Cid, error) {
 	manifest := &Manifest{
 		Name:             name,
@@ -32,6 +35,7 @@ func CreateDBManifest(ctx context.Context, ipfs coreapi.CoreAPI, name string, db
 	return c, err
 }
 
+// AtlasManifest defines how a manifest is serialized
 var AtlasManifest = atlas.BuildEntry(Manifest{}).
 	StructMap().
 	AddField("Name", atlas.StructMapEntry{SerialName: "name"}).

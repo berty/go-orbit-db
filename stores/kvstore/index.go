@@ -3,7 +3,7 @@ package kvstore
 import (
 	"berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/entry"
-	orbitdb "github.com/berty/go-orbit-db"
+	"github.com/berty/go-orbit-db/iface"
 	"github.com/berty/go-orbit-db/stores/operation"
 	"github.com/pkg/errors"
 )
@@ -49,11 +49,11 @@ func (i *kvIndex) UpdateIndex(oplog *ipfslog.Log, _ []*entry.Entry) error {
 }
 
 // NewKVIndex Creates a new Index instance for a KeyValue store
-func NewKVIndex(_ []byte) orbitdb.StoreIndex {
+func NewKVIndex(_ []byte) iface.StoreIndex {
 	return &kvIndex{
 		index: map[string][]byte{},
 	}
 }
 
-var _ orbitdb.IndexConstructor = NewKVIndex
-var _ orbitdb.StoreIndex = &kvIndex{}
+var _ iface.IndexConstructor = NewKVIndex
+var _ iface.StoreIndex = &kvIndex{}

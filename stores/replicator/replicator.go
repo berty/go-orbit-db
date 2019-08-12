@@ -1,3 +1,4 @@
+// replicator the replication logic for an OrbitDB store
 package replicator
 
 import (
@@ -17,7 +18,7 @@ type replicator struct {
 	events.EventEmitter
 
 	cancelFunc          context.CancelFunc
-	store               StoreInterface
+	store               storeInterface
 	fetching            map[string]cid.Cid
 	statsTasksRequested uint
 	statsTasksStarted   uint
@@ -62,7 +63,7 @@ func (r *replicator) Load(ctx context.Context, cids []cid.Cid) {
 }
 
 // NewReplicator Creates a new Replicator instance
-func NewReplicator(ctx context.Context, store StoreInterface, concurrency uint) Replicator {
+func NewReplicator(ctx context.Context, store storeInterface, concurrency uint) Replicator {
 	ctx, cancelFunc := context.WithCancel(ctx)
 
 	if concurrency == 0 {
@@ -130,7 +131,7 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 
 	r.statsTasksStarted++
 
-	l, err := ipfslog.NewFromEntryHash(ctx, r.store.Ipfs(), r.store.Identity(), h, &ipfslog.LogOptions{
+	l, err := ipfslog.NewFromEntryHash(ctx, r.store.IPFS(), r.store.Identity(), h, &ipfslog.LogOptions{
 		ID:               r.store.OpLog().ID,
 		AccessController: r.store.AccessController(),
 	}, &ipfslog.FetchOptions{

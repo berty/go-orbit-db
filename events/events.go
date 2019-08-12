@@ -5,6 +5,7 @@ import (
 	"context"
 )
 
+// Event Is a base interface for events
 type Event interface{}
 
 // EmitterInterface Root interface for events dispatch
@@ -19,14 +20,14 @@ type EmitterInterface interface {
 	UnsubscribeAll()
 }
 
-type EventSubscription struct {
+type eventSubscription struct {
 	Chan   chan Event
 	Cancel context.CancelFunc
 }
 
 // EventEmitter Registers listeners and dispatches events to them
 type EventEmitter struct {
-	Subscribers []*EventSubscription
+	Subscribers []*eventSubscription
 }
 
 func (e *EventEmitter) UnsubscribeAll() {
@@ -53,7 +54,7 @@ func (e *EventEmitter) Subscribe(ctx context.Context, handler func(Event)) {
 
 	ch := make(chan Event, 50)
 
-	sub := &EventSubscription{
+	sub := &eventSubscription{
 		Chan:   ch,
 		Cancel: cancelFunc,
 	}
@@ -72,7 +73,7 @@ func (e *EventEmitter) Subscribe(ctx context.Context, handler func(Event)) {
 	}
 }
 
-func (e *EventEmitter) unsubscribe(c *EventSubscription) {
+func (e *EventEmitter) unsubscribe(c *eventSubscription) {
 	for i, s := range e.Subscribers {
 		if s == c {
 			c.Cancel()

@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/accesscontroller"
 	"github.com/berty/go-orbit-db/accesscontroller/base"
 	ipfsAccessController "github.com/berty/go-orbit-db/accesscontroller/ipfs"
@@ -18,6 +17,7 @@ import (
 	"github.com/berty/go-orbit-db/cache"
 	"github.com/berty/go-orbit-db/cache/cacheleveldown"
 	"github.com/berty/go-orbit-db/events"
+	"github.com/berty/go-orbit-db/iface"
 	"github.com/berty/go-orbit-db/pubsub"
 	"github.com/berty/go-orbit-db/pubsub/oneonone"
 	"github.com/berty/go-orbit-db/pubsub/peermonitor"
@@ -36,6 +36,44 @@ import (
 	"path"
 	"strings"
 )
+
+// OrbitDB An alias of the type defined in the iface package
+type OrbitDB = iface.OrbitDB
+
+// Store An alias of the type defined in the iface package
+type Store = iface.Store
+
+// EventLogStore An alias of the type defined in the iface package
+type EventLogStore = iface.EventLogStore
+
+// KeyValueStore An alias of the type defined in the iface package
+type KeyValueStore = iface.KeyValueStore
+
+// StoreIndex An alias of the type defined in the iface package
+type StoreIndex = iface.StoreIndex
+
+// StoreConstructor An alias of the type defined in the iface package
+type StoreConstructor = iface.StoreConstructor
+
+// IndexConstructor An alias of the type defined in the iface package
+type IndexConstructor = iface.IndexConstructor
+
+// OnWritePrototype An alias of the type defined in the iface package
+type OnWritePrototype = iface.OnWritePrototype
+
+// StreamOptions An alias of the type defined in the iface package
+type StreamOptions = iface.StreamOptions
+
+// CreateDBOptions An alias of the type defined in the iface package
+type CreateDBOptions = iface.CreateDBOptions
+
+// DetermineAddressOptions An alias of the type defined in the iface package
+type DetermineAddressOptions = iface.DetermineAddressOptions
+
+type exchangedHeads struct {
+	Address string         `json:"address,omitempty"`
+	Heads   []*entry.Entry `json:"heads,omitempty"`
+}
 
 func boolPtr(val bool) *bool {
 	return &val
@@ -63,7 +101,7 @@ type orbitDB struct {
 	pubsub            pubsub.Interface
 	keystore          *keystore.Keystore
 	closeKeystore     func() error
-	stores            map[string]orbitdb.Store
+	stores            map[string]Store
 	directConnections map[p2pcore.PeerID]oneonone.Channel
 	directory         string
 	cache             cache.Interface
@@ -75,7 +113,7 @@ func (o *orbitDB) Identity() *identityprovider.Identity {
 
 var defaultDirectory = "./orbitdb"
 
-func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity, options *NewOrbitDBOptions) (orbitdb.OrbitDB, error) {
+func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity, options *NewOrbitDBOptions) (OrbitDB, error) {
 	if is == nil {
 		return nil, errors.New("ipfs is a required argument")
 	}
@@ -118,14 +156,14 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 		pubsub:            ps,
 		cache:             options.Cache,
 		directory:         *options.Directory,
-		stores:            map[string]orbitdb.Store{},
+		stores:            map[string]Store{},
 		directConnections: map[p2pcore.PeerID]oneonone.Channel{},
 		closeKeystore:     options.CloseKeystore,
 	}, nil
 }
 
 // NewOrbitDB Creates a new OrbitDB instance
-func NewOrbitDB(ctx context.Context, ipfs coreapi.CoreAPI, options *NewOrbitDBOptions) (orbitdb.OrbitDB, error) {
+func NewOrbitDB(ctx context.Context, ipfs coreapi.CoreAPI, options *NewOrbitDBOptions) (OrbitDB, error) {
 	if ipfs == nil {
 		return nil, errors.New("ipfs is a required argument")
 	}
@@ -206,7 +244,7 @@ func (o *orbitDB) Close() error {
 		}
 	}
 
-	o.stores = map[string]orbitdb.Store{}
+	o.stores = map[string]Store{}
 
 	err := o.cache.Close()
 	if err != nil {
@@ -223,11 +261,11 @@ func (o *orbitDB) Close() error {
 	return nil
 }
 
-func (o *orbitDB) Create(ctx context.Context, name string, storeType string, options *orbitdb.CreateDBOptions) (orbitdb.Store, error) {
+func (o *orbitDB) Create(ctx context.Context, name string, storeType string, options *CreateDBOptions) (Store, error) {
 	logger().Debug("Create()")
 
 	if options == nil {
-		options = &orbitdb.CreateDBOptions{}
+		options = &CreateDBOptions{}
 	}
 
 	// The directory to look databases from can be passed in as an option
@@ -238,7 +276,7 @@ func (o *orbitDB) Create(ctx context.Context, name string, storeType string, opt
 	logger().Debug(fmt.Sprintf("Creating database '%s' as %s in '%s'", name, storeType, o.directory))
 
 	// Create the database address
-	dbAddress, err := o.DetermineAddress(ctx, name, storeType, &orbitdb.DetermineAddressOptions{AccessController: options.AccessController})
+	dbAddress, err := o.DetermineAddress(ctx, name, storeType, &DetermineAddressOptions{AccessController: options.AccessController})
 	if err != nil {
 		return nil, err
 	}
@@ -267,9 +305,9 @@ func (o *orbitDB) Create(ctx context.Context, name string, storeType string, opt
 	return o.Open(ctx, dbAddress.String(), options)
 }
 
-func (o *orbitDB) Log(ctx context.Context, address string, options *orbitdb.CreateDBOptions) (orbitdb.EventLogStore, error) {
+func (o *orbitDB) Log(ctx context.Context, address string, options *CreateDBOptions) (EventLogStore, error) {
 	if options == nil {
-		options = &orbitdb.CreateDBOptions{}
+		options = &CreateDBOptions{}
 	}
 
 	options.Create = boolPtr(true)
@@ -279,7 +317,7 @@ func (o *orbitDB) Log(ctx context.Context, address string, options *orbitdb.Crea
 		return nil, errors.Wrap(err, "unable to open database")
 	}
 
-	logStore, ok := store.(orbitdb.EventLogStore)
+	logStore, ok := store.(EventLogStore)
 	if !ok {
 		return nil, errors.New("unable to cast store to log")
 	}
@@ -287,9 +325,9 @@ func (o *orbitDB) Log(ctx context.Context, address string, options *orbitdb.Crea
 	return logStore, nil
 }
 
-func (o *orbitDB) KeyValue(ctx context.Context, address string, options *orbitdb.CreateDBOptions) (orbitdb.KeyValueStore, error) {
+func (o *orbitDB) KeyValue(ctx context.Context, address string, options *CreateDBOptions) (KeyValueStore, error) {
 	if options == nil {
-		options = &orbitdb.CreateDBOptions{}
+		options = &CreateDBOptions{}
 	}
 
 	options.Create = boolPtr(true)
@@ -300,7 +338,7 @@ func (o *orbitDB) KeyValue(ctx context.Context, address string, options *orbitdb
 		return nil, errors.Wrap(err, "unable to open database")
 	}
 
-	kvStore, ok := store.(orbitdb.KeyValueStore)
+	kvStore, ok := store.(KeyValueStore)
 	if !ok {
 		return nil, errors.New("unable to cast store to keyvalue")
 	}
@@ -308,11 +346,11 @@ func (o *orbitDB) KeyValue(ctx context.Context, address string, options *orbitdb
 	return kvStore, nil
 }
 
-func (o *orbitDB) Open(ctx context.Context, dbAddress string, options *orbitdb.CreateDBOptions) (orbitdb.Store, error) {
+func (o *orbitDB) Open(ctx context.Context, dbAddress string, options *CreateDBOptions) (Store, error) {
 	logger().Debug("Open()")
 
 	if options == nil {
-		options = &orbitdb.CreateDBOptions{}
+		options = &CreateDBOptions{}
 	}
 
 	if options.LocalOnly == nil {
@@ -384,11 +422,11 @@ func (o *orbitDB) Open(ctx context.Context, dbAddress string, options *orbitdb.C
 	return store, nil
 }
 
-func (o *orbitDB) DetermineAddress(ctx context.Context, name string, storeType string, options *orbitdb.DetermineAddressOptions) (address.Address, error) {
+func (o *orbitDB) DetermineAddress(ctx context.Context, name string, storeType string, options *DetermineAddressOptions) (address.Address, error) {
 	var err error
 
 	if options == nil {
-		options = &orbitdb.DetermineAddressOptions{}
+		options = &DetermineAddressOptions{}
 	}
 
 	if options.OnlyHash == nil {
@@ -474,7 +512,7 @@ func (o *orbitDB) IPFS() coreapi.CoreAPI {
 	return o.ipfs
 }
 
-func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAddress address.Address, options *orbitdb.CreateDBOptions) (orbitdb.Store, error) {
+func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAddress address.Address, options *CreateDBOptions) (Store, error) {
 	var err error
 	storeFunc, ok := stores.GetConstructor(storeType)
 	if !ok {
@@ -523,7 +561,7 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 		options.Directory = &o.directory
 	}
 
-	store, err := storeFunc(ctx, o.ipfs, identity, parsedDBAddress, &orbitdb.NewStoreOptions{
+	store, err := storeFunc(ctx, o.ipfs, identity, parsedDBAddress, &iface.NewStoreOptions{
 		AccessController: options.AccessController,
 		Cache:            options.Cache,
 		Replicate:        options.Replicate,
@@ -566,7 +604,7 @@ func (o *orbitDB) onClose(ctx context.Context, addr cid.Cid) error {
 	return nil
 }
 
-func (o *orbitDB) storeListener(ctx context.Context, store orbitdb.Store) {
+func (o *orbitDB) storeListener(ctx context.Context, store Store) {
 	go store.Subscribe(ctx, func(evt events.Event) {
 		switch evt.(type) {
 		case *stores.EventClosed:
@@ -694,7 +732,7 @@ func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, addr addr
 
 	logger().Debug(fmt.Sprintf("connected to %s", p))
 
-	exchangedHeads := &orbitdb.ExchangedHeads{
+	exchangedHeads := &exchangedHeads{
 		Address: addr.String(),
 		Heads:   store.OpLog().Heads().Slice(),
 	}
@@ -720,7 +758,7 @@ func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel oneonone.Cha
 		case *oneonone.EventMessage:
 			e := evt.(*oneonone.EventMessage)
 
-			heads := &orbitdb.ExchangedHeads{}
+			heads := &exchangedHeads{}
 			err := json.Unmarshal(e.Payload, &heads)
 			if err != nil {
 				logger().Error("unable to unmarshal heads", zap.Error(err))
@@ -761,7 +799,7 @@ func (o *orbitDB) getDirectConnection(ctx context.Context, peerID p2pcore.PeerID
 	return channel, nil
 }
 
-var _ orbitdb.OrbitDB = &orbitDB{}
+var _ OrbitDB = &orbitDB{}
 
 func init() {
 	stores.RegisterStore("eventlog", eventlogstore.NewOrbitDBEventLogStore)

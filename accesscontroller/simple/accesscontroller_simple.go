@@ -5,11 +5,11 @@ import (
 	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"context"
-	orbitdb "github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/accesscontroller"
 	"github.com/berty/go-orbit-db/accesscontroller/base"
 	"github.com/berty/go-orbit-db/address"
 	"github.com/berty/go-orbit-db/events"
+	"github.com/berty/go-orbit-db/iface"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 )
@@ -62,7 +62,7 @@ func (o *simpleAccessController) CanAppend(e *entry.Entry, p identityprovider.In
 }
 
 // NewSimpleAccessController Returns a non configurable access controller
-func NewSimpleAccessController(_ context.Context, _ orbitdb.OrbitDB, options *base.CreateAccessControllerOptions) (accesscontroller.Interface, error) {
+func NewSimpleAccessController(_ context.Context, _ iface.OrbitDB, options *base.CreateAccessControllerOptions) (accesscontroller.Interface, error) {
 	if options.Access == nil {
 		options.Access = map[string][]string{}
 	}

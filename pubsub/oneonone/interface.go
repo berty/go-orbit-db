@@ -8,8 +8,6 @@ import (
 
 const PROTOCOL = "ipfs-pubsub-direct-channel/v1"
 
-type Event events.Event
-
 // Channel Channel is a pubsub used for a direct communication between peers
 // new messages are received via events
 type Channel interface {

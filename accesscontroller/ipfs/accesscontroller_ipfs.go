@@ -8,11 +8,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	orbitdb "github.com/berty/go-orbit-db"
 	"github.com/berty/go-orbit-db/accesscontroller"
 	"github.com/berty/go-orbit-db/accesscontroller/base"
 	"github.com/berty/go-orbit-db/address"
 	"github.com/berty/go-orbit-db/events"
+	"github.com/berty/go-orbit-db/iface"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
@@ -126,7 +126,7 @@ func (i *ipfsAccessController) Close() error {
 }
 
 // NewIPFSAccessController Returns an access controller for IPFS
-func NewIPFSAccessController(_ context.Context, db orbitdb.OrbitDB, options *base.CreateAccessControllerOptions) (accesscontroller.Interface, error) {
+func NewIPFSAccessController(_ context.Context, db iface.OrbitDB, options *base.CreateAccessControllerOptions) (accesscontroller.Interface, error) {
 	if db == nil {
 		return &ipfsAccessController{}, errors.New("an OrbitDB instance is required")
 	}
