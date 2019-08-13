@@ -1,14 +1,14 @@
-// eventlogstore an event log store for OrbitDB
 package eventlogstore
 
 import (
+	"context"
+
 	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
-	"context"
-	"github.com/berty/go-orbit-db/address"
-	"github.com/berty/go-orbit-db/iface"
-	"github.com/berty/go-orbit-db/stores/basestore"
-	"github.com/berty/go-orbit-db/stores/operation"
+	"berty.tech/go-orbit-db/address"
+	"berty.tech/go-orbit-db/iface"
+	"berty.tech/go-orbit-db/stores/basestore"
+	"berty.tech/go-orbit-db/stores/operation"
 	"github.com/ipfs/go-cid"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/pkg/errors"

@@ -2,12 +2,13 @@ package tests
 
 import (
 	"context"
-	orbitdb2 "github.com/berty/go-orbit-db"
-	. "github.com/smartystreets/goconvey/convey"
 	"os"
 	"path"
 	"testing"
 	"time"
+
+	orbitdb2 "berty.tech/go-orbit-db"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestKeyValueStore(t *testing.T) {
@@ -43,7 +44,7 @@ func TestKeyValueStore(t *testing.T) {
 			c.So(db.DBName(), ShouldEqual, "first kv database")
 		})
 
-		c.Convey("put", FailureHalts, func (c C) {
+		c.Convey("put", FailureHalts, func(c C) {
 			_, err := db.Put(ctx, "key1", []byte("hello1"))
 			c.So(err, ShouldBeNil)
 
@@ -52,7 +53,7 @@ func TestKeyValueStore(t *testing.T) {
 			c.So(string(value), ShouldEqual, "hello1")
 		})
 
-		c.Convey("get", FailureHalts, func (c C) {
+		c.Convey("get", FailureHalts, func(c C) {
 			_, err := db.Put(ctx, "key1", []byte("hello2"))
 			c.So(err, ShouldBeNil)
 
@@ -61,7 +62,7 @@ func TestKeyValueStore(t *testing.T) {
 			c.So(string(value), ShouldEqual, "hello2")
 		})
 
-		c.Convey("put updates a value", FailureHalts, func (c C) {
+		c.Convey("put updates a value", FailureHalts, func(c C) {
 			_, err := db.Put(ctx, "key1", []byte("hello3"))
 			c.So(err, ShouldBeNil)
 
@@ -73,7 +74,7 @@ func TestKeyValueStore(t *testing.T) {
 			c.So(string(value), ShouldEqual, "hello4")
 		})
 
-		c.Convey("put/get - multiple keys", FailureHalts, func (c C) {
+		c.Convey("put/get - multiple keys", FailureHalts, func(c C) {
 			_, err := db.Put(ctx, "key1", []byte("hello1"))
 			c.So(err, ShouldBeNil)
 

@@ -1,4 +1,3 @@
-// events defines an event subscriber and dispatcher
 package events
 
 import (

@@ -3,15 +3,16 @@ package tests
 import (
 	"context"
 	"fmt"
-	"github.com/berty/go-orbit-db"
-	"github.com/berty/go-orbit-db/accesscontroller/base"
-	"github.com/berty/go-orbit-db/accesscontroller/simple"
-	peerstore "github.com/libp2p/go-libp2p-peerstore"
-	. "github.com/smartystreets/goconvey/convey"
-	"go.uber.org/zap"
 	"os"
 	"testing"
 	"time"
+
+	orbitdb "berty.tech/go-orbit-db"
+	"berty.tech/go-orbit-db/accesscontroller/base"
+	"berty.tech/go-orbit-db/accesscontroller/simple"
+	peerstore "github.com/libp2p/go-libp2p-peerstore"
+	. "github.com/smartystreets/goconvey/convey"
+	"go.uber.org/zap"
 )
 
 func TestReplication(t *testing.T) {
@@ -30,7 +31,7 @@ func TestReplication(t *testing.T) {
 		zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node1 is %s", ipfsd1.Identity.String()))
 		zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node2 is %s", ipfsd2.Identity.String()))
 
-		_ , err := TestNetwork.LinkPeers(ipfsd1.Identity, ipfsd2.Identity)
+		_, err := TestNetwork.LinkPeers(ipfsd1.Identity, ipfsd2.Identity)
 		c.So(err, ShouldBeNil)
 
 		peerInfo2 := peerstore.PeerInfo{ID: ipfsd2.Identity, Addrs: ipfsd2.PeerHost.Addrs()}
@@ -66,7 +67,7 @@ func TestReplication(t *testing.T) {
 
 		c.Convey("replicates database of 1 entry", FailureHalts, func(c C) {
 			db2, err = orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
-				Directory: &dbPath2,
+				Directory:        &dbPath2,
 				AccessController: access,
 			})
 			c.So(err, ShouldBeNil)
@@ -81,9 +82,9 @@ func TestReplication(t *testing.T) {
 			c.So(string(items[0].GetValue()), ShouldEqual, "hello")
 		})
 
-		c.Convey("replicates database of 100 entries", FailureHalts, func (c C) {
+		c.Convey("replicates database of 100 entries", FailureHalts, func(c C) {
 			db2, err = orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
-				Directory: &dbPath2,
+				Directory:        &dbPath2,
 				AccessController: access,
 			})
 			c.So(err, ShouldBeNil)
@@ -91,7 +92,7 @@ func TestReplication(t *testing.T) {
 			const entryCount = 100
 			infinity := -1
 
-			for i := 0; i < entryCount; i ++ {
+			for i := 0; i < entryCount; i++ {
 				_, err = db1.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
 				c.So(err, ShouldBeNil)
 			}
@@ -101,7 +102,7 @@ func TestReplication(t *testing.T) {
 			c.So(err, ShouldBeNil)
 			c.So(len(items), ShouldEqual, 100)
 			c.So(string(items[0].GetValue()), ShouldEqual, "hello0")
-			c.So(string(items[len(items) - 1].GetValue()), ShouldEqual, "hello99")
+			c.So(string(items[len(items)-1].GetValue()), ShouldEqual, "hello99")
 		})
 
 		if db1 != nil {

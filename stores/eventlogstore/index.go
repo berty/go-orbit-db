@@ -1,9 +1,9 @@
 package eventlogstore
 
 import (
-	"berty.tech/go-ipfs-log"
+	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/entry"
-	"github.com/berty/go-orbit-db/iface"
+	"berty.tech/go-orbit-db/iface"
 )
 
 type eventIndex struct {

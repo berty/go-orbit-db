@@ -1,9 +1,9 @@
-// peermonitor is a package for watching peers on a pub sub channel
 package peermonitor
 
 import (
 	"context"
-	"github.com/berty/go-orbit-db/events"
+
+	"berty.tech/go-orbit-db/events"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 

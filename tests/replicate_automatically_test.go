@@ -3,20 +3,22 @@ package tests
 import (
 	"context"
 	"fmt"
-	"github.com/berty/go-orbit-db"
-	"github.com/berty/go-orbit-db/accesscontroller/base"
-	"github.com/berty/go-orbit-db/accesscontroller/simple"
-	"github.com/berty/go-orbit-db/events"
-	"github.com/berty/go-orbit-db/stores"
-	"github.com/berty/go-orbit-db/stores/operation"
 	"os"
 
-	//"github.com/berty/go-orbit-db/stores/operation"
+	orbitdb "berty.tech/go-orbit-db"
+	"berty.tech/go-orbit-db/accesscontroller/base"
+	"berty.tech/go-orbit-db/accesscontroller/simple"
+	"berty.tech/go-orbit-db/events"
+	"berty.tech/go-orbit-db/stores"
+	"berty.tech/go-orbit-db/stores/operation"
+
+	//"berty.tech/go-orbit-db/stores/operation"
+	"testing"
+	"time"
+
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
 	. "github.com/smartystreets/goconvey/convey"
 	"go.uber.org/zap"
-	"testing"
-	"time"
 )
 
 func TestReplicateAutomatically(t *testing.T) {
@@ -90,10 +92,10 @@ func TestReplicateAutomatically(t *testing.T) {
 			})
 			c.So(err, ShouldBeNil)
 
-			ctx, cancel := context.WithTimeout(ctx, 10 * time.Second)
+			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 
 			hasAllResults := false
-			go db2.Subscribe(ctx, func (evt events.Event) {
+			go db2.Subscribe(ctx, func(evt events.Event) {
 				switch evt.(type) {
 				case *stores.EventReplicated:
 					infinity := -1
@@ -120,32 +122,32 @@ func TestReplicateAutomatically(t *testing.T) {
 			c.So(hasAllResults, ShouldBeTrue)
 		})
 
-		c.Convey("automatic replication exchanges the correct heads", FailureHalts, func (c C ) {
+		c.Convey("automatic replication exchanges the correct heads", FailureHalts, func(c C) {
 			entryCount := 33
 
-			for i := 0; i < entryCount; i ++ {
+			for i := 0; i < entryCount; i++ {
 				_, err := db1.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
 				c.So(err, ShouldBeNil)
 			}
 
 			db2, err := orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
-				Directory: &dbPath2,
+				Directory:        &dbPath2,
 				AccessController: access,
 			})
 			c.So(err, ShouldBeNil)
 
 			db4, err := orbitdb2.KeyValue(ctx, db3.Address().String(), &orbitdb.CreateDBOptions{
-				Directory: &dbPath2,
+				Directory:        &dbPath2,
 				AccessController: access,
 			})
 			c.So(err, ShouldBeNil)
 
-			ctx, cancel := context.WithTimeout(ctx, time.Second * 10)
+			ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 			hasAllResults := false
 
 			infinity := -1
 
-			go db4.Subscribe(ctx, func (event events.Event) {
+			go db4.Subscribe(ctx, func(event events.Event) {
 				switch event.(type) {
 				case *stores.EventReplicated:
 					c.So("", ShouldEqual, "Should not happen")
@@ -153,7 +155,7 @@ func TestReplicateAutomatically(t *testing.T) {
 				}
 			})
 
-			go db2.Subscribe(ctx, func (event events.Event) {
+			go db2.Subscribe(ctx, func(event events.Event) {
 				switch event.(type) {
 				case *stores.EventReplicateProgress:
 					e := event.(*stores.EventReplicateProgress)
@@ -187,7 +189,7 @@ func TestReplicateAutomatically(t *testing.T) {
 				}
 			})
 
-			<- ctx.Done()
+			<-ctx.Done()
 
 			c.So(hasAllResults, ShouldBeTrue)
 		})

@@ -1,18 +1,18 @@
-// ipfs is an access controller
 package ipfs
 
 import (
-	"berty.tech/go-ipfs-log/entry"
-	"berty.tech/go-ipfs-log/identityprovider"
-	"berty.tech/go-ipfs-log/io"
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/berty/go-orbit-db/accesscontroller"
-	"github.com/berty/go-orbit-db/accesscontroller/base"
-	"github.com/berty/go-orbit-db/address"
-	"github.com/berty/go-orbit-db/events"
-	"github.com/berty/go-orbit-db/iface"
+
+	"berty.tech/go-ipfs-log/entry"
+	"berty.tech/go-ipfs-log/identityprovider"
+	"berty.tech/go-ipfs-log/io"
+	"berty.tech/go-orbit-db/accesscontroller"
+	"berty.tech/go-orbit-db/accesscontroller/base"
+	"berty.tech/go-orbit-db/address"
+	"berty.tech/go-orbit-db/events"
+	"berty.tech/go-orbit-db/iface"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"

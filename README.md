@@ -15,13 +15,17 @@
     <img src="https://www.codefactor.io/repository/github/berty/go-orbit-db/badge"
          alt="Code Factor">
   </a>
-  <a href="https://goreportcard.com/report/berty/go-orbit-db">
-    <img src="https://goreportcard.com/badge/berty/go-orbit-db"
+  <a href="https://goreportcard.com/report/berty.tech/go-orbit-db">
+    <img src="https://goreportcard.com/badge/berty.tech/go-orbit-db"
          alt="Go Report Card">
   </a>
   <a href="https://github.com/berty/go-orbit-db/releases">
     <img src="https://badge.fury.io/gh/berty%2Fgo-orbit-db.svg"
          alt="GitHub version">
+  </a>
+  <a href="https://codecov.io/gh/berty/go-orbit-db">
+    <img src="https://codecov.io/gh/berty/go-orbit-db/branch/master/graph/badge.svg"
+         alt="Coverage" />
   </a>
   <a href="https://godoc.org/berty.tech/go-orbit-db">
     <img src="https://godoc.org/berty.tech/go-orbit-db?status.svg"

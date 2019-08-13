@@ -1,12 +1,12 @@
-// accesscontroller is a package handling permissions for OrbitDB stores
 package accesscontroller
 
 import (
+	"context"
+
 	"berty.tech/go-ipfs-log/entry"
 	idp "berty.tech/go-ipfs-log/identityprovider"
-	"context"
-	"github.com/berty/go-orbit-db/address"
-	"github.com/berty/go-orbit-db/events"
+	"berty.tech/go-orbit-db/address"
+	"berty.tech/go-orbit-db/events"
 )
 
 // Interface The interface for OrbitDB Access Controllers

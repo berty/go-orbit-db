@@ -1,19 +1,19 @@
-// oneonone is a pubsub channel for communication between two peers
 package oneonone
 
 import (
 	"context"
 	"fmt"
-	"github.com/berty/go-orbit-db/events"
+	"sort"
+	"strings"
+	"time"
+
+	"berty.tech/go-orbit-db/events"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	iface "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	p2pcore "github.com/libp2p/go-libp2p-core"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"sort"
-	"strings"
-	"time"
 )
 
 type channel struct {

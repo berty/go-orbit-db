@@ -2,14 +2,15 @@ package tests
 
 import (
 	"context"
-	"github.com/berty/go-orbit-db"
-	"github.com/berty/go-orbit-db/accesscontroller/base"
-	"github.com/berty/go-orbit-db/accesscontroller/simple"
-	"github.com/berty/go-orbit-db/events"
-	"github.com/berty/go-orbit-db/stores"
-	. "github.com/smartystreets/goconvey/convey"
 	"os"
 	"path"
+
+	orbitdb "berty.tech/go-orbit-db"
+	"berty.tech/go-orbit-db/accesscontroller/base"
+	"berty.tech/go-orbit-db/accesscontroller/simple"
+	"berty.tech/go-orbit-db/events"
+	"berty.tech/go-orbit-db/stores"
+	. "github.com/smartystreets/goconvey/convey"
 
 	"testing"
 	"time"
@@ -35,8 +36,8 @@ func TestWritePermissions(t *testing.T) {
 		c.So(err, ShouldBeNil)
 		defer orbitdb2.Close()
 
-		c.Convey("allows multiple peers to write to the databases", FailureHalts, func (c C) {
-			c.Convey("eventlog allows multiple writers", FailureHalts, func (c C) {
+		c.Convey("allows multiple peers to write to the databases", FailureHalts, func(c C) {
+			c.Convey("eventlog allows multiple writers", FailureHalts, func(c C) {
 				ac, err := simple.NewSimpleAccessController(ctx, orbitdb1, &base.CreateAccessControllerOptions{
 					Access: map[string][]string{
 						"write": {
@@ -79,8 +80,8 @@ func TestWritePermissions(t *testing.T) {
 			})
 		})
 
-		c.Convey("syncs databases", FailureHalts, func (c C ) {
-			c.Convey("eventlog syncs", FailureHalts, func (c C ) {
+		c.Convey("syncs databases", FailureHalts, func(c C) {
+			c.Convey("eventlog syncs", FailureHalts, func(c C) {
 				ac, err := simple.NewSimpleAccessController(ctx, orbitdb1, &base.CreateAccessControllerOptions{
 					Access: map[string][]string{
 						"write": {
@@ -111,7 +112,7 @@ func TestWritePermissions(t *testing.T) {
 				err = db1.Sync(ctx, db2.OpLog().Heads().Slice())
 				c.So(err, ShouldBeNil)
 
-				<- time.After(time.Millisecond * 300)
+				<-time.After(time.Millisecond * 300)
 
 				values, err := db1.List(ctx, nil)
 				c.So(err, ShouldBeNil)
@@ -121,8 +122,8 @@ func TestWritePermissions(t *testing.T) {
 			})
 		})
 
-		c.Convey("syncs databases that anyone can write to", FailureHalts, func (c C) {
-			c.Convey("eventlog syncs", FailureHalts, func (c C) {
+		c.Convey("syncs databases that anyone can write to", FailureHalts, func(c C) {
+			c.Convey("eventlog syncs", FailureHalts, func(c C) {
 				ac, err := simple.NewSimpleAccessController(ctx, orbitdb1, &base.CreateAccessControllerOptions{
 					Access: map[string][]string{
 						"write": {
@@ -152,7 +153,7 @@ func TestWritePermissions(t *testing.T) {
 				err = db1.Sync(ctx, db2.OpLog().Heads().Slice())
 				c.So(err, ShouldBeNil)
 
-				<- time.After(time.Millisecond * 300)
+				<-time.After(time.Millisecond * 300)
 
 				values, err := db1.List(ctx, nil)
 				c.So(err, ShouldBeNil)
@@ -162,8 +163,8 @@ func TestWritePermissions(t *testing.T) {
 			})
 		})
 
-		c.Convey("doesn't sync if peer is not allowed to write to the database", FailureHalts, func (c C) {
-			c.Convey("eventlog doesn't sync", FailureHalts, func (c C) {
+		c.Convey("doesn't sync if peer is not allowed to write to the database", FailureHalts, func(c C) {
+			c.Convey("eventlog doesn't sync", FailureHalts, func(c C) {
 				ac, err := simple.NewSimpleAccessController(ctx, orbitdb1, &base.CreateAccessControllerOptions{
 					Access: map[string][]string{
 						"write": {orbitdb1.Identity().ID},
@@ -183,8 +184,8 @@ func TestWritePermissions(t *testing.T) {
 				c.So(err, ShouldBeNil)
 				defer db2.Close()
 
-				subCtx, cancel := context.WithTimeout(ctx, 2 * time.Second)
-				go db1.Subscribe(subCtx, func (evt events.Event) {
+				subCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+				go db1.Subscribe(subCtx, func(evt events.Event) {
 					switch evt.(type) {
 					case *stores.EventReplicated:
 						c.So("this", ShouldEqual, "should not occur")
@@ -220,8 +221,8 @@ func TestWritePermissions(t *testing.T) {
 			})
 		})
 
-		c.Convey("throws an error if peer is not allowed to write to the database", FailureHalts, func (c C) {
-			c.Convey("eventlog doesn't sync", FailureHalts, func (c C) {
+		c.Convey("throws an error if peer is not allowed to write to the database", FailureHalts, func(c C) {
+			c.Convey("eventlog doesn't sync", FailureHalts, func(c C) {
 				ac, err := simple.NewSimpleAccessController(ctx, orbitdb1, &base.CreateAccessControllerOptions{
 					Access: map[string][]string{
 						"write": {},

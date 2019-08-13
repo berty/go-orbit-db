@@ -2,12 +2,13 @@ package peermonitor
 
 import (
 	"context"
-	"github.com/berty/go-orbit-db/events"
+	"time"
+
+	"berty.tech/go-orbit-db/events"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"go.uber.org/zap"
-	"time"
 )
 
 // NewPeerMonitorOptions Options for creating a new PeerMonitor instance

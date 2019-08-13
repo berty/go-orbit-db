@@ -1,14 +1,15 @@
 package accesscontroller
 
 import (
-	"berty.tech/go-ipfs-log/io"
 	"context"
+	"strings"
+
+	"berty.tech/go-ipfs-log/io"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/pkg/errors"
 	"github.com/polydawn/refmt/obj/atlas"
-	"strings"
 )
 
 // Manifest An access controller manifest

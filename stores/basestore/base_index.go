@@ -3,7 +3,7 @@ package basestore
 import (
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/entry"
-	"github.com/berty/go-orbit-db/iface"
+	"berty.tech/go-orbit-db/iface"
 )
 
 type baseIndex struct {

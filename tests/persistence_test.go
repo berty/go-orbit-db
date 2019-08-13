@@ -3,16 +3,17 @@ package tests
 import (
 	"context"
 	"fmt"
-	orbitdb "github.com/berty/go-orbit-db"
-	"github.com/berty/go-orbit-db/events"
-	"github.com/berty/go-orbit-db/stores"
-	"github.com/berty/go-orbit-db/stores/operation"
-	. "github.com/smartystreets/goconvey/convey"
 	"os"
 	"path"
 	"sync"
 	"testing"
 	"time"
+
+	orbitdb "berty.tech/go-orbit-db"
+	"berty.tech/go-orbit-db/events"
+	"berty.tech/go-orbit-db/stores"
+	"berty.tech/go-orbit-db/stores/operation"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestPersistence(t *testing.T) {

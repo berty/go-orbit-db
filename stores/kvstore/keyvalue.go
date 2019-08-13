@@ -1,14 +1,14 @@
-// kvstore a key value store for OrbitDB
 package kvstore
 
 import (
-	"berty.tech/go-ipfs-log/identityprovider"
 	"context"
-	"github.com/berty/go-orbit-db/address"
-	"github.com/berty/go-orbit-db/iface"
-	"github.com/berty/go-orbit-db/stores"
-	"github.com/berty/go-orbit-db/stores/basestore"
-	"github.com/berty/go-orbit-db/stores/operation"
+
+	"berty.tech/go-ipfs-log/identityprovider"
+	"berty.tech/go-orbit-db/address"
+	"berty.tech/go-orbit-db/iface"
+	"berty.tech/go-orbit-db/stores"
+	"berty.tech/go-orbit-db/stores/basestore"
+	"berty.tech/go-orbit-db/stores/operation"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/pkg/errors"
 )

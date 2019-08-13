@@ -1,8 +1,7 @@
-// cache is a package defining the interface of cache factories
 package cache
 
 import (
-	"github.com/berty/go-orbit-db/address"
+	"berty.tech/go-orbit-db/address"
 	"github.com/ipfs/go-datastore"
 )
 

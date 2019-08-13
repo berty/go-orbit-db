@@ -1,19 +1,19 @@
-// orbitdb is an access controller for OrbitDB stores
 package orbitdb
 
 import (
-	"berty.tech/go-ipfs-log/entry"
-	"berty.tech/go-ipfs-log/identityprovider"
 	"context"
 	"encoding/json"
-	"github.com/berty/go-orbit-db/accesscontroller"
-	"github.com/berty/go-orbit-db/accesscontroller/base"
-	"github.com/berty/go-orbit-db/accesscontroller/ipfs"
-	"github.com/berty/go-orbit-db/accesscontroller/utils"
-	"github.com/berty/go-orbit-db/address"
-	"github.com/berty/go-orbit-db/events"
-	"github.com/berty/go-orbit-db/iface"
-	"github.com/berty/go-orbit-db/stores"
+
+	"berty.tech/go-ipfs-log/entry"
+	"berty.tech/go-ipfs-log/identityprovider"
+	"berty.tech/go-orbit-db/accesscontroller"
+	"berty.tech/go-orbit-db/accesscontroller/base"
+	"berty.tech/go-orbit-db/accesscontroller/ipfs"
+	"berty.tech/go-orbit-db/accesscontroller/utils"
+	"berty.tech/go-orbit-db/address"
+	"berty.tech/go-orbit-db/events"
+	"berty.tech/go-orbit-db/iface"
+	"berty.tech/go-orbit-db/stores"
 	"github.com/pkg/errors"
 )
 
