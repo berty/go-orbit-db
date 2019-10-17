@@ -7,7 +7,7 @@ require (
 	github.com/ipfs/go-cid v0.0.2
 	github.com/ipfs/go-datastore v0.0.5
 	github.com/ipfs/go-ds-leveldb v0.0.2
-	github.com/ipfs/go-ipfs v0.4.21
+	github.com/ipfs/go-ipfs v0.4.22
 	github.com/ipfs/go-ipfs-files v0.0.3
 	github.com/ipfs/go-ipld-cbor v0.0.2
 	github.com/ipfs/interface-go-ipfs-core v0.0.8
@@ -21,3 +21,5 @@ require (
 	github.com/smartystreets/goconvey v0.0.0-20190222223459-a17d461953aa
 	go.uber.org/zap v1.10.0
 )
+
+replace github.com/dgraph-io/badger => github.com/dgraph-io/badger v0.0.0-20190809121831-9d7b751e85c9
