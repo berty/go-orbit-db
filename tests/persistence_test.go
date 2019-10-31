@@ -17,7 +17,9 @@ import (
 )
 
 func TestPersistence(t *testing.T) {
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*60)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
+	defer cancel()
+
 	dbPath := "./orbitdb/tests/persistence"
 	entryCount := 65
 	infinity := -1

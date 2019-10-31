@@ -12,7 +12,9 @@ import (
 )
 
 func TestKeyValueStore(t *testing.T) {
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
 	dbPath := "./orbitdb/tests/keystore"
 	dbname := "orbit-db-tests"
 

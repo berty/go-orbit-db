@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"berty.tech/go-orbit-db/accesscontroller"
 	"context"
 	"fmt"
 	"os"
@@ -12,8 +13,6 @@ import (
 	"berty.tech/go-ipfs-log/io"
 	"berty.tech/go-ipfs-log/keystore"
 	orbitdb "berty.tech/go-orbit-db"
-	"berty.tech/go-orbit-db/accesscontroller/base"
-	"berty.tech/go-orbit-db/accesscontroller/simple"
 	"berty.tech/go-orbit-db/stores/operation"
 	"berty.tech/go-orbit-db/utils"
 	"github.com/ipfs/go-datastore"
@@ -24,7 +23,8 @@ import (
 )
 
 func TestCreateOpen(t *testing.T) {
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
 
 	Convey("orbit-db - Create & Open", t, FailureHalts, func(c C) {
 		_, ipfs := MakeIPFS(ctx, t)
@@ -157,13 +157,11 @@ func TestCreateOpen(t *testing.T) {
 					})
 
 					c.Convey("creates an access controller and adds writers", FailureHalts, func(c C) {
-						access, err := simple.NewSimpleAccessController(ctx, nil, &base.CreateAccessControllerOptions{
+						access := &accesscontroller.CreateAccessControllerOptions{
 							Access: map[string][]string{
 								"write": {"another-key", "yet-another-key", orbit.Identity().ID},
 							},
-						})
-
-						c.So(err, ShouldBeNil)
+						}
 
 						overwrite := true
 

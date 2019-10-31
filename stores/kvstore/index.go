@@ -2,7 +2,6 @@ package kvstore
 
 import (
 	ipfslog "berty.tech/go-ipfs-log"
-	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores/operation"
 	"github.com/pkg/errors"
@@ -16,7 +15,7 @@ func (i *kvIndex) Get(key string) interface{} {
 	return i.index[key]
 }
 
-func (i *kvIndex) UpdateIndex(oplog *ipfslog.Log, _ []*entry.Entry) error {
+func (i *kvIndex) UpdateIndex(oplog ipfslog.Log, _ []ipfslog.Entry) error {
 	entries := oplog.Values().Slice()
 	size := len(entries)
 

@@ -1,23 +1,20 @@
 package accesscontroller
 
 import (
+	"berty.tech/go-ipfs-log/accesscontroller"
+	"berty.tech/go-ipfs-log/iface"
 	"context"
 
-	"berty.tech/go-ipfs-log/entry"
-	idp "berty.tech/go-ipfs-log/identityprovider"
-	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/events"
 )
+
+type LogEntry = iface.IPFSLogEntry
+type CanAppendAdditionalContext = accesscontroller.CanAppendAdditionalContext
 
 // Interface The interface for OrbitDB Access Controllers
 type Interface interface {
 	events.EmitterInterface
-	// Address Returns an access controller address
-	Address() address.Address
-
-	// CanAppend Checks whether an entry creator can insert it in the store,
-	// returns an error if access has been denied
-	CanAppend(entry *entry.Entry, p idp.Interface) error
+	accesscontroller.Interface
 
 	// Type Returns the type of the store as a string
 	Type() string

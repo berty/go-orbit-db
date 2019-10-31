@@ -1,12 +1,11 @@
 package simple
 
 import (
+	logac "berty.tech/go-ipfs-log/accesscontroller"
 	"context"
 
-	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-orbit-db/accesscontroller"
-	"berty.tech/go-orbit-db/accesscontroller/base"
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/iface"
@@ -51,9 +50,9 @@ func (o *simpleAccessController) GetAuthorizedByRole(role string) ([]string, err
 	return o.allowedKeys[role], nil
 }
 
-func (o *simpleAccessController) CanAppend(e *entry.Entry, p identityprovider.Interface) error {
+func (o *simpleAccessController) CanAppend(e logac.LogEntry, p identityprovider.Interface, additionalContext accesscontroller.CanAppendAdditionalContext) error {
 	for _, id := range o.allowedKeys["write"] {
-		if e.Identity.ID == id || id == "*" {
+		if e.GetIdentity().ID == id || id == "*" {
 			return nil
 		}
 	}
@@ -62,18 +61,14 @@ func (o *simpleAccessController) CanAppend(e *entry.Entry, p identityprovider.In
 }
 
 // NewSimpleAccessController Returns a non configurable access controller
-func NewSimpleAccessController(_ context.Context, _ iface.OrbitDB, options *base.CreateAccessControllerOptions) (accesscontroller.Interface, error) {
-	if options.Access == nil {
-		options.Access = map[string][]string{}
+func NewSimpleAccessController(_ context.Context, _ iface.OrbitDB, options accesscontroller.ManifestParams) (accesscontroller.Interface, error) {
+	if options == nil {
+		return &simpleAccessController{}, errors.New("an options object is required")
 	}
 
 	return &simpleAccessController{
-		allowedKeys: options.Access,
+		allowedKeys: options.GetAllAccess(),
 	}, nil
 }
 
 var _ accesscontroller.Interface = &simpleAccessController{}
-
-func init() {
-	_ = base.AddAccessController(NewSimpleAccessController)
-}

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	ipfslog "berty.tech/go-ipfs-log"
-	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/keystore"
 	"berty.tech/go-orbit-db/accesscontroller"
@@ -25,7 +24,7 @@ type CreateDBOptions struct {
 	Create                  *bool
 	StoreType               *string
 	AccessControllerAddress string
-	AccessController        accesscontroller.Interface
+	AccessController        accesscontroller.ManifestParams
 	Replicate               *bool
 	Keystore                *keystore.Keystore
 	Cache                   datastore.Datastore
@@ -36,7 +35,7 @@ type CreateDBOptions struct {
 type DetermineAddressOptions struct {
 	OnlyHash         *bool
 	Replicate        *bool
-	AccessController accesscontroller.Interface
+	AccessController accesscontroller.ManifestParams
 }
 
 // OrbitDB Provides the main OrbitDB interface used to open and create stores
@@ -101,7 +100,7 @@ type Store interface {
 	Load(ctx context.Context, amount int) error
 
 	// Sync Merges stores with the given heads
-	Sync(ctx context.Context, heads []*entry.Entry) error
+	Sync(ctx context.Context, heads []ipfslog.Entry) error
 
 	// LoadMoreFrom Loads more entries from the given CIDs
 	LoadMoreFrom(ctx context.Context, amount uint, entries []cid.Cid)
@@ -113,7 +112,7 @@ type Store interface {
 	LoadFromSnapshot(ctx context.Context) error
 
 	// OpLog Returns the underlying IPFS Log instance for the store
-	OpLog() *ipfslog.Log
+	OpLog() ipfslog.Log
 
 	// IPFS Returns the IPFS instance for the store
 	IPFS() coreapi.CoreAPI
@@ -128,7 +127,7 @@ type Store interface {
 	AccessController() accesscontroller.Interface
 
 	// AddOperation Adds an operation to this store
-	AddOperation(ctx context.Context, op operation.Operation, onProgressCallback chan<- *entry.Entry) (*entry.Entry, error)
+	AddOperation(ctx context.Context, op operation.Operation, onProgressCallback chan<- ipfslog.Entry) (ipfslog.Entry, error)
 }
 
 // EventLogStore A type of store that provides an append only log
@@ -185,7 +184,7 @@ type StoreIndex interface {
 	Get(key string) interface{}
 
 	// UpdateIndex Applies operations to the Index and updates the state
-	UpdateIndex(log *ipfslog.Log, entries []*entry.Entry) error
+	UpdateIndex(log ipfslog.Log, entries []ipfslog.Entry) error
 }
 
 // NewStoreOptions Lists the options to create a new store
@@ -208,4 +207,4 @@ type StoreConstructor func(context.Context, coreapi.CoreAPI, *identityprovider.I
 type IndexConstructor func(publicKey []byte) StoreIndex
 
 // OnWritePrototype Defines the callback function prototype which is triggered on a write
-type OnWritePrototype func(ctx context.Context, addr cid.Cid, entry *entry.Entry, heads []cid.Cid) error
+type OnWritePrototype func(ctx context.Context, addr cid.Cid, entry ipfslog.Entry, heads []cid.Cid) error

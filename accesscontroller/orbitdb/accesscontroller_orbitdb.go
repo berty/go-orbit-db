@@ -1,14 +1,13 @@
 package orbitdb
 
 import (
+	logac "berty.tech/go-ipfs-log/accesscontroller"
 	"context"
 	"encoding/json"
+	"github.com/ipfs/go-cid"
 
-	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-orbit-db/accesscontroller"
-	"berty.tech/go-orbit-db/accesscontroller/base"
-	"berty.tech/go-orbit-db/accesscontroller/ipfs"
 	"berty.tech/go-orbit-db/accesscontroller/utils"
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/events"
@@ -27,7 +26,7 @@ type orbitDBAccessController struct {
 	events.EventEmitter
 	orbitdb iface.OrbitDB
 	kvStore iface.KeyValueStore
-	options *base.CreateAccessControllerOptions
+	options accesscontroller.ManifestParams
 }
 
 func (o *orbitDBAccessController) Type() string {
@@ -89,7 +88,7 @@ func (o *orbitDBAccessController) getAuthorizations() (map[string][]string, erro
 	return authorizationsLists, nil
 }
 
-func (o *orbitDBAccessController) CanAppend(entry *entry.Entry, p identityprovider.Interface) error {
+func (o *orbitDBAccessController) CanAppend(entry logac.LogEntry, p identityprovider.Interface, additionalContext accesscontroller.CanAppendAdditionalContext) error {
 	writeAccess, err := o.GetAuthorizedByRole("write")
 	if err != nil {
 		return errors.Wrap(err, "unable to get keys with write access")
@@ -103,8 +102,8 @@ func (o *orbitDBAccessController) CanAppend(entry *entry.Entry, p identityprovid
 	access := append(writeAccess, adminAccess...)
 
 	for _, k := range access {
-		if k == entry.Identity.ID || k == "*" {
-			return p.VerifyIdentity(entry.Identity)
+		if k == entry.GetIdentity().ID || k == "*" {
+			return p.VerifyIdentity(entry.GetIdentity())
 		}
 	}
 
@@ -173,24 +172,14 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 		}
 	}
 
-	if o.options.Access == nil {
-		o.options.Access = map[string][]string{}
-	}
-
 	// Force '<address>/_access' naming for the database
-	writeAccess := o.options.Access["admin"]
+	writeAccess := o.options.GetAccess("admin")
 	if len(writeAccess) == 0 {
 		writeAccess = []string{o.orbitdb.Identity().ID}
 	}
 
-	ipfsAccessController, err := ipfs.NewIPFSAccessController(ctx, o.orbitdb, &base.CreateAccessControllerOptions{
-		Access: map[string][]string{
-			"write": writeAccess,
-		},
-	})
-	if err != nil {
-		return errors.New("unable to create IPFS access controller")
-	}
+	ipfsAccessController := accesscontroller.NewManifestParams(cid.Cid{}, true, "ipfs")
+	ipfsAccessController.SetAccess("write", writeAccess)
 
 	store, err := o.orbitdb.KeyValue(ctx, utils.EnsureAddress(address), &CreateDBOptions{
 		AccessController: ipfsAccessController,
@@ -233,16 +222,16 @@ func (o *orbitDBAccessController) onUpdate() {
 }
 
 // NewIPFSAccessController Returns a default access controller for OrbitDB database
-func NewOrbitDBAccessController(ctx context.Context, db iface.OrbitDB, options *base.CreateAccessControllerOptions) (accesscontroller.Interface, error) {
+func NewOrbitDBAccessController(ctx context.Context, db iface.OrbitDB, options accesscontroller.ManifestParams) (accesscontroller.Interface, error) {
 	if db == nil {
 		return &orbitDBAccessController{}, errors.New("an OrbitDB instance is required")
 	}
 
 	addr := "default-access-controller"
-	if options.Address != "" {
-		addr = options.Address
-	} else if options.Name != "" {
-		addr = options.Name
+	if options.GetAddress().Defined() {
+		addr = options.GetAddress().String()
+	} else if options.GetName() != "" {
+		addr = options.GetName()
 	}
 
 	kvStore, err := db.KeyValue(ctx, addr, nil)
@@ -255,7 +244,7 @@ func NewOrbitDBAccessController(ctx context.Context, db iface.OrbitDB, options *
 		options: options,
 	}
 
-	for _, writeAccess := range options.Access["write"] {
+	for _, writeAccess := range options.GetAccess("write") {
 		if err := controller.Grant(ctx, "write", writeAccess); err != nil {
 			return nil, errors.Wrap(err, "unable to grant write access")
 		}
@@ -265,7 +254,3 @@ func NewOrbitDBAccessController(ctx context.Context, db iface.OrbitDB, options *
 }
 
 var _ accesscontroller.Interface = &orbitDBAccessController{}
-
-func init() {
-	_ = base.AddAccessController(NewOrbitDBAccessController)
-}

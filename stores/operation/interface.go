@@ -1,6 +1,8 @@
 package operation
 
-import "berty.tech/go-ipfs-log/entry"
+import (
+	ipfslog "berty.tech/go-ipfs-log"
+)
 
 // Operation Describe an CRDT operation
 type Operation interface {
@@ -14,7 +16,7 @@ type Operation interface {
 	GetValue() []byte
 
 	// GetEntry Gets the underlying IPFS log Entry
-	GetEntry() *entry.Entry
+	GetEntry() ipfslog.Entry
 
 	// Marshal Serializes the operation
 	Marshal() ([]byte, error)

@@ -13,7 +13,7 @@ import (
 
 // storeInterface An interface used to avoid import cycles
 type storeInterface interface {
-	OpLog() *ipfslog.Log
+	OpLog() ipfslog.Log
 	IPFS() coreapi.CoreAPI
 	Identity() *identityprovider.Identity
 	AccessController() accesscontroller.Interface

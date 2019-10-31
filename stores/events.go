@@ -1,7 +1,7 @@
 package stores
 
 import (
-	"berty.tech/go-ipfs-log/entry"
+	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/stores/replicator"
 	"github.com/ipfs/go-cid"
@@ -10,10 +10,10 @@ import (
 
 //type EventReplicate struct {
 //	Address address.Address
-//	Entry   *entry.Entry
+//	Entry   ipfslog.Entry
 //}
 //
-//func NewEventReplicate(addr address.Address, e *entry.Entry) *EventReplicate {
+//func NewEventReplicate(addr address.Address, e ipfslog.Entry) *EventReplicate {
 //	return &EventReplicate{
 //		Address: addr,
 //		Entry:   e,
@@ -24,12 +24,12 @@ import (
 type EventReplicateProgress struct {
 	Address           address.Address
 	Hash              cid.Cid
-	Entry             *entry.Entry
+	Entry             ipfslog.Entry
 	ReplicationStatus replicator.ReplicationInfo
 }
 
 // NewEventReplicateProgress Creates a new EventReplicateProgress event
-func NewEventReplicateProgress(addr address.Address, h cid.Cid, e *entry.Entry, replicationStatus replicator.ReplicationInfo) *EventReplicateProgress {
+func NewEventReplicateProgress(addr address.Address, h cid.Cid, e ipfslog.Entry, replicationStatus replicator.ReplicationInfo) *EventReplicateProgress {
 	return &EventReplicateProgress{
 		Address:           addr,
 		Hash:              h,
@@ -55,11 +55,11 @@ func NewEventReplicated(addr address.Address, logLength int) *EventReplicated {
 // EventNewPeer An event sent when data has been loaded
 type EventLoad struct {
 	Address address.Address
-	Heads   []*entry.Entry
+	Heads   []ipfslog.Entry
 }
 
 // NewEventLoad Creates a new EventLoad event
-func NewEventLoad(addr address.Address, heads []*entry.Entry) *EventLoad {
+func NewEventLoad(addr address.Address, heads []ipfslog.Entry) *EventLoad {
 	return &EventLoad{
 		Address: addr,
 		Heads:   heads,
@@ -69,11 +69,11 @@ func NewEventLoad(addr address.Address, heads []*entry.Entry) *EventLoad {
 //type EventLoadProgress struct {
 //	Address           address.Address
 //	Hash              cid.Cid
-//	Entry             *entry.Entry
+//	Entry             ipfslog.Entry
 //	ReplicationStatus replicator.ReplicationInfo
 //}
 //
-//func NewEventLoadProgress(addr address.Address, h cid.Cid, e *entry.Entry, replicationStatus replicator.ReplicationInfo) *EventLoadProgress {
+//func NewEventLoadProgress(addr address.Address, h cid.Cid, e ipfslog.Entry, replicationStatus replicator.ReplicationInfo) *EventLoadProgress {
 //	return &EventLoadProgress{
 //		Address:           addr,
 //		Hash:              h,
@@ -85,11 +85,11 @@ func NewEventLoad(addr address.Address, heads []*entry.Entry) *EventLoad {
 // EventNewPeer An event sent when the store is ready
 type EventReady struct {
 	Address address.Address
-	Heads   []*entry.Entry
+	Heads   []ipfslog.Entry
 }
 
 // NewEventReady Creates a new EventReady event
-func NewEventReady(addr address.Address, heads []*entry.Entry) *EventReady {
+func NewEventReady(addr address.Address, heads []ipfslog.Entry) *EventReady {
 	return &EventReady{
 		Address: addr,
 		Heads:   heads,
@@ -99,12 +99,12 @@ func NewEventReady(addr address.Address, heads []*entry.Entry) *EventReady {
 // EventNewPeer An event sent when something has been written
 type EventWrite struct {
 	Address address.Address
-	Entry   *entry.Entry
-	Heads   []*entry.Entry
+	Entry   ipfslog.Entry
+	Heads   []ipfslog.Entry
 }
 
 // NewEventWrite Creates a new EventWrite event
-func NewEventWrite(addr address.Address, e *entry.Entry, heads []*entry.Entry) *EventWrite {
+func NewEventWrite(addr address.Address, e ipfslog.Entry, heads []ipfslog.Entry) *EventWrite {
 	return &EventWrite{
 		Address: addr,
 		Entry:   e,

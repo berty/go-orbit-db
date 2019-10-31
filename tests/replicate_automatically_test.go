@@ -1,13 +1,12 @@
 package tests
 
 import (
+	"berty.tech/go-orbit-db/accesscontroller"
 	"context"
 	"fmt"
 	"os"
 
 	orbitdb "berty.tech/go-orbit-db"
-	"berty.tech/go-orbit-db/accesscontroller/base"
-	"berty.tech/go-orbit-db/accesscontroller/simple"
 	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/operation"
@@ -26,7 +25,9 @@ func TestReplicateAutomatically(t *testing.T) {
 		var db1, db2 orbitdb.EventLogStore
 		var db3, db4 orbitdb.KeyValueStore
 
-		ctx, _ := context.WithTimeout(context.Background(), time.Second*180)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*180)
+		defer cancel()
+
 		dbPath1 := "./orbitdb/tests/replicate-automatically/1"
 		dbPath2 := "./orbitdb/tests/replicate-automatically/2"
 
@@ -55,16 +56,14 @@ func TestReplicateAutomatically(t *testing.T) {
 		orbitdb2, err := orbitdb.NewOrbitDB(ctx, ipfs2, &orbitdb.NewOrbitDBOptions{Directory: &dbPath2})
 		c.So(err, ShouldBeNil)
 
-		access, err := simple.NewSimpleAccessController(ctx, nil, &base.CreateAccessControllerOptions{
+		access := &accesscontroller.CreateAccessControllerOptions{
 			Access: map[string][]string{
 				"write": {
 					orbitdb1.Identity().ID,
 					orbitdb2.Identity().ID,
 				},
 			},
-		})
-
-		c.So(err, ShouldBeNil)
+		}
 
 		db1, err = orbitdb1.Log(ctx, "replicate-automatically-tests", &orbitdb.CreateDBOptions{
 			Directory:        &dbPath1,
@@ -92,7 +91,8 @@ func TestReplicateAutomatically(t *testing.T) {
 			})
 			c.So(err, ShouldBeNil)
 
-			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
 
 			hasAllResults := false
 			go db2.Subscribe(ctx, func(evt events.Event) {
@@ -143,6 +143,8 @@ func TestReplicateAutomatically(t *testing.T) {
 			c.So(err, ShouldBeNil)
 
 			ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+			defer cancel()
+
 			hasAllResults := false
 
 			infinity := -1
@@ -166,7 +168,7 @@ func TestReplicateAutomatically(t *testing.T) {
 					c.So(op.GetOperation(), ShouldEqual, "ADD")
 					c.So(op.GetKey(), ShouldBeNil)
 					c.So(string(op.GetValue()), ShouldStartWith, "hello")
-					c.So(e.Entry.Clock, ShouldNotBeNil)
+					c.So(e.Entry.GetClock(), ShouldNotBeNil)
 
 				case *stores.EventReplicated:
 					result1, err := db1.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})

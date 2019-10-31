@@ -1,20 +1,23 @@
 package orbitdb
 
 import (
+	ipfslog "berty.tech/go-ipfs-log"
+	"berty.tech/go-ipfs-log/entry"
+	"berty.tech/go-orbit-db/accesscontroller/ipfs"
+	"berty.tech/go-orbit-db/accesscontroller/orbitdb"
+	"berty.tech/go-orbit-db/accesscontroller/simple"
 	"context"
 	"encoding/json"
 	"fmt"
 	"path"
 	"strings"
 
-	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
 	idp "berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/io"
 	"berty.tech/go-ipfs-log/keystore"
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/accesscontroller/base"
-	ipfsAccessController "berty.tech/go-orbit-db/accesscontroller/ipfs"
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/cache"
 	"berty.tech/go-orbit-db/cache/cacheleveldown"
@@ -443,13 +446,18 @@ func (o *orbitDB) DetermineAddress(ctx context.Context, name string, storeType s
 	}
 
 	if options.AccessController == nil {
-		options.AccessController, err = ipfsAccessController.NewIPFSAccessController(ctx, o, &base.CreateAccessControllerOptions{})
-		if err != nil {
-			return nil, errors.Wrap(err, "unable to initialize access controller")
-		}
+		options.AccessController = accesscontroller.NewEmptyManifestParams()
 	}
 
-	accessControllerAddress, err := base.Create(ctx, o, options.AccessController.Type(), &base.CreateAccessControllerOptions{})
+	if options.AccessController.GetName() == "" {
+		options.AccessController.SetName(name)
+	}
+
+	if options.AccessController.GetType() == "" {
+		options.AccessController.SetType("ipfs")
+	}
+
+	accessControllerAddress, err := acbase.Create(ctx, o, options.AccessController.GetType(), options.AccessController)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create access controller")
 	}
@@ -519,19 +527,23 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 		return nil, errors.New(fmt.Sprintf("store type %s is not supported", storeType))
 	}
 
-	accessController := options.AccessController
+	var accessController accesscontroller.Interface
 	options.AccessControllerAddress = strings.TrimPrefix(options.AccessControllerAddress, "/ipfs/")
 
-	if len(options.AccessControllerAddress) > 3 {
+	if options.AccessControllerAddress != "" {
 		logger().Debug(fmt.Sprintf("Access controller address is %s", options.AccessControllerAddress))
 
-		c, err := cid.Decode(options.AccessControllerAddress)
-		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("unable to parse access controller address (%s %d)", options.AccessControllerAddress, len(options.AccessControllerAddress)))
-		}
+		c, _ := cid.Decode(options.AccessControllerAddress)
 
-		accessController, err = base.Resolve(ctx, o, options.AccessControllerAddress, accesscontroller.NewManifestParams(
-			c, false, ""))
+		ac := options.AccessController
+		if ac == nil {
+			ac = accesscontroller.NewEmptyManifestParams()
+		} else {
+			ac = accesscontroller.CloneManifestParams(options.AccessController)
+		}
+		ac.SetAddress(c)
+
+		accessController, err = acbase.Resolve(ctx, o, options.AccessControllerAddress, ac)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to acquire an access controller")
 		}
@@ -548,7 +560,7 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 		options.Replicate = boolPtr(true)
 	}
 
-	options.AccessController = accessController
+	//options.AccessController = accessController
 	options.Keystore = o.keystore
 	options.Cache = c
 
@@ -562,7 +574,7 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 	}
 
 	store, err := storeFunc(ctx, o.ipfs, identity, parsedDBAddress, &iface.NewStoreOptions{
-		AccessController: options.AccessController,
+		AccessController: accessController,
 		Cache:            options.Cache,
 		Replicate:        options.Replicate,
 		Directory:        *options.Directory,
@@ -670,7 +682,12 @@ func (o *orbitDB) pubSubChanListener(ctx context.Context, sub pubsub.Subscriptio
 
 			logger().Debug(fmt.Sprintf("Received %d heads for %s:", len(headsEntries), addr))
 
-			if err := store.Sync(ctx, headsEntries); err != nil {
+			entries := make([]ipfslog.Entry, len(headsEntries))
+			for i := range headsEntries {
+				entries[i] = headsEntries[i]
+			}
+
+			if err := store.Sync(ctx, entries); err != nil {
 				logger().Debug(fmt.Sprintf("Error while syncing heads for %s:", addr))
 			}
 		case *peermonitor.EventPeerJoin:
@@ -732,9 +749,20 @@ func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, addr addr
 
 	logger().Debug(fmt.Sprintf("connected to %s", p))
 
+	untypedHeads := store.OpLog().Heads().Slice()
+	heads := make([]*entry.Entry, len(untypedHeads))
+	for i := range untypedHeads {
+		head, ok := untypedHeads[i].(*entry.Entry)
+		if !ok {
+			return nil, errors.New("unable to downcast head")
+		}
+
+		heads[i] = head
+	}
+
 	exchangedHeads := &exchangedHeads{
 		Address: addr.String(),
-		Heads:   store.OpLog().Heads().Slice(),
+		Heads:   heads,
 	}
 
 	exchangedHeadsBytes, err := json.Marshal(exchangedHeads)
@@ -772,7 +800,12 @@ func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel oneonone.Cha
 			}
 
 			if len(heads.Heads) > 0 {
-				if err := store.Sync(ctx, heads.Heads); err != nil {
+				untypedHeads := make([]ipfslog.Entry, len(heads.Heads))
+				for i := range heads.Heads {
+					untypedHeads[i] = heads.Heads[i]
+				}
+
+				if err := store.Sync(ctx, untypedHeads); err != nil {
 					logger().Error("unable to sync heads", zap.Error(err))
 				}
 			}
@@ -804,4 +837,8 @@ var _ OrbitDB = &orbitDB{}
 func init() {
 	stores.RegisterStore("eventlog", eventlogstore.NewOrbitDBEventLogStore)
 	stores.RegisterStore("keyvalue", kvstore.NewOrbitDBKeyValue)
+
+	_ = acbase.AddAccessController(ipfs.NewIPFSAccessController)
+	_ = acbase.AddAccessController(orbitdb.NewOrbitDBAccessController)
+	_ = acbase.AddAccessController(simple.NewSimpleAccessController)
 }

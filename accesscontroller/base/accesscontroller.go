@@ -1,33 +1,27 @@
-package base
+package acbase
 
 import (
-	"context"
-
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/iface"
+	"context"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 )
 
-// CreateAccessControllerOptions Options used to create an Access Controller
-type CreateAccessControllerOptions struct {
-	Type         string
-	SkipManifest bool
-	Name         string
-	Access       map[string][]string
-	Address      string
-}
-
 // Required prototype for custom controllers constructors
-type ControllerConstructor func(context.Context, iface.OrbitDB, *CreateAccessControllerOptions) (accesscontroller.Interface, error)
+type ControllerConstructor func(context.Context, iface.OrbitDB, accesscontroller.ManifestParams) (accesscontroller.Interface, error)
 
 var supportedTypes = map[string]ControllerConstructor{}
 
 // Create Creates a new access controller and returns the manifest CID
-func Create(ctx context.Context, db iface.OrbitDB, controllerType string, options *CreateAccessControllerOptions) (cid.Cid, error) {
+func Create(ctx context.Context, db iface.OrbitDB, controllerType string, options accesscontroller.ManifestParams) (cid.Cid, error) {
 	AccessController, ok := supportedTypes[controllerType]
 	if !ok {
 		return cid.Cid{}, errors.New("unrecognized access controller on create")
+	}
+
+	if options.GetSkipManifest() {
+		return options.GetAddress(), nil
 	}
 
 	ac, err := AccessController(ctx, db, options)
@@ -56,11 +50,7 @@ func Resolve(ctx context.Context, db iface.OrbitDB, manifestAddress string, para
 	}
 
 	// TODO: options
-	accessController, err := accessControllerConstructor(ctx, db, &CreateAccessControllerOptions{
-		SkipManifest: manifest.Params.SkipManifest,
-		Address:      manifest.Params.Address.String(),
-		Type:         manifest.Params.Type,
-	})
+	accessController, err := accessControllerConstructor(ctx, db, manifest.Params)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create access controller")
 	}
@@ -86,7 +76,7 @@ func AddAccessController(constructor ControllerConstructor) error {
 		return errors.New("accessController class needs to be given as an option")
 	}
 
-	controller, _ := constructor(context.Background(), nil, &CreateAccessControllerOptions{})
+	controller, _ := constructor(context.Background(), nil, nil)
 
 	controllerType := controller.Type()
 

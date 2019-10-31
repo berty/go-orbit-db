@@ -2,7 +2,6 @@ package replicator
 
 import (
 	ipfslog "berty.tech/go-ipfs-log"
-	"berty.tech/go-ipfs-log/entry"
 	"github.com/ipfs/go-cid"
 )
 
@@ -22,13 +21,13 @@ func NewEventLoadAdded(h cid.Cid) *EventLoadAdded {
 type EventLoadProgress struct {
 	ID            string
 	Hash          cid.Cid
-	Latest        *entry.Entry
+	Latest        ipfslog.Entry
 	UnknownField4 interface{}
 	BufferLength  int
 }
 
 // NewEventLoadProgress Creates a new EventLoadProgress event
-func NewEventLoadProgress(id string, h cid.Cid, latest *entry.Entry, unknownField4 interface{}, bufferLength int) *EventLoadProgress {
+func NewEventLoadProgress(id string, h cid.Cid, latest ipfslog.Entry, unknownField4 interface{}, bufferLength int) *EventLoadProgress {
 	return &EventLoadProgress{
 		ID:            id,
 		Hash:          h,
@@ -40,11 +39,11 @@ func NewEventLoadProgress(id string, h cid.Cid, latest *entry.Entry, unknownFiel
 
 // EventLoadEnd An event triggered when load ended
 type EventLoadEnd struct {
-	Logs []*ipfslog.Log
+	Logs []ipfslog.Log
 }
 
 // NewEventLoadEnd Creates a new EventLoadEnd event
-func NewEventLoadEnd(logs []*ipfslog.Log) *EventLoadEnd {
+func NewEventLoadEnd(logs []ipfslog.Log) *EventLoadEnd {
 	return &EventLoadEnd{
 		Logs: logs,
 	}
