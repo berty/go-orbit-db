@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"berty.tech/go-orbit-db/accesscontroller"
 	"context"
 	"fmt"
 	"os"
@@ -8,8 +9,6 @@ import (
 	"time"
 
 	orbitdb "berty.tech/go-orbit-db"
-	"berty.tech/go-orbit-db/accesscontroller/base"
-	"berty.tech/go-orbit-db/accesscontroller/simple"
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
 	. "github.com/smartystreets/goconvey/convey"
 	"go.uber.org/zap"
@@ -19,7 +18,9 @@ func TestReplication(t *testing.T) {
 	Convey("orbit-db - Replication", t, FailureHalts, func(c C) {
 		var db1, db2 orbitdb.EventLogStore
 
-		ctx, _ := context.WithTimeout(context.Background(), time.Second*180)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*180)
+		defer cancel()
+
 		dbPath1 := "./orbitdb/tests/replication/1"
 		dbPath2 := "./orbitdb/tests/replication/2"
 
@@ -48,14 +49,14 @@ func TestReplication(t *testing.T) {
 		orbitdb2, err := orbitdb.NewOrbitDB(ctx, ipfs2, &orbitdb.NewOrbitDBOptions{Directory: &dbPath2})
 		c.So(err, ShouldBeNil)
 
-		access, err := simple.NewSimpleAccessController(ctx, nil, &base.CreateAccessControllerOptions{
+		access := &accesscontroller.CreateAccessControllerOptions{
 			Access: map[string][]string{
 				"write": {
 					orbitdb1.Identity().ID,
 					orbitdb2.Identity().ID,
 				},
 			},
-		})
+		}
 
 		c.So(err, ShouldBeNil)
 

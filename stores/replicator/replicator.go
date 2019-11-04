@@ -24,7 +24,7 @@ type replicator struct {
 	statsTasksRequested uint
 	statsTasksStarted   uint
 	statsTasksProcessed uint
-	buffer              []*ipfslog.Log
+	buffer              []ipfslog.Log
 	concurrency         uint
 	queue               map[string]cid.Cid
 }
@@ -49,7 +49,7 @@ func (r *replicator) GetQueue() []cid.Cid {
 
 func (r *replicator) Load(ctx context.Context, cids []cid.Cid) {
 	for _, h := range cids {
-		inLog := r.store.OpLog().Entries.UnsafeGet(h.String()) != nil
+		inLog := r.store.OpLog().GetEntries().UnsafeGet(h.String()) != nil
 		_, fetching := r.fetching[h.String()]
 		_, queued := r.queue[h.String()]
 
@@ -133,7 +133,7 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 	r.statsTasksStarted++
 
 	l, err := ipfslog.NewFromEntryHash(ctx, r.store.IPFS(), r.store.Identity(), h, &ipfslog.LogOptions{
-		ID:               r.store.OpLog().ID,
+		ID:               r.store.OpLog().GetID(),
 		AccessController: r.store.AccessController(),
 	}, &ipfslog.FetchOptions{
 		Length: &batchSize,
@@ -143,7 +143,8 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 		return nil, errors.Wrap(err, "unable to fetch log")
 	}
 
-	r.buffer = append(r.buffer, l)
+	var logToAppend ipfslog.Log = l
+	r.buffer = append(r.buffer, logToAppend)
 
 	latest := l.Values().At(0)
 
@@ -158,7 +159,7 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 	var nextValues []cid.Cid
 
 	for _, e := range l.Values().Slice() {
-		for _, n := range e.Next {
+		for _, n := range e.GetNext() {
 			nextValues = append(nextValues, n)
 		}
 	}
@@ -200,7 +201,7 @@ func (r *replicator) processQueue(ctx context.Context) {
 			(r.tasksRunning() == 0 && len(r.buffer) > 0) {
 
 			logs := r.buffer
-			r.buffer = []*ipfslog.Log{}
+			r.buffer = []ipfslog.Log{}
 
 			logger().Debug(fmt.Sprintf("load end logs, logs found :%d", len(logs)))
 

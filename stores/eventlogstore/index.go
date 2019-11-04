@@ -2,12 +2,11 @@ package eventlogstore
 
 import (
 	ipfslog "berty.tech/go-ipfs-log"
-	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-orbit-db/iface"
 )
 
 type eventIndex struct {
-	index *ipfslog.Log
+	index ipfslog.Log
 }
 
 func (i *eventIndex) Get(key string) interface{} {
@@ -18,7 +17,7 @@ func (i *eventIndex) Get(key string) interface{} {
 	return i.index.Values().Slice()
 }
 
-func (i *eventIndex) UpdateIndex(log *ipfslog.Log, _ []*entry.Entry) error {
+func (i *eventIndex) UpdateIndex(log ipfslog.Log, _ []ipfslog.Entry) error {
 	i.index = log
 
 	return nil

@@ -3,7 +3,7 @@ module berty.tech/go-orbit-db
 go 1.12
 
 require (
-	berty.tech/go-ipfs-log v0.0.0-20190806125710-494b5ea5ca35
+	berty.tech/go-ipfs-log v0.0.0-20191104131943-5f02942e6c68
 	github.com/ipfs/go-cid v0.0.2
 	github.com/ipfs/go-datastore v0.0.5
 	github.com/ipfs/go-ds-leveldb v0.0.2

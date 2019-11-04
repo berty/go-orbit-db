@@ -15,41 +15,115 @@ import (
 // Manifest An access controller manifest
 type Manifest struct {
 	Type   string
-	Params *manifestParams
+	Params *CreateAccessControllerOptions
 }
 
-type manifestParams struct {
+// CreateAccessControllerOptions Options used to create an Access Controller
+type CreateAccessControllerOptions struct {
 	SkipManifest bool
 	Address      cid.Cid
 	Type         string
+	Name         string
+	Access       map[string][]string
 }
 
-func (m *manifestParams) GetType() string {
+func CloneManifestParams(m ManifestParams) *CreateAccessControllerOptions {
+	access := map[string][]string{}
+	for k, v := range m.GetAllAccess() {
+		access[k] = v
+	}
+
+	return &CreateAccessControllerOptions{
+		Type:         m.GetType(),
+		SkipManifest: m.GetSkipManifest(),
+		Name:         m.GetName(),
+		Access:       access,
+		Address:      m.GetAddress(),
+	}
+}
+
+func (m *CreateAccessControllerOptions) GetName() string {
+	return m.Name
+}
+
+func (m *CreateAccessControllerOptions) SetName(name string) {
+	m.Name = name
+}
+
+func (m *CreateAccessControllerOptions) SetAccess(role string, allowed []string) {
+	if m.Access == nil {
+		m.Access = make(map[string][]string)
+	}
+
+	m.Access[role] = allowed
+}
+
+func (m *CreateAccessControllerOptions) GetAccess(role string) []string {
+	return m.Access[role]
+}
+
+func (m *CreateAccessControllerOptions) GetAllAccess() map[string][]string {
+	if m.Access == nil {
+		return map[string][]string{}
+	}
+
+	return m.Access
+}
+
+func (m *CreateAccessControllerOptions) GetType() string {
 	return m.Type
+}
+
+func (m *CreateAccessControllerOptions) SetType(t string) {
+	m.Type = t
 }
 
 // Create a new manifest parameters instance
 func NewManifestParams(address cid.Cid, skipManifest bool, manifestType string) ManifestParams {
-	return &manifestParams{
+	return &CreateAccessControllerOptions{
 		Address:      address,
 		SkipManifest: skipManifest,
 		Type:         manifestType,
 	}
 }
 
-func (m *manifestParams) GetSkipManifest() bool {
+func NewEmptyManifestParams() ManifestParams {
+	return &CreateAccessControllerOptions{}
+}
+
+func NewSimpleManifestParams(manifestType string, access map[string][]string) ManifestParams {
+	return &CreateAccessControllerOptions{
+		SkipManifest: true,
+		Access:       access,
+		Type:         manifestType,
+	}
+}
+
+func (m *CreateAccessControllerOptions) GetSkipManifest() bool {
 	return m.SkipManifest
 }
 
-func (m *manifestParams) GetAddress() cid.Cid {
+func (m *CreateAccessControllerOptions) GetAddress() cid.Cid {
 	return m.Address
+}
+
+func (m *CreateAccessControllerOptions) SetAddress(c cid.Cid) {
+	m.Address = c
 }
 
 // ManifestParams List of getters for a manifest parameters
 type ManifestParams interface {
 	GetSkipManifest() bool
 	GetAddress() cid.Cid
+	SetAddress(cid.Cid)
 	GetType() string
+	SetType(string)
+
+	GetName() string
+	SetName(string)
+	SetAccess(string, []string)
+	GetAccess(string) []string
+	GetAllAccess() map[string][]string
 }
 
 // CreateManifest Creates a new manifest and returns its CID
@@ -60,7 +134,7 @@ func CreateManifest(ctx context.Context, ipfs coreapi.CoreAPI, controllerType st
 
 	manifest := &Manifest{
 		Type: controllerType,
-		Params: &manifestParams{
+		Params: &CreateAccessControllerOptions{
 			Address:      params.GetAddress(),
 			SkipManifest: params.GetSkipManifest(),
 		},
@@ -76,12 +150,12 @@ func ResolveManifest(ctx context.Context, ipfs coreapi.CoreAPI, manifestAddress 
 			return nil, errors.New("no manifest, access-controller type required")
 		}
 
-		return &Manifest{
-			Type: params.GetType(),
-			Params: &manifestParams{
-				Address: params.GetAddress(),
-			},
-		}, nil
+		manifest := &Manifest{
+			Type:   params.GetType(),
+			Params: CloneManifestParams(params),
+		}
+
+		return manifest, nil
 	}
 
 	if strings.HasPrefix(manifestAddress, "/ipfs") {
@@ -107,7 +181,7 @@ func ResolveManifest(ctx context.Context, ipfs coreapi.CoreAPI, manifestAddress 
 	return manifest, nil
 }
 
-var _ ManifestParams = &manifestParams{}
+var _ ManifestParams = &CreateAccessControllerOptions{}
 
 func init() {
 	atlasManifest := atlas.BuildEntry(Manifest{}).
@@ -116,7 +190,7 @@ func init() {
 		AddField("Params", atlas.StructMapEntry{SerialName: "manifest"}).
 		Complete()
 
-	atlasManifestParams := atlas.BuildEntry(manifestParams{}).
+	atlasManifestParams := atlas.BuildEntry(CreateAccessControllerOptions{}).
 		StructMap().
 		AddField("SkipManifest", atlas.StructMapEntry{SerialName: "skip_manifest"}).
 		AddField("Address", atlas.StructMapEntry{SerialName: "address"}).

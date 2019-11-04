@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"berty.tech/go-ipfs-log/entry"
+	logac "berty.tech/go-ipfs-log/accesscontroller"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/io"
 	"berty.tech/go-orbit-db/accesscontroller"
-	"berty.tech/go-orbit-db/accesscontroller/base"
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/iface"
@@ -38,11 +37,11 @@ func (i *ipfsAccessController) Address() address.Address {
 	return nil
 }
 
-func (i *ipfsAccessController) CanAppend(entry *entry.Entry, p identityprovider.Interface) error {
-	key := entry.Identity.ID
+func (i *ipfsAccessController) CanAppend(entry logac.LogEntry, p identityprovider.Interface, additionalContext accesscontroller.CanAppendAdditionalContext) error {
+	key := entry.GetIdentity().ID
 	for _, allowedKey := range i.writeAccess {
 		if allowedKey == key || allowedKey == "*" {
-			return p.VerifyIdentity(entry.Identity)
+			return p.VerifyIdentity(entry.GetIdentity())
 		}
 	}
 
@@ -84,7 +83,7 @@ func (i *ipfsAccessController) Load(ctx context.Context, address string) error {
 		return errors.Wrap(err, "unable to unmarshal access controller manifest data")
 	}
 
-	res, err = io.ReadCBOR(ctx, i.ipfs, manifest.Params.Address)
+	res, err = io.ReadCBOR(ctx, i.ipfs, manifest.Params.GetAddress())
 	if err != nil {
 		return errors.Wrap(err, "unable to load access controller data")
 	}
@@ -126,23 +125,20 @@ func (i *ipfsAccessController) Close() error {
 }
 
 // NewIPFSAccessController Returns an access controller for IPFS
-func NewIPFSAccessController(_ context.Context, db iface.OrbitDB, options *base.CreateAccessControllerOptions) (accesscontroller.Interface, error) {
+func NewIPFSAccessController(_ context.Context, db iface.OrbitDB, options accesscontroller.ManifestParams) (accesscontroller.Interface, error) {
+	if options == nil {
+		return &ipfsAccessController{}, errors.New("an options object must be passed")
+	}
+
 	if db == nil {
 		return &ipfsAccessController{}, errors.New("an OrbitDB instance is required")
 	}
 
-	if options.Access == nil {
-		options.Access = map[string][]string{}
+	if len(options.GetAccess("write")) == 0 {
+		options.SetAccess("write", []string{db.Identity().ID})
 	}
 
-	if options.Access["write"] == nil {
-		options.Access["write"] = []string{db.Identity().ID}
-	}
-
-	var allowedIDs []string
-	for _, keyID := range options.Access["write"] {
-		allowedIDs = append(allowedIDs, keyID)
-	}
+	allowedIDs := options.GetAccess("write")
 
 	return &ipfsAccessController{
 		ipfs:        db.IPFS(),
@@ -159,6 +155,4 @@ func init() {
 		Complete()
 
 	cbornode.RegisterCborType(AtlasEntry)
-
-	_ = base.AddAccessController(NewIPFSAccessController)
 }

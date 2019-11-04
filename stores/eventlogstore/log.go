@@ -1,9 +1,9 @@
 package eventlogstore
 
 import (
+	ipfslog "berty.tech/go-ipfs-log"
 	"context"
 
-	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/iface"
@@ -93,7 +93,7 @@ func (o *orbitDBEventLogStore) Stream(ctx context.Context, resultChan chan opera
 	return nil
 }
 
-func (o *orbitDBEventLogStore) query(options *iface.StreamOptions) ([]*entry.Entry, error) {
+func (o *orbitDBEventLogStore) query(options *iface.StreamOptions) ([]ipfslog.Entry, error) {
 	if options == nil {
 		options = &iface.StreamOptions{}
 	}
@@ -103,7 +103,7 @@ func (o *orbitDBEventLogStore) query(options *iface.StreamOptions) ([]*entry.Ent
 		return nil, nil
 	}
 
-	events, ok := o.Index().Get("").([]*entry.Entry)
+	events, ok := o.Index().Get("").([]ipfslog.Entry)
 	if !ok {
 		return nil, errors.New("unable to cast index to entries")
 	}
@@ -156,11 +156,11 @@ func (o *orbitDBEventLogStore) query(options *iface.StreamOptions) ([]*entry.Ent
 	return result, nil
 }
 
-func (o *orbitDBEventLogStore) read(ops []*entry.Entry, hash cid.Cid, amount int, inclusive bool) []*entry.Entry {
+func (o *orbitDBEventLogStore) read(ops []ipfslog.Entry, hash cid.Cid, amount int, inclusive bool) []ipfslog.Entry {
 	// Find the index of the gt/lt hash, or start from the beginning of the array if not found
 	startIndex := 0
 	for i, e := range ops {
-		if e.Hash.String() == hash.String() {
+		if e.GetHash().String() == hash.String() {
 			startIndex = i
 			break
 		}
@@ -171,7 +171,7 @@ func (o *orbitDBEventLogStore) read(ops []*entry.Entry, hash cid.Cid, amount int
 		startIndex++
 	}
 
-	var result []*entry.Entry
+	var result []ipfslog.Entry
 
 	// Slice the array to its requested size
 	for i, e := range ops {

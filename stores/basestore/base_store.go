@@ -8,11 +8,11 @@ import (
 	"time"
 
 	ipfslog "berty.tech/go-ipfs-log"
+	logac "berty.tech/go-ipfs-log/accesscontroller"
 	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/io"
 	"berty.tech/go-orbit-db/accesscontroller"
-	"berty.tech/go-orbit-db/accesscontroller/base"
 	"berty.tech/go-orbit-db/accesscontroller/simple"
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/events"
@@ -40,7 +40,7 @@ type BaseStore struct {
 	ipfs              coreapi.CoreAPI
 	cache             datastore.Datastore
 	access            accesscontroller.Interface
-	oplog             *ipfslog.Log
+	oplog             ipfslog.Log
 	replicator        replicator.Replicator
 	storeType         string
 	index             iface.StoreIndex
@@ -72,7 +72,7 @@ func (b *BaseStore) Identity() *identityprovider.Identity {
 	return b.identity
 }
 
-func (b *BaseStore) OpLog() *ipfslog.Log {
+func (b *BaseStore) OpLog() ipfslog.Log {
 	return b.oplog
 }
 
@@ -99,11 +99,9 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 	if options.AccessController != nil {
 		b.access = options.AccessController
 	} else {
-		b.access, err = simple.NewSimpleAccessController(ctx, nil, &base.CreateAccessControllerOptions{
-			Access: map[string][]string{
-				"write": {identity.ID},
-			},
-		})
+		manifestParams := accesscontroller.NewManifestParams(cid.Cid{}, true, "simple")
+		manifestParams.SetAccess("write", []string{identity.ID})
+		b.access, err = simple.NewSimpleAccessController(ctx, nil, manifestParams)
 
 		if err != nil {
 			return errors.Wrap(err, "unable to create simple access controller")
@@ -290,14 +288,21 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 	heads := append(localHeads, remoteHeads...)
 
 	if len(heads) > 0 {
-		b.Emit(stores.NewEventLoad(b.address, heads))
+		headsForEvent := make([]ipfslog.Entry, len(heads))
+		for i := range heads {
+			headsForEvent[i] = heads[i]
+		}
+
+		b.Emit(stores.NewEventLoad(b.address, headsForEvent))
 	}
 
 	for _, h := range heads {
+		var l ipfslog.Log
+
 		// TODO: parallelize things
-		b.recalculateReplicationMax(h.Clock.Time)
-		l, err := ipfslog.NewFromEntryHash(ctx, b.ipfs, b.identity, h.Hash, &ipfslog.LogOptions{
-			ID:               b.oplog.ID,
+		b.recalculateReplicationMax(h.GetClock().GetTime())
+		l, err := ipfslog.NewFromEntryHash(ctx, b.ipfs, b.identity, h.GetHash(), &ipfslog.LogOptions{
+			ID:               b.oplog.GetID(),
 			AccessController: b.access,
 		}, &ipfslog.FetchOptions{
 			Length:  &amount,
@@ -328,7 +333,7 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 	return nil
 }
 
-func (b *BaseStore) Sync(ctx context.Context, heads []*entry.Entry) error {
+func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
 	b.stats.syncRequestsReceived++
 
 	if len(heads) == 0 {
@@ -343,8 +348,8 @@ func (b *BaseStore) Sync(ctx context.Context, heads []*entry.Entry) error {
 			continue
 		}
 
-		if h.Next == nil {
-			h.Next = []cid.Cid{}
+		if h.GetNext() == nil {
+			h.SetNext([]cid.Cid{})
 		}
 
 		identityProvider := b.identity.Provider
@@ -352,7 +357,7 @@ func (b *BaseStore) Sync(ctx context.Context, heads []*entry.Entry) error {
 			return errors.New("identity-provider is required, cannot verify entry")
 		}
 
-		canAppend := b.access.CanAppend(h, identityProvider)
+		canAppend := b.access.CanAppend(h, identityProvider, &CanAppendContext{log: b.oplog})
 		if canAppend != nil {
 			logger().Debug("warning: Given input entry is not allowed in this log and was discarded (no write access).")
 			continue
@@ -363,7 +368,7 @@ func (b *BaseStore) Sync(ctx context.Context, heads []*entry.Entry) error {
 			return errors.Wrap(err, "unable to write entry on dag")
 		}
 
-		if hash.String() != h.Hash.String() {
+		if hash.String() != h.GetHash().String() {
 			return errors.New("WARNING! Head hash didn't match the contents")
 		}
 
@@ -388,14 +393,26 @@ type storeSnapshot struct {
 }
 
 func (b *BaseStore) SaveSnapshot(ctx context.Context) (cid.Cid, error) {
-	// I'd rather use protobuf here but I decided to keep the
+	// @glouvigny: I'd rather use protobuf here but I decided to keep the
 	// JS behavior for the sake of compatibility across implementations
+	// TODO: avoid using `*entry.Entry`?
 
 	unfinished := b.replicator.GetQueue()
 
+	untypedEntries := b.oplog.Heads().Slice()
+	entries := make([]*entry.Entry, len(untypedEntries))
+	for i := range untypedEntries {
+		castedEntry, ok := untypedEntries[i].(*entry.Entry)
+		if !ok {
+			return cid.Cid{}, errors.New("unable to downcast entry")
+		}
+
+		entries[i] = castedEntry
+	}
+
 	header, err := json.Marshal(&storeSnapshot{
-		ID:    b.oplog.ID,
-		Heads: b.oplog.Heads().Slice(),
+		ID:    b.oplog.GetID(),
+		Heads: entries,
 		Size:  b.oplog.Values().Len(),
 		Type:  b.storeType,
 	})
@@ -465,7 +482,7 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 		_ = queueJSON
 		var queue []cid.Cid
 
-		var entries []*entry.Entry
+		var entries []ipfslog.Entry
 
 		if err := json.Unmarshal(queueJSON, &queue); err != nil {
 			return errors.Wrap(err, "unable to deserialize queued CIDs")
@@ -517,7 +534,7 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 		return errors.Wrap(err, "unable to decode header from ipfs data")
 	}
 
-	var entries []*entry.Entry
+	var entries []ipfslog.Entry
 	maxClock := 0
 
 	for i := 0; i < header.Size; i++ {
@@ -541,8 +558,8 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 		}
 
 		entries = append(entries, e)
-		if maxClock < e.Clock.Time {
-			maxClock = e.Clock.Time
+		if maxClock < e.Clock.GetTime() {
+			maxClock = e.Clock.GetTime()
 		}
 	}
 
@@ -550,7 +567,7 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 
 	var headsCids []cid.Cid
 	for _, h := range header.Heads {
-		headsCids = append(headsCids, h.Hash)
+		headsCids = append(headsCids, h.GetHash())
 	}
 
 	log, err := ipfslog.NewFromJSON(ctx, b.ipfs, b.identity, &ipfslog.JSONLog{
@@ -584,7 +601,7 @@ func intPtr(i int) *int {
 	return &i
 }
 
-func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, onProgressCallback chan<- *entry.Entry) (*entry.Entry, error) {
+func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, onProgressCallback chan<- ipfslog.Entry) (ipfslog.Entry, error) {
 	data, err := op.Marshal()
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to marshal operation")
@@ -594,9 +611,9 @@ func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, on
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to append data on log")
 	}
-	b.recalculateReplicationStatus(b.replicationStatus.GetProgress()+1, e.Clock.Time)
+	b.recalculateReplicationStatus(b.replicationStatus.GetProgress()+1, e.GetClock().GetTime())
 
-	marshaledEntry, err := json.Marshal([]*entry.Entry{e})
+	marshaledEntry, err := json.Marshal([]ipfslog.Entry{e})
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to marshal entry")
 	}
@@ -646,7 +663,7 @@ func (b *BaseStore) recalculateReplicationStatus(maxProgress, maxTotal int) {
 
 func (b *BaseStore) updateIndex() error {
 	b.recalculateReplicationMax(0)
-	if err := b.index.UpdateIndex(b.oplog, []*entry.Entry{}); err != nil {
+	if err := b.index.UpdateIndex(b.oplog, []ipfslog.Entry{}); err != nil {
 		return errors.Wrap(err, "unable to update index")
 	}
 	b.recalculateReplicationProgress(0)
@@ -654,7 +671,7 @@ func (b *BaseStore) updateIndex() error {
 	return nil
 }
 
-func (b *BaseStore) replicationLoadComplete(logs []*ipfslog.Log) {
+func (b *BaseStore) replicationLoadComplete(logs []ipfslog.Log) {
 	logger().Debug("replication load complete")
 	for _, log := range logs {
 		_, err := b.oplog.Join(log, -1)
@@ -690,6 +707,21 @@ func (b *BaseStore) replicationLoadComplete(logs []*ipfslog.Log) {
 
 	// logger.debug(`<replicated>`)
 	b.Emit(stores.NewEventReplicated(b.address, len(logs)))
+}
+
+type CanAppendContext struct {
+	log ipfslog.Log
+}
+
+func (c *CanAppendContext) GetLogEntries() []logac.LogEntry {
+	logEntries := c.log.GetEntries().Slice()
+
+	var entries = make([]logac.LogEntry, len(logEntries))
+	for i := range logEntries {
+		entries[i] = logEntries[i]
+	}
+
+	return entries
 }
 
 var _ iface.Store = &BaseStore{}

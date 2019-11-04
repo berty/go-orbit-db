@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/ipfs/go-cid"
 	"os"
 	"path"
 	"testing"
@@ -14,8 +15,14 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
+func cidPtr (c cid.Cid) *cid.Cid{
+	return &c
+}
+
 func TestLogDatabase(t *testing.T) {
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
 	const dbPath = "./orbitdb/tests/eventlog"
 	defer os.RemoveAll(dbPath)
 
@@ -60,7 +67,7 @@ func TestLogDatabase(t *testing.T) {
 			c.So(len(ops), ShouldEqual, 1)
 			item := ops[0]
 
-			c.So(item.GetEntry().Hash.String(), ShouldEqual, op.GetEntry().Hash.String())
+			c.So(item.GetEntry().GetHash().String(), ShouldEqual, op.GetEntry().GetHash().String())
 
 			////// returns the added entry's hash, 2 entries
 			err = db.Load(ctx, -1)
@@ -70,7 +77,7 @@ func TestLogDatabase(t *testing.T) {
 			c.So(err, ShouldBeNil)
 			c.So(len(ops), ShouldEqual, 1)
 
-			prevHash := ops[0].GetEntry().Hash
+			prevHash := ops[0].GetEntry().GetHash()
 
 			op, err = db.Add(ctx, []byte("hello2"))
 			c.So(err, ShouldBeNil)
@@ -79,8 +86,8 @@ func TestLogDatabase(t *testing.T) {
 			c.So(err, ShouldBeNil)
 			c.So(len(ops), ShouldEqual, 2)
 
-			c.So(ops[1].GetEntry().Hash.String(), ShouldNotEqual, prevHash.String())
-			c.So(ops[1].GetEntry().Hash.String(), ShouldEqual, op.GetEntry().Hash.String())
+			c.So(ops[1].GetEntry().GetHash().String(), ShouldNotEqual, prevHash.String())
+			c.So(ops[1].GetEntry().GetHash().String(), ShouldEqual, op.GetEntry().GetHash().String())
 		})
 
 		c.Convey("adds five items", FailureHalts, func(c C) {
@@ -109,7 +116,7 @@ func TestLogDatabase(t *testing.T) {
 
 			op, err := db.Add(ctx, msg)
 			c.So(err, ShouldBeNil)
-			c.So(op.GetEntry().Hash.String(), ShouldStartWith, "bafy")
+			c.So(op.GetEntry().GetHash().String(), ShouldStartWith, "bafy")
 		})
 
 		c.Convey("iterator & collect & options", FailureHalts, func(c C) {
@@ -136,7 +143,7 @@ func TestLogDatabase(t *testing.T) {
 						next := <-ch
 
 						c.So(next, ShouldNotBeNil)
-						c.So(next.GetEntry().Hash.String(), ShouldStartWith, "bafy")
+						c.So(next.GetEntry().GetHash().String(), ShouldStartWith, "bafy")
 						c.So(next.GetKey(), ShouldBeNil)
 						c.So(string(next.GetValue()), ShouldEqual, "hello4")
 					})
@@ -159,7 +166,7 @@ func TestLogDatabase(t *testing.T) {
 						first := <-ch
 						second := <-ch
 
-						c.So(first.GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-1].GetEntry().Hash.String())
+						c.So(first.GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
 						c.So(second, ShouldEqual, nil)
 						c.So(string(first.GetValue()), ShouldEqual, "hello4")
 					})
@@ -220,7 +227,7 @@ func TestLogDatabase(t *testing.T) {
 					first := <-ch
 					second := <-ch
 
-					c.So(first.GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-1].GetEntry().Hash.String())
+					c.So(first.GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
 					c.So(second, ShouldBeNil)
 				})
 
@@ -235,7 +242,7 @@ func TestLogDatabase(t *testing.T) {
 					first := <-ch
 					second := <-ch
 
-					c.So(first.GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-1].GetEntry().Hash.String())
+					c.So(first.GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
 					c.So(second, ShouldBeNil)
 				})
 
@@ -252,9 +259,9 @@ func TestLogDatabase(t *testing.T) {
 					third := <-ch
 					fourth := <-ch
 
-					c.So(first.GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-3].GetEntry().Hash.String())
-					c.So(second.GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-2].GetEntry().Hash.String())
-					c.So(third.GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-1].GetEntry().Hash.String())
+					c.So(first.GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-3].GetEntry().GetHash().String())
+					c.So(second.GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-2].GetEntry().GetHash().String())
+					c.So(third.GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
 					c.So(fourth, ShouldBeNil)
 				})
 
@@ -270,7 +277,7 @@ func TestLogDatabase(t *testing.T) {
 						last = e
 					}
 
-					c.So(last.GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-1].GetEntry().Hash.String())
+					c.So(last.GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
 				})
 
 				c.Convey("returns all items when limit is bigger than -1", FailureHalts, func(c C) {
@@ -286,7 +293,7 @@ func TestLogDatabase(t *testing.T) {
 						last = e
 					}
 
-					c.So(last.GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-1].GetEntry().Hash.String())
+					c.So(last.GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
 				})
 
 				c.Convey("returns all items when limit is bigger than number of items", FailureHalts, func(c C) {
@@ -302,119 +309,119 @@ func TestLogDatabase(t *testing.T) {
 						last = e
 					}
 
-					c.So(last.GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-1].GetEntry().Hash.String())
+					c.So(last.GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
 				})
 			})
 
 			c.Convey("Options: ranges", FailureHalts, func(c C) {
 				c.Convey("gt & gte", FailureHalts, func(c C) {
 					c.Convey("returns 1 item when gte is the head", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &orbitdb.StreamOptions{GTE: &ops[len(ops)-1].GetEntry().Hash, Amount: &infinity})
+						messages, err := db.List(ctx, &orbitdb.StreamOptions{GTE: cidPtr(ops[len(ops)-1].GetEntry().GetHash()), Amount: &infinity})
 						c.So(err, ShouldBeNil)
 
 						c.So(len(messages), ShouldEqual, 1)
-						c.So(messages[0].GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-1].GetEntry().Hash.String())
+						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
 					})
 					c.Convey("returns 0 items when gt is the head", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &orbitdb.StreamOptions{GT: &ops[len(ops)-1].GetEntry().Hash, Amount: &infinity})
+						messages, err := db.List(ctx, &orbitdb.StreamOptions{GT: cidPtr(ops[len(ops)-1].GetEntry().GetHash()), Amount: &infinity})
 						c.So(err, ShouldBeNil)
 
 						c.So(len(messages), ShouldEqual, 0)
 					})
 					c.Convey("returns 2 item when gte is defined", FailureHalts, func(c C) {
-						gte := ops[len(ops)-2].GetEntry().Hash
+						gte := ops[len(ops)-2].GetEntry().GetHash()
 
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{GTE: &gte, Amount: &infinity})
 						c.So(err, ShouldBeNil)
 
 						c.So(len(messages), ShouldEqual, 2)
-						c.So(messages[0].GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-2].GetEntry().Hash.String())
-						c.So(messages[1].GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-1].GetEntry().Hash.String())
+						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-2].GetEntry().GetHash().String())
+						c.So(messages[1].GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
 					})
 					c.Convey("returns all items when gte is the root item", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &orbitdb.StreamOptions{GTE: &ops[0].GetEntry().Hash, Amount: &infinity})
+						messages, err := db.List(ctx, &orbitdb.StreamOptions{GTE: cidPtr(ops[0].GetEntry().GetHash()), Amount: &infinity})
 						c.So(err, ShouldBeNil)
 
 						c.So(len(messages), ShouldEqual, len(ops))
-						c.So(messages[0].GetEntry().Hash.String(), ShouldEqual, ops[0].GetEntry().Hash.String())
-						c.So(messages[len(messages)-1].GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-1].GetEntry().Hash.String())
+						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[0].GetEntry().GetHash().String())
+						c.So(messages[len(messages)-1].GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
 					})
 					c.Convey("returns items when gt is the root item", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &orbitdb.StreamOptions{GT: &ops[0].GetEntry().Hash, Amount: &infinity})
+						messages, err := db.List(ctx, &orbitdb.StreamOptions{GT: cidPtr(ops[0].GetEntry().GetHash()), Amount: &infinity})
 						c.So(err, ShouldBeNil)
 
 						c.So(len(messages), ShouldEqual, len(ops)-1)
-						c.So(messages[0].GetEntry().Hash.String(), ShouldEqual, ops[1].GetEntry().Hash.String())
-						c.So(messages[len(messages)-1].GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-1].GetEntry().Hash.String())
+						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[1].GetEntry().GetHash().String())
+						c.So(messages[len(messages)-1].GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
 					})
 					c.Convey("returns items when gt is defined", FailureHalts, func(c C) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 						c.So(err, ShouldBeNil)
 						c.So(len(messages), ShouldEqual, 5)
 
-						gt := messages[2].GetEntry().Hash
+						gt := messages[2].GetEntry().GetHash()
 						hundred := 100
 
 						messages2, err := db.List(ctx, &orbitdb.StreamOptions{GT: &gt, Amount: &hundred})
 						c.So(err, ShouldBeNil)
 
 						c.So(len(messages2), ShouldEqual, 2)
-						c.So(messages2[0].GetEntry().Hash.String(), ShouldEqual, messages[len(messages)-2].GetEntry().Hash.String())
-						c.So(messages2[1].GetEntry().Hash.String(), ShouldEqual, messages[len(messages)-1].GetEntry().Hash.String())
+						c.So(messages2[0].GetEntry().GetHash().String(), ShouldEqual, messages[len(messages)-2].GetEntry().GetHash().String())
+						c.So(messages2[1].GetEntry().GetHash().String(), ShouldEqual, messages[len(messages)-1].GetEntry().GetHash().String())
 					})
 				})
 
 				c.Convey("lt & lte", FailureHalts, func(c C) {
 					c.Convey("returns one item after head when lt is the head", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &orbitdb.StreamOptions{LT: &ops[len(ops)-1].GetEntry().Hash})
+						messages, err := db.List(ctx, &orbitdb.StreamOptions{LT: cidPtr(ops[len(ops)-1].GetEntry().GetHash())})
 						c.So(err, ShouldBeNil)
 
 						c.So(len(messages), ShouldEqual, 1)
-						c.So(messages[0].GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-2].GetEntry().Hash.String())
+						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-2].GetEntry().GetHash().String())
 					})
 					c.Convey("returns all items when lt is head and limit is -1", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &orbitdb.StreamOptions{LT: &ops[len(ops)-1].GetEntry().Hash, Amount: &infinity})
+						messages, err := db.List(ctx, &orbitdb.StreamOptions{LT: cidPtr(ops[len(ops)-1].GetEntry().GetHash()), Amount: &infinity})
 						c.So(err, ShouldBeNil)
 
 						c.So(len(messages), ShouldEqual, len(ops)-1)
-						c.So(messages[0].GetEntry().Hash.String(), ShouldEqual, ops[0].GetEntry().Hash.String())
-						c.So(messages[len(messages)-1].GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-2].GetEntry().Hash.String())
+						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[0].GetEntry().GetHash().String())
+						c.So(messages[len(messages)-1].GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-2].GetEntry().GetHash().String())
 					})
 					c.Convey("returns 3 items when lt is head and limit is 3", FailureHalts, func(c C) {
 						three := 3
-						messages, err := db.List(ctx, &orbitdb.StreamOptions{LT: &ops[len(ops)-1].GetEntry().Hash, Amount: &three})
+						messages, err := db.List(ctx, &orbitdb.StreamOptions{LT: cidPtr(ops[len(ops)-1].GetEntry().GetHash()), Amount: &three})
 						c.So(err, ShouldBeNil)
 
 						c.So(len(messages), ShouldEqual, 3)
-						c.So(messages[0].GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-4].GetEntry().Hash.String())
-						c.So(messages[2].GetEntry().Hash.String(), ShouldEqual, ops[len(ops)-2].GetEntry().Hash.String())
+						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-4].GetEntry().GetHash().String())
+						c.So(messages[2].GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-2].GetEntry().GetHash().String())
 					})
 					c.Convey("returns null when lt is the root item", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &orbitdb.StreamOptions{LT: &ops[0].GetEntry().Hash})
+						messages, err := db.List(ctx, &orbitdb.StreamOptions{LT: cidPtr(ops[0].GetEntry().GetHash())})
 						c.So(err, ShouldBeNil)
 						c.So(len(messages), ShouldEqual, 0)
 					})
 					c.Convey("returns one item when lte is the root item", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &orbitdb.StreamOptions{LTE: &ops[0].GetEntry().Hash})
+						messages, err := db.List(ctx, &orbitdb.StreamOptions{LTE: cidPtr(ops[0].GetEntry().GetHash())})
 						c.So(err, ShouldBeNil)
 						c.So(len(messages), ShouldEqual, 1)
-						c.So(messages[0].GetEntry().Hash.String(), ShouldEqual, ops[0].GetEntry().Hash.String())
+						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[0].GetEntry().GetHash().String())
 					})
 					c.Convey("returns all items when lte is the head", FailureHalts, func(c C) {
-						messages, err := db.List(ctx, &orbitdb.StreamOptions{LTE: &ops[len(ops)-1].GetEntry().Hash, Amount: &infinity})
+						messages, err := db.List(ctx, &orbitdb.StreamOptions{LTE: cidPtr(ops[len(ops)-1].GetEntry().GetHash()), Amount: &infinity})
 						c.So(err, ShouldBeNil)
 						c.So(len(messages), ShouldEqual, itemCount)
-						c.So(messages[0].GetEntry().Hash.String(), ShouldEqual, ops[0].GetEntry().Hash.String())
-						c.So(messages[4].GetEntry().Hash.String(), ShouldEqual, ops[itemCount-1].GetEntry().Hash.String())
+						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[0].GetEntry().GetHash().String())
+						c.So(messages[4].GetEntry().GetHash().String(), ShouldEqual, ops[itemCount-1].GetEntry().GetHash().String())
 					})
 					c.Convey("returns 3 items when lte is the head", FailureHalts, func(c C) {
 						three := 3
-						messages, err := db.List(ctx, &orbitdb.StreamOptions{LTE: &ops[len(ops)-1].GetEntry().Hash, Amount: &three})
+						messages, err := db.List(ctx, &orbitdb.StreamOptions{LTE: cidPtr(ops[len(ops)-1].GetEntry().GetHash()), Amount: &three})
 						c.So(err, ShouldBeNil)
 						c.So(len(messages), ShouldEqual, three)
-						c.So(messages[0].GetEntry().Hash.String(), ShouldEqual, ops[itemCount-3].GetEntry().Hash.String())
-						c.So(messages[1].GetEntry().Hash.String(), ShouldEqual, ops[itemCount-2].GetEntry().Hash.String())
-						c.So(messages[2].GetEntry().Hash.String(), ShouldEqual, ops[itemCount-1].GetEntry().Hash.String())
+						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[itemCount-3].GetEntry().GetHash().String())
+						c.So(messages[1].GetEntry().GetHash().String(), ShouldEqual, ops[itemCount-2].GetEntry().GetHash().String())
+						c.So(messages[2].GetEntry().GetHash().String(), ShouldEqual, ops[itemCount-1].GetEntry().GetHash().String())
 					})
 				})
 			})
