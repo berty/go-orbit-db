@@ -24,6 +24,8 @@ func TestPersistence(t *testing.T) {
 	entryCount := 65
 	infinity := -1
 
+	_, db1IPFS := MakeIPFS(ctx, t)
+
 	defer os.RemoveAll(dbPath)
 
 	Convey("orbit-db - Create & Open", t, FailureHalts, func(c C) {
@@ -31,7 +33,6 @@ func TestPersistence(t *testing.T) {
 		c.So(err, ShouldBeNil)
 
 		db1Path := path.Join(dbPath, "1")
-		_, db1IPFS := MakeIPFS(ctx, t)
 
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, db1IPFS, &orbitdb.NewOrbitDBOptions{
 			Directory: &db1Path,
@@ -159,12 +160,10 @@ func TestPersistence(t *testing.T) {
 					}
 				})
 
-				err = db.Load(ctx, infinity)
-				c.So(err, ShouldBeNil)
+				c.So(db.Load(ctx, infinity), ShouldBeNil)
 				wg.Wait()
 
 				l.RLock()
-				c.So(err, ShouldBeNil)
 				c.So(len(items), ShouldEqual, entryCount)
 				c.So(string(items[0].GetValue()), ShouldEqual, "hello0")
 				c.So(string(items[len(items)-1].GetValue()), ShouldEqual, fmt.Sprintf("hello%d", entryCount-1))

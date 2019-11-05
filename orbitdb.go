@@ -261,7 +261,6 @@ func (o *orbitDB) Close() error {
 	o.pubsub = nil
 	o.lock.Unlock()
 
-
 	if err := c.Close(); err != nil {
 		logger().Error("unable to close cache", zap.Error(err))
 	}

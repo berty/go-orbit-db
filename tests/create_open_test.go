@@ -24,11 +24,10 @@ import (
 
 func TestCreateOpen(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	_, ipfs := MakeIPFS(ctx, t)
 	defer cancel()
 
 	Convey("orbit-db - Create & Open", t, FailureHalts, func(c C) {
-		_, ipfs := MakeIPFS(ctx, t)
-
 		dbPath := path.Join("./orbitdb/tests/create-open", "1")
 
 		defer os.RemoveAll("./orbitdb/tests/create-open")
@@ -289,7 +288,6 @@ func TestCreateOpen(t *testing.T) {
 				db, err = orbit.Open(ctx, "abc", &orbitdb.CreateDBOptions{Create: &create, StoreType: &storeType, Overwrite: &overwrite, Identity: identity})
 				c.So(err, ShouldBeNil)
 
-				c.So(err, ShouldBeNil)
 				c.So(db.Address().String(), ShouldStartWith, "/orbitdb")
 				c.So(db.Address().String(), ShouldContainSubstring, "bafy")
 				c.So(db.Address().String(), ShouldContainSubstring, "abc")
