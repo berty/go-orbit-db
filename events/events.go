@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"sync"
 )
 
 // Event Is a base interface for events
@@ -27,18 +28,25 @@ type eventSubscription struct {
 // EventEmitter Registers listeners and dispatches events to them
 type EventEmitter struct {
 	Subscribers []*eventSubscription
+	lock        sync.RWMutex
 }
 
 func (e *EventEmitter) UnsubscribeAll() {
-	oldSubscribers := e.Subscribers
-	e.Subscribers = nil
-	for _, c := range oldSubscribers {
+	e.lock.RLock()
+	subs := e.Subscribers
+	e.lock.RUnlock()
+
+	for _, c := range subs {
 		c.Cancel()
 	}
 }
 
 func (e *EventEmitter) Emit(evt Event) {
-	for _, s := range e.Subscribers {
+	e.lock.RLock()
+	subs := e.Subscribers
+	e.lock.RUnlock()
+
+	for _, s := range subs {
 		select {
 		case s.Chan <- evt:
 			break
@@ -58,7 +66,9 @@ func (e *EventEmitter) Subscribe(ctx context.Context, handler func(Event)) {
 		Cancel: cancelFunc,
 	}
 
+	e.lock.Lock()
 	e.Subscribers = append(e.Subscribers, sub)
+	e.lock.Unlock()
 
 	for {
 		select {
@@ -73,6 +83,9 @@ func (e *EventEmitter) Subscribe(ctx context.Context, handler func(Event)) {
 }
 
 func (e *EventEmitter) unsubscribe(c *eventSubscription) {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+
 	for i, s := range e.Subscribers {
 		if s == c {
 			c.Cancel()

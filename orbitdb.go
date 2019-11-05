@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"path"
 	"strings"
+	"sync"
 
 	"berty.tech/go-ipfs-log/identityprovider"
 	idp "berty.tech/go-ipfs-log/identityprovider"
@@ -108,6 +109,7 @@ type orbitDB struct {
 	directConnections map[p2pcore.PeerID]oneonone.Channel
 	directory         string
 	cache             cache.Interface
+	lock              sync.RWMutex
 }
 
 func (o *orbitDB) Identity() *identityprovider.Identity {
@@ -224,39 +226,48 @@ func NewOrbitDB(ctx context.Context, ipfs coreapi.CoreAPI, options *NewOrbitDBOp
 }
 
 func (o *orbitDB) Close() error {
-	for k, store := range o.stores {
+	o.lock.RLock()
+	c := o.cache
+	s := o.stores
+	dc := o.directConnections
+	ps := o.pubsub
+	closeKS := o.closeKeystore
+	o.lock.RUnlock()
+
+	for _, store := range s {
 		err := store.Close()
 		if err != nil {
 			logger().Error("unable to close store", zap.Error(err))
 		}
-		delete(o.stores, k)
 	}
 
-	for k, conn := range o.directConnections {
+	for _, conn := range dc {
 		err := conn.Close()
 		if err != nil {
 			logger().Error("unable to close connection", zap.Error(err))
 		}
-		delete(o.directConnections, k)
 	}
 
-	if o.pubsub != nil {
-		err := o.pubsub.Close()
+	if ps != nil {
+		err := ps.Close()
 		if err != nil {
 			logger().Error("unable to close pubsub", zap.Error(err))
 		}
 	}
 
+	o.lock.Lock()
 	o.stores = map[string]Store{}
+	o.directConnections = map[p2pcore.PeerID]oneonone.Channel{}
+	o.pubsub = nil
+	o.lock.Unlock()
 
-	err := o.cache.Close()
-	if err != nil {
+
+	if err := c.Close(); err != nil {
 		logger().Error("unable to close cache", zap.Error(err))
 	}
 
-	if o.closeKeystore != nil {
-		err = o.closeKeystore()
-		if err != nil {
+	if closeKS != nil {
+		if err := closeKS(); err != nil {
 			logger().Error("unable to close key store", zap.Error(err))
 		}
 	}
@@ -586,13 +597,18 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 
 	o.storeListener(ctx, store)
 
+	o.lock.Lock()
 	o.stores[parsedDBAddress.String()] = store
+	o.lock.Unlock()
 
 	// Subscribe to pubsub to get updates from peers,
 	// this is what hooks us into the message propagation layer
 	// and the p2p network
-	if *options.Replicate && o.pubsub != nil {
-		sub, err := o.pubsub.Subscribe(ctx, parsedDBAddress.String())
+	o.lock.RLock()
+	ps := o.pubsub
+	o.lock.RUnlock()
+	if *options.Replicate && ps != nil {
+		sub, err := ps.Subscribe(ctx, parsedDBAddress.String())
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to subscribe to pubsub")
 		}
@@ -605,13 +621,18 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 
 func (o *orbitDB) onClose(ctx context.Context, addr cid.Cid) error {
 	// Unsubscribe from pubsub
-	if o.pubsub != nil {
-		if err := o.pubsub.Unsubscribe(addr.String()); err != nil {
+	o.lock.RLock()
+	ps := o.pubsub
+	o.lock.RUnlock()
+	if ps != nil {
+		if err := ps.Unsubscribe(addr.String()); err != nil {
 			return errors.Wrap(err, "unable to unsubscribe from pubsub")
 		}
 	}
 
+	o.lock.Lock()
 	delete(o.stores, addr.String())
+	o.lock.Unlock()
 
 	return nil
 }
@@ -634,14 +655,18 @@ func (o *orbitDB) storeListener(ctx context.Context, store Store) {
 				return
 			}
 
-			if o.pubsub != nil {
+			o.lock.RLock()
+			ps := o.pubsub
+			o.lock.RUnlock()
+
+			if ps != nil {
 				headsBytes, err := json.Marshal(e.Heads)
 				if err != nil {
 					logger().Debug(fmt.Sprintf("unable to serialize heads %v", err))
 					return
 				}
 
-				err = o.pubsub.Publish(ctx, e.Address.String(), headsBytes)
+				err = ps.Publish(ctx, e.Address.String(), headsBytes)
 				if err != nil {
 					logger().Debug(fmt.Sprintf("unable to publish message on pubsub %v", err))
 					return
@@ -662,7 +687,10 @@ func (o *orbitDB) pubSubChanListener(ctx context.Context, sub pubsub.Subscriptio
 
 			addr := evt.Topic
 
+			o.lock.RLock()
 			store, ok := o.stores[addr]
+			o.lock.RUnlock()
+
 			if !ok {
 				logger().Error(fmt.Sprintf("unable to find store for address %s", addr))
 				return
@@ -720,7 +748,10 @@ func (o *orbitDB) onNewPeerJoined(ctx context.Context, p p2pcore.PeerID, addr ad
 		return
 	}
 
+	o.lock.RLock()
 	store, ok := o.stores[addr.String()]
+	o.lock.RUnlock()
+
 	if !ok {
 		logger().Error(fmt.Sprintf("unable to get store for address %s", addr.String()))
 		return
@@ -730,7 +761,10 @@ func (o *orbitDB) onNewPeerJoined(ctx context.Context, p p2pcore.PeerID, addr ad
 }
 
 func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, addr address.Address) (oneonone.Channel, error) {
+	o.lock.RLock()
 	store, ok := o.stores[addr.String()]
+	o.lock.RUnlock()
+
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("unable to get store for address %s", addr.String()))
 	}
@@ -793,7 +827,10 @@ func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel oneonone.Cha
 			}
 
 			logger().Debug(fmt.Sprintf("%s: Received %d heads for '%s':", o.id.String(), len(heads.Heads), heads.Address))
+			o.lock.RLock()
 			store, ok := o.stores[heads.Address]
+			o.lock.RUnlock()
+
 			if !ok {
 				logger().Debug("Heads from unknown store, skipping")
 				return
@@ -817,7 +854,11 @@ func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel oneonone.Cha
 }
 
 func (o *orbitDB) getDirectConnection(ctx context.Context, peerID p2pcore.PeerID) (oneonone.Channel, error) {
-	if conn, ok := o.directConnections[peerID]; ok {
+	o.lock.RLock()
+	conn, ok := o.directConnections[peerID]
+	o.lock.RUnlock()
+
+	if ok {
 		return conn, nil
 	}
 
@@ -826,7 +867,10 @@ func (o *orbitDB) getDirectConnection(ctx context.Context, peerID p2pcore.PeerID
 		return nil, errors.Wrap(err, "unable to create a direct connection with peer")
 	}
 
+	o.lock.Lock()
 	o.directConnections[peerID] = channel
+	o.lock.Unlock()
+
 	o.watchOneOnOneMessage(ctx, channel)
 
 	return channel, nil

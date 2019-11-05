@@ -17,7 +17,7 @@ import (
 )
 
 func TestPersistence(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	dbPath := "./orbitdb/tests/persistence"
@@ -144,12 +144,16 @@ func TestPersistence(t *testing.T) {
 
 				wg := sync.WaitGroup{}
 				wg.Add(1)
+				l := sync.RWMutex{}
+
 				var items []operation.Operation
 
 				go db.Subscribe(ctx, func(evt events.Event) {
 					switch evt.(type) {
 					case *stores.EventReady:
+						l.Lock()
 						items, err = db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
+						l.Unlock()
 						wg.Done()
 						return
 					}
@@ -159,10 +163,12 @@ func TestPersistence(t *testing.T) {
 				c.So(err, ShouldBeNil)
 				wg.Wait()
 
+				l.RLock()
 				c.So(err, ShouldBeNil)
 				c.So(len(items), ShouldEqual, entryCount)
 				c.So(string(items[0].GetValue()), ShouldEqual, "hello0")
 				c.So(string(items[len(items)-1].GetValue()), ShouldEqual, fmt.Sprintf("hello%d", entryCount-1))
+				l.RUnlock()
 			})
 
 			c.Convey("loading a database emits 'load.progress' event", FailureHalts, func(c C) {

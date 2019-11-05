@@ -59,7 +59,9 @@ func TestCreateOpen(t *testing.T) {
 
 					db1, err := orbit.Create(ctx, "first", "eventlog", &orbitdb.CreateDBOptions{Replicate: &replicate})
 					c.So(err, ShouldBeNil)
-					c.So(db1, ShouldNotBeNil)
+					if db1 == nil {
+						t.Fatalf("db1 should not be nil")
+					}
 
 					db2, err := orbit.Create(ctx, "first", "eventlog", &orbitdb.CreateDBOptions{Replicate: &replicate})
 					c.So(err, ShouldNotBeNil)
@@ -72,7 +74,9 @@ func TestCreateOpen(t *testing.T) {
 
 					db1, err := orbit.KeyValue(ctx, "keyvalue", &orbitdb.CreateDBOptions{Replicate: &replicate})
 					c.So(err, ShouldBeNil)
-					c.So(db1, ShouldNotBeNil)
+					if db1 == nil {
+						t.Fatalf("db1 should not be nil")
+					}
 
 					db2, err := orbit.Log(ctx, db1.Address().String(), nil)
 					c.So(err, ShouldNotBeNil)
@@ -85,7 +89,9 @@ func TestCreateOpen(t *testing.T) {
 				replicate := false
 				db1, err := orbit.Create(ctx, "second", "eventlog", &orbitdb.CreateDBOptions{Replicate: &replicate})
 				c.So(err, ShouldBeNil)
-				c.So(db1, ShouldNotBeNil)
+				if db1 == nil {
+					t.Fatalf("db1 should not be nil")
+				}
 
 				localDataPath := path.Join(dbPath, db1.Address().GetRoot().String(), db1.Address().GetPath())
 
@@ -239,7 +245,9 @@ func TestCreateOpen(t *testing.T) {
 			db, err := orbit.Open(ctx, "abc", &orbitdb.CreateDBOptions{Create: &create, StoreType: &storeType})
 
 			c.So(err, ShouldBeNil)
-			c.So(db, ShouldNotBeNil)
+			if db == nil {
+				t.Fatalf("db should not be nil")
+			}
 
 			c.Convey("throws an error if trying to open a database with name only and 'create' is not set to 'true'", FailureHalts, func(c C) {
 				create := false
