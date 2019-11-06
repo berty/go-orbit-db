@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	ipfslog "berty.tech/go-ipfs-log"
@@ -58,6 +59,8 @@ type BaseStore struct {
 	directory      string
 	options        *iface.NewStoreOptions
 	cacheDestroy   func() error
+
+	lock sync.RWMutex
 }
 
 func (b *BaseStore) DBName() string {
@@ -73,6 +76,9 @@ func (b *BaseStore) Identity() *identityprovider.Identity {
 }
 
 func (b *BaseStore) OpLog() ipfslog.Log {
+	b.lock.RLock()
+	defer b.lock.RUnlock()
+
 	return b.oplog
 }
 
@@ -108,10 +114,12 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 		}
 	}
 
+	b.lock.Lock()
 	b.oplog, err = ipfslog.NewLog(ipfs, identity, &ipfslog.LogOptions{
 		ID:               b.id,
 		AccessController: b.access,
 	})
+	b.lock.Unlock()
 
 	if err != nil {
 		return errors.New("unable to instantiate an IPFS log")
@@ -124,6 +132,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 	b.index = options.Index(b.identity.PublicKey)
 	b.replicationStatus = replicator.NewReplicationInfo()
 
+	b.lock.Lock()
 	b.stats.snapshot.bytesLoaded = -1
 
 	b.replicator = replicator.NewReplicator(ctx, b, options.ReplicationConcurrency)
@@ -145,6 +154,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 	}
 
 	b.options = options
+	b.lock.Unlock()
 
 	go b.replicator.Subscribe(ctx, func(e events.Event) {
 		switch e.(type) {
@@ -163,7 +173,10 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 			if b.replicationStatus.GetBuffered() > evt.BufferLength {
 				b.recalculateReplicationProgress(b.replicationStatus.GetProgress() + evt.BufferLength)
 			} else {
-				b.recalculateReplicationProgress(b.oplog.Values().Len() + evt.BufferLength)
+				b.lock.RLock()
+				oplog := b.oplog
+				b.lock.RUnlock()
+				b.recalculateReplicationProgress(oplog.Values().Len() + evt.BufferLength)
 			}
 
 			b.replicationStatus.SetBuffered(evt.BufferLength)
@@ -196,9 +209,11 @@ func (b *BaseStore) Close() error {
 	// Reset replication statistics
 	b.replicationStatus.Reset()
 
+	b.lock.Lock()
 	// Reset database statistics
 	b.stats.snapshot.bytesLoaded = -1
 	b.stats.syncRequestsReceived = 0
+	b.lock.Unlock()
 
 	b.Emit(stores.NewEventClosed(b.address))
 
@@ -243,10 +258,12 @@ func (b *BaseStore) Drop() error {
 
 	// Reset
 	b.index = b.options.Index(b.identity.PublicKey)
+	b.lock.Lock()
 	b.oplog, err = ipfslog.NewLog(b.ipfs, b.identity, &ipfslog.LogOptions{
 		ID:               b.id,
 		AccessController: b.access,
 	})
+	b.lock.Unlock()
 
 	if err != nil {
 		return errors.Wrap(err, "unable to create log")
@@ -301,12 +318,16 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 
 		// TODO: parallelize things
 		b.recalculateReplicationMax(h.GetClock().GetTime())
+		b.lock.RLock()
+		oplog := b.oplog
+		b.lock.RUnlock()
+
 		l, err := ipfslog.NewFromEntryHash(ctx, b.ipfs, b.identity, h.GetHash(), &ipfslog.LogOptions{
-			ID:               b.oplog.GetID(),
+			ID:               oplog.GetID(),
 			AccessController: b.access,
 		}, &ipfslog.FetchOptions{
 			Length:  &amount,
-			Exclude: b.oplog.Values().Slice(),
+			Exclude: oplog.Values().Slice(),
 			// TODO: ProgressChan:  this._onLoadProgress.bind(this),
 		})
 
@@ -314,12 +335,14 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 			return errors.Wrap(err, "unable to create log from entry hash")
 		}
 
-		l, err = b.oplog.Join(l, amount)
+		l, err = oplog.Join(l, amount)
 		if err != nil {
 			return errors.Wrap(err, "unable to join log")
 		}
 
+		b.lock.Lock()
 		b.oplog = l
+		b.lock.Unlock()
 	}
 
 	// Update the index
@@ -329,12 +352,18 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 		}
 	}
 
-	b.Emit(stores.NewEventReady(b.address, b.oplog.Heads().Slice()))
+	b.lock.RLock()
+	oplog := b.oplog
+	b.lock.RUnlock()
+
+	b.Emit(stores.NewEventReady(b.address, oplog.Heads().Slice()))
 	return nil
 }
 
 func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
+	b.lock.Lock()
 	b.stats.syncRequestsReceived++
+	b.lock.Unlock()
 
 	if len(heads) == 0 {
 		return nil
@@ -357,7 +386,11 @@ func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
 			return errors.New("identity-provider is required, cannot verify entry")
 		}
 
-		canAppend := b.access.CanAppend(h, identityProvider, &CanAppendContext{log: b.oplog})
+		b.lock.RLock()
+		oplog := b.oplog
+		b.lock.RUnlock()
+
+		canAppend := b.access.CanAppend(h, identityProvider, &CanAppendContext{log: oplog})
 		if canAppend != nil {
 			logger().Debug("warning: Given input entry is not allowed in this log and was discarded (no write access).")
 			continue
@@ -399,7 +432,11 @@ func (b *BaseStore) SaveSnapshot(ctx context.Context) (cid.Cid, error) {
 
 	unfinished := b.replicator.GetQueue()
 
-	untypedEntries := b.oplog.Heads().Slice()
+	b.lock.RLock()
+	oplog := b.oplog
+	b.lock.RUnlock()
+
+	untypedEntries := oplog.Heads().Slice()
 	entries := make([]*entry.Entry, len(untypedEntries))
 	for i := range untypedEntries {
 		castedEntry, ok := untypedEntries[i].(*entry.Entry)
@@ -411,9 +448,9 @@ func (b *BaseStore) SaveSnapshot(ctx context.Context) (cid.Cid, error) {
 	}
 
 	header, err := json.Marshal(&storeSnapshot{
-		ID:    b.oplog.GetID(),
+		ID:    oplog.GetID(),
 		Heads: entries,
-		Size:  b.oplog.Values().Len(),
+		Size:  oplog.Values().Len(),
 		Type:  b.storeType,
 	})
 
@@ -427,7 +464,11 @@ func (b *BaseStore) SaveSnapshot(ctx context.Context) (cid.Cid, error) {
 	binary.BigEndian.PutUint16(size, uint16(headerSize))
 	rs := append(size, header...)
 
-	for _, e := range b.oplog.Values().Slice() {
+	b.lock.RLock()
+	oplog = b.oplog
+	b.lock.RUnlock()
+
+	for _, e := range oplog.Values().Slice() {
 		entryJSON, err := json.Marshal(e)
 
 		if err != nil {
@@ -586,7 +627,11 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 		return errors.Wrap(err, "unable to load log")
 	}
 
-	if _, err = b.oplog.Join(log, -1); err != nil {
+	b.lock.RLock()
+	oplog := b.oplog
+	b.lock.RUnlock()
+
+	if _, err = oplog.Join(log, -1); err != nil {
 		return errors.Wrap(err, "unable to join log")
 	}
 
@@ -607,7 +652,11 @@ func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, on
 		return nil, errors.Wrap(err, "unable to marshal operation")
 	}
 
-	e, err := b.oplog.Append(ctx, data, b.referenceCount)
+	b.lock.RLock()
+	oplog := b.oplog
+	b.lock.RUnlock()
+
+	e, err := oplog.Append(ctx, data, b.referenceCount)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to append data on log")
 	}
@@ -627,7 +676,7 @@ func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, on
 		return nil, errors.Wrap(err, "unable to update index")
 	}
 
-	b.Emit(stores.NewEventWrite(b.address, e, b.oplog.Heads().Slice()))
+	b.Emit(stores.NewEventWrite(b.address, e, oplog.Heads().Slice()))
 
 	if onProgressCallback != nil {
 		onProgressCallback <- e
@@ -637,7 +686,11 @@ func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, on
 }
 
 func (b *BaseStore) recalculateReplicationProgress(max int) {
-	if valuesLen := b.oplog.Values().Len(); b.replicationStatus.GetProgress() < valuesLen {
+	b.lock.RLock()
+	oplog := b.oplog
+	b.lock.RUnlock()
+
+	if valuesLen := oplog.Values().Len(); b.replicationStatus.GetProgress() < valuesLen {
 		b.replicationStatus.SetProgress(valuesLen)
 
 	} else if b.replicationStatus.GetProgress() < max {
@@ -648,7 +701,11 @@ func (b *BaseStore) recalculateReplicationProgress(max int) {
 }
 
 func (b *BaseStore) recalculateReplicationMax(max int) {
-	if valuesLen := b.oplog.Values().Len(); b.replicationStatus.GetMax() < valuesLen {
+	b.lock.RLock()
+	oplog := b.oplog
+	b.lock.RUnlock()
+
+	if valuesLen := oplog.Values().Len(); b.replicationStatus.GetMax() < valuesLen {
 		b.replicationStatus.SetMax(valuesLen)
 
 	} else if b.replicationStatus.GetMax() < max {
@@ -662,8 +719,12 @@ func (b *BaseStore) recalculateReplicationStatus(maxProgress, maxTotal int) {
 }
 
 func (b *BaseStore) updateIndex() error {
+	b.lock.RLock()
+	oplog := b.oplog
+	b.lock.RUnlock()
+
 	b.recalculateReplicationMax(0)
-	if err := b.index.UpdateIndex(b.oplog, []ipfslog.Entry{}); err != nil {
+	if err := b.index.UpdateIndex(oplog, []ipfslog.Entry{}); err != nil {
 		return errors.Wrap(err, "unable to update index")
 	}
 	b.recalculateReplicationProgress(0)
@@ -672,9 +733,13 @@ func (b *BaseStore) updateIndex() error {
 }
 
 func (b *BaseStore) replicationLoadComplete(logs []ipfslog.Log) {
+	b.lock.RLock()
+	oplog := b.oplog
+	b.lock.RUnlock()
+
 	logger().Debug("replication load complete")
 	for _, log := range logs {
-		_, err := b.oplog.Join(log, -1)
+		_, err := oplog.Join(log, -1)
 		if err != nil {
 			logger().Error("unable to join logs", zap.Error(err))
 			return
@@ -689,7 +754,7 @@ func (b *BaseStore) replicationLoadComplete(logs []ipfslog.Log) {
 	}
 
 	// only store heads that has been verified and merges
-	heads := b.oplog.Heads()
+	heads := oplog.Heads()
 
 	headsBytes, err := json.Marshal(heads.Slice())
 	if err != nil {

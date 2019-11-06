@@ -2,13 +2,12 @@ package eventlogstore
 
 import (
 	ipfslog "berty.tech/go-ipfs-log"
-	"context"
-
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores/basestore"
 	"berty.tech/go-orbit-db/stores/operation"
+	"context"
 	"github.com/ipfs/go-cid"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/pkg/errors"
@@ -19,22 +18,14 @@ type orbitDBEventLogStore struct {
 }
 
 func (o *orbitDBEventLogStore) List(ctx context.Context, options *iface.StreamOptions) ([]operation.Operation, error) {
-	var err error
 	var operations []operation.Operation
 	c := make(chan operation.Operation, 10)
 
 	go func() {
-		err = o.Stream(ctx, c, options)
+		_ = o.Stream(ctx, c, options)
 	}()
 	for op := range c {
 		operations = append(operations, op)
-		if err != nil {
-			return nil, errors.Wrap(err, "unable to list operations")
-		}
-	}
-
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to list operations")
 	}
 
 	return operations, nil

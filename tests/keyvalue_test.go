@@ -41,7 +41,10 @@ func TestKeyValueStore(t *testing.T) {
 			db, err := orbitdb1.KeyValue(ctx, "first kv database", nil)
 			c.So(err, ShouldBeNil)
 
-			c.So(db, ShouldNotBeNil)
+			if db == nil {
+				t.Fatalf("db should not be nil")
+			}
+
 			c.So(db.Type(), ShouldEqual, "keyvalue")
 			c.So(db.DBName(), ShouldEqual, "first kv database")
 		})

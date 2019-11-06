@@ -17,12 +17,14 @@ import (
 )
 
 func TestPersistence(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	dbPath := "./orbitdb/tests/persistence"
 	entryCount := 65
 	infinity := -1
+
+	_, db1IPFS := MakeIPFS(ctx, t)
 
 	defer os.RemoveAll(dbPath)
 
@@ -31,7 +33,6 @@ func TestPersistence(t *testing.T) {
 		c.So(err, ShouldBeNil)
 
 		db1Path := path.Join(dbPath, "1")
-		_, db1IPFS := MakeIPFS(ctx, t)
 
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, db1IPFS, &orbitdb.NewOrbitDBOptions{
 			Directory: &db1Path,
@@ -144,25 +145,29 @@ func TestPersistence(t *testing.T) {
 
 				wg := sync.WaitGroup{}
 				wg.Add(1)
+				l := sync.RWMutex{}
+
 				var items []operation.Operation
 
 				go db.Subscribe(ctx, func(evt events.Event) {
 					switch evt.(type) {
 					case *stores.EventReady:
+						l.Lock()
 						items, err = db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
+						l.Unlock()
 						wg.Done()
 						return
 					}
 				})
 
-				err = db.Load(ctx, infinity)
-				c.So(err, ShouldBeNil)
+				c.So(db.Load(ctx, infinity), ShouldBeNil)
 				wg.Wait()
 
-				c.So(err, ShouldBeNil)
+				l.RLock()
 				c.So(len(items), ShouldEqual, entryCount)
 				c.So(string(items[0].GetValue()), ShouldEqual, "hello0")
 				c.So(string(items[len(items)-1].GetValue()), ShouldEqual, fmt.Sprintf("hello%d", entryCount-1))
+				l.RUnlock()
 			})
 
 			c.Convey("loading a database emits 'load.progress' event", FailureHalts, func(c C) {

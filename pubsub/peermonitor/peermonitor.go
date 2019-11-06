@@ -2,6 +2,7 @@ package peermonitor
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"berty.tech/go-orbit-db/events"
@@ -32,30 +33,38 @@ var defaultPeerMonitorOptions = &NewPeerMonitorOptions{
 
 type peerMonitor struct {
 	events.EventEmitter
-	cancelFunc   func()
-	ipfs         coreapi.CoreAPI
-	topic        string
-	started      bool
-	pollInterval time.Duration
-	peers        map[peer.ID]struct{}
+	cancelFunc      func()
+	ipfs            coreapi.CoreAPI
+	topic           string
+	started         bool
+	pollInterval    time.Duration
+	peers           map[peer.ID]struct{}
+	peerMonitorLock sync.RWMutex
 }
 
 func (p *peerMonitor) Start(ctx context.Context) func() {
-	if p.started == true {
+	p.peerMonitorLock.RLock()
+	stated := p.started == true
+	p.peerMonitorLock.RUnlock()
+	if stated {
 		p.Stop()
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 
+	p.peerMonitorLock.Lock()
 	p.started = true
 	p.cancelFunc = cancelFunc
+	p.peerMonitorLock.Unlock()
 
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
+				p.peerMonitorLock.Lock()
 				p.cancelFunc = nil
 				p.started = false
+				p.peerMonitorLock.Unlock()
 				return
 
 			case <-time.After(p.pollInterval):
@@ -73,16 +82,22 @@ func (p *peerMonitor) Start(ctx context.Context) func() {
 }
 
 func (p *peerMonitor) Stop() {
-	if p.cancelFunc == nil {
-		return
-	}
+	p.peerMonitorLock.RLock()
+	cancelFunc := p.cancelFunc
+	p.peerMonitorLock.RUnlock()
 
-	p.cancelFunc()
+	if cancelFunc != nil {
+		cancelFunc()
+	}
 }
 
 func (p *peerMonitor) GetPeers() []peer.ID {
 	var peerIDs []peer.ID
-	for p := range p.peers {
+	p.peerMonitorLock.RLock()
+	peers := p.peers
+	p.peerMonitorLock.RUnlock()
+
+	for p := range peers {
 		peerIDs = append(peerIDs, p)
 	}
 
@@ -90,7 +105,9 @@ func (p *peerMonitor) GetPeers() []peer.ID {
 }
 
 func (p *peerMonitor) HasPeer(id peer.ID) bool {
+	p.peerMonitorLock.RLock()
 	_, ok := p.peers[id]
+	p.peerMonitorLock.RUnlock()
 
 	return ok
 }
@@ -102,9 +119,11 @@ func (p *peerMonitor) pollPeers(ctx context.Context) error {
 	allPeers := map[peer.ID]struct{}{}
 	newPeers := map[peer.ID]struct{}{}
 
+	p.peerMonitorLock.RLock()
 	for peerID := range p.peers {
 		currentPeers[peerID] = struct{}{}
 	}
+	p.peerMonitorLock.RUnlock()
 
 	if err != nil {
 		return err
@@ -122,7 +141,9 @@ func (p *peerMonitor) pollPeers(ctx context.Context) error {
 		}
 	}
 
+	p.peerMonitorLock.Lock()
 	p.peers = allPeers
+	p.peerMonitorLock.Unlock()
 
 	return nil
 }

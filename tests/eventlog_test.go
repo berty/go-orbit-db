@@ -45,7 +45,9 @@ func TestLogDatabase(t *testing.T) {
 		c.Convey("basic tests", FailureHalts, func(c C) {
 			db, err := orbitdb1.Log(ctx, "log database", nil)
 			c.So(err, ShouldBeNil)
-			c.So(db, ShouldNotBeNil)
+			if db == nil {
+				t.Fatalf("db should not be nil")
+			}
 
 			////// creates and opens a database
 			c.So(db.Type(), ShouldEqual, "eventlog")

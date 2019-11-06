@@ -4,6 +4,7 @@ package replicator
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	ipfslog "berty.tech/go-ipfs-log"
@@ -27,9 +28,13 @@ type replicator struct {
 	buffer              []ipfslog.Log
 	concurrency         uint
 	queue               map[string]cid.Cid
+	lock                sync.RWMutex
 }
 
 func (r *replicator) GetBufferLen() int {
+	r.lock.RLock()
+	defer r.lock.RUnlock()
+
 	return len(r.buffer)
 }
 
@@ -40,9 +45,11 @@ func (r *replicator) Stop() {
 func (r *replicator) GetQueue() []cid.Cid {
 	var queue []cid.Cid
 
+	r.lock.RLock()
 	for _, c := range r.queue {
 		queue = append(queue, c)
 	}
+	r.lock.RUnlock()
 
 	return queue
 }
@@ -50,8 +57,10 @@ func (r *replicator) GetQueue() []cid.Cid {
 func (r *replicator) Load(ctx context.Context, cids []cid.Cid) {
 	for _, h := range cids {
 		inLog := r.store.OpLog().GetEntries().UnsafeGet(h.String()) != nil
+		r.lock.RLock()
 		_, fetching := r.fetching[h.String()]
 		_, queued := r.queue[h.String()]
+		r.lock.RUnlock()
 
 		if fetching || queued || inLog {
 			continue
@@ -83,8 +92,12 @@ func NewReplicator(ctx context.Context, store storeInterface, concurrency uint) 
 		for {
 			select {
 			case <-time.After(time.Second * 3):
-				if r.tasksRunning() == 0 && len(r.queue) > 0 {
-					logger().Debug(fmt.Sprintf("Had to flush the queue! %d items in the queue, %d %d tasks requested/finished", len(r.queue), r.tasksRequested(), r.tasksFinished()))
+				r.lock.RLock()
+				qLen := len(r.queue)
+				r.lock.RUnlock()
+
+				if r.tasksRunning() == 0 && qLen > 0 {
+					logger().Debug(fmt.Sprintf("Had to flush the queue! %d items in the queue, %d %d tasks requested/finished", qLen, r.tasksRequested(), r.tasksFinished()))
 					r.processQueue(ctx)
 				}
 			case <-ctx.Done():
@@ -97,40 +110,57 @@ func NewReplicator(ctx context.Context, store storeInterface, concurrency uint) 
 }
 
 func (r *replicator) tasksRunning() uint {
+	r.lock.RLock()
+	defer r.lock.RUnlock()
+
 	return r.statsTasksStarted - r.statsTasksProcessed
 }
 
 func (r *replicator) tasksRequested() uint {
+	r.lock.RLock()
+	defer r.lock.RUnlock()
+
 	return r.statsTasksRequested
 }
 
 func (r *replicator) tasksFinished() uint {
+	r.lock.RLock()
+	defer r.lock.RUnlock()
+
 	return r.statsTasksProcessed
 }
 
 func (r *replicator) queueSlice() []cid.Cid {
 	var slice []cid.Cid
 
+	r.lock.RLock()
 	for _, v := range r.queue {
 		slice = append(slice, v)
 	}
+	r.lock.RUnlock()
 
 	return slice
 }
 
 func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, error) {
+	r.lock.RLock()
 	_, isFetching := r.fetching[h.String()]
 	_, hasEntry := r.store.OpLog().Values().Get(h.String())
+	r.lock.RUnlock()
 
 	if hasEntry || isFetching {
 		return nil, nil
 	}
 
+	r.lock.Lock()
 	r.fetching[h.String()] = h
+	r.lock.Unlock()
 
 	r.Emit(NewEventLoadAdded(h))
 
+	r.lock.Lock()
 	r.statsTasksStarted++
+	r.lock.Unlock()
 
 	l, err := ipfslog.NewFromEntryHash(ctx, r.store.IPFS(), r.store.Identity(), h, &ipfslog.LogOptions{
 		ID:               r.store.OpLog().GetID(),
@@ -144,6 +174,8 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 	}
 
 	var logToAppend ipfslog.Log = l
+
+	r.lock.Lock()
 	r.buffer = append(r.buffer, logToAppend)
 
 	latest := l.Values().At(0)
@@ -152,9 +184,14 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 
 	// Mark this task as processed
 	r.statsTasksProcessed++
+	r.lock.Unlock()
+
+	r.lock.RLock()
+	b := r.buffer
+	r.lock.RUnlock()
 
 	// Notify subscribers that we made progress
-	r.Emit(NewEventLoadProgress("", h, latest, nil, len(r.buffer))) // TODO JS: this._id should be undefined
+	r.Emit(NewEventLoadProgress("", h, latest, nil, len(b))) // TODO JS: this._id should be undefined
 
 	var nextValues []cid.Cid
 
@@ -186,7 +223,10 @@ func (r *replicator) processQueue(ctx context.Context) {
 	}
 
 	for _, e := range items {
+		r.lock.Lock()
 		delete(r.queue, e.String())
+		r.lock.Unlock()
+
 		hashes, err := r.processOne(ctx, e)
 		if err != nil {
 			log.Errorf("unable to get data to process %v", err)
@@ -197,15 +237,18 @@ func (r *replicator) processQueue(ctx context.Context) {
 	}
 
 	for _, hashes := range hashesList {
-		if (len(items) > 0 && len(r.buffer) > 0) ||
-			(r.tasksRunning() == 0 && len(r.buffer) > 0) {
+		r.lock.RLock()
+		b := r.buffer
+		r.lock.RUnlock()
 
-			logs := r.buffer
+		if (len(items) > 0 && len(b) > 0) || (r.tasksRunning() == 0 && len(b) > 0) {
+			r.lock.Lock()
 			r.buffer = []ipfslog.Log{}
+			r.lock.Unlock()
 
-			logger().Debug(fmt.Sprintf("load end logs, logs found :%d", len(logs)))
+			logger().Debug(fmt.Sprintf("load end logs, logs found :%d", len(b)))
 
-			r.Emit(NewEventLoadEnd(logs))
+			r.Emit(NewEventLoadEnd(b))
 		}
 
 		if len(hashes) > 0 {
@@ -215,8 +258,10 @@ func (r *replicator) processQueue(ctx context.Context) {
 }
 
 func (r *replicator) addToQueue(h cid.Cid) {
+	r.lock.Lock()
 	r.statsTasksRequested++
 	r.queue[h.String()] = h
+	r.lock.Unlock()
 }
 
 var _ Replicator = &replicator{}
