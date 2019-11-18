@@ -26,7 +26,7 @@ type CreateDBOptions struct {
 	AccessControllerAddress string
 	AccessController        accesscontroller.ManifestParams
 	Replicate               *bool
-	Keystore                *keystore.Keystore
+	Keystore                keystore.Interface
 	Cache                   datastore.Datastore
 	Identity                *identityprovider.Identity
 }

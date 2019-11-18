@@ -92,7 +92,7 @@ type NewOrbitDBOptions struct {
 	ID            *string
 	PeerID        *p2pcore.PeerID
 	Directory     *string
-	Keystore      *keystore.Keystore
+	Keystore      keystore.Interface
 	Cache         cache.Interface
 	Identity      *idp.Identity
 	CloseKeystore func() error
@@ -103,7 +103,7 @@ type orbitDB struct {
 	identity          *idp.Identity
 	id                p2pcore.PeerID
 	pubsub            pubsub.Interface
-	keystore          *keystore.Keystore
+	keystore          keystore.Interface
 	closeKeystore     func() error
 	stores            map[string]Store
 	directConnections map[p2pcore.PeerID]oneonone.Channel
