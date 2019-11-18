@@ -392,7 +392,7 @@ func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
 
 		canAppend := b.access.CanAppend(h, identityProvider, &CanAppendContext{log: oplog})
 		if canAppend != nil {
-			logger().Debug("warning: Given input entry is not allowed in this log and was discarded (no write access).")
+			logger().Debug("warning: Given input entry is not allowed in this log and was discarded (no write access)", zap.Error(canAppend))
 			continue
 		}
 

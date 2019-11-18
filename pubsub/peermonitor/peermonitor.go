@@ -115,13 +115,12 @@ func (p *peerMonitor) HasPeer(id peer.ID) bool {
 func (p *peerMonitor) pollPeers(ctx context.Context) error {
 	peerIDs, err := p.ipfs.PubSub().Peers(ctx, options.PubSub.Topic(p.topic))
 
-	currentPeers := map[peer.ID]struct{}{}
+	currentlyKnownPeers := map[peer.ID]struct{}{}
 	allPeers := map[peer.ID]struct{}{}
-	newPeers := map[peer.ID]struct{}{}
 
 	p.peerMonitorLock.RLock()
 	for peerID := range p.peers {
-		currentPeers[peerID] = struct{}{}
+		currentlyKnownPeers[peerID] = struct{}{}
 	}
 	p.peerMonitorLock.RUnlock()
 
@@ -132,13 +131,15 @@ func (p *peerMonitor) pollPeers(ctx context.Context) error {
 	for _, peerID := range peerIDs {
 		allPeers[peerID] = struct{}{}
 
-		if _, ok := currentPeers[peerID]; ok {
-			delete(currentPeers, peerID)
+		if _, ok := currentlyKnownPeers[peerID]; ok {
+			delete(currentlyKnownPeers, peerID)
+		} else {
 			p.Emit(NewEventPeerJoin(peerID))
-		} else if _, ok := allPeers[peerID]; !ok {
-			newPeers[peerID] = struct{}{}
-			p.Emit(NewEventPeerLeave(peerID))
 		}
+	}
+
+	for peerID := range currentlyKnownPeers {
+		p.Emit(NewEventPeerLeave(peerID))
 	}
 
 	p.peerMonitorLock.Lock()
