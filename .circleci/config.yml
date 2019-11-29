@@ -12,7 +12,7 @@ jobs:
     working_directory: /go/src/berty.tech/go-ipfs-log
     environment:
       GO111MODULE: "on"
-      GOPROXY: "https://goproxy.io"
+      GOPROXY: "https://proxy.golang.org"
     steps:
       - checkout
       - tools/mod-download
