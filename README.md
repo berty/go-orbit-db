@@ -48,6 +48,24 @@ The majority of this code was vastly derived from the JavaScript's [orbit-db](ht
 
 See [GoDoc](https://godoc.org/github.com/berty/go-orbit-db).
 
+## Install
+
+Constraints:
+
+* `go-orbit-db` currently only works with **go1.12**
+* You need to use the canonical import: `berty.tech/go-orbit-db` instead of `github.com/berty/go-orbit-db`
+* If you have `410 gone` errors, make sure that you use a reliable `$GOPROXY` or disable it completely
+
+Example:
+
+```console
+$ go version
+go version go1.12.10 linux/amd64
+$ go get berty.tech/go-orbit-db
+[...]
+$
+```
+
 ## Licensing
 
 *go-orbit-db* is licensed under the Apache License, Version 2.0.
