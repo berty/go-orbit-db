@@ -38,8 +38,8 @@ type DetermineAddressOptions struct {
 	AccessController accesscontroller.ManifestParams
 }
 
-// OrbitDB Provides the main OrbitDB interface used to open and create stores
-type OrbitDB interface {
+// BaseOrbitDB Provides the main OrbitDB interface used to open and create stores
+type BaseOrbitDB interface {
 	// IPFS Returns the instance of the IPFS API used by the current DB
 	IPFS() coreapi.CoreAPI
 
@@ -49,12 +49,6 @@ type OrbitDB interface {
 	// Open Opens an existing data store
 	Open(ctx context.Context, dbAddress string, options *CreateDBOptions) (Store, error)
 
-	// Log Creates or opens an EventLogStore
-	Log(ctx context.Context, address string, options *CreateDBOptions) (EventLogStore, error)
-
-	// KeyValue Creates or opens an KeyValueStore
-	KeyValue(ctx context.Context, address string, options *CreateDBOptions) (KeyValueStore, error)
-
 	// Create Creates a new store
 	Create(ctx context.Context, name string, storeType string, options *CreateDBOptions) (Store, error)
 
@@ -63,6 +57,53 @@ type OrbitDB interface {
 
 	// DetermineAddress Returns the store address for the given parameters
 	DetermineAddress(ctx context.Context, name string, storeType string, options *DetermineAddressOptions) (address.Address, error)
+
+	// RegisterStoreType Registers a new store type
+	RegisterStoreType(storeType string, constructor StoreConstructor)
+
+	// RegisterStoreType Removes a store type
+	UnregisterStoreType(storeType string)
+
+	// RegisterAccessControllerType Registers a new access controller type
+	RegisterAccessControllerType(AccessControllerConstructor) error
+
+	// UnregisterAccessControllerType Unregisters an access controller type
+	UnregisterAccessControllerType(string)
+
+	// GetAccessControllerType Retrieves an access controller type constructor if it exists
+	GetAccessControllerType(string) (AccessControllerConstructor, bool)
+}
+
+// OrbitDBKVStore An OrbitDB instance providing a KeyValue store
+type OrbitDBKVStore interface {
+	BaseOrbitDB
+	OrbitDBKVStoreProvider
+}
+
+// OrbitDBLogStoreProvider Exposes a method providing a key value store
+type OrbitDBKVStoreProvider interface {
+	// KeyValue Creates or opens an KeyValueStore
+	KeyValue(ctx context.Context, address string, options *CreateDBOptions) (KeyValueStore, error)
+}
+
+// OrbitDBLogStore An OrbitDB instance providing an Event Log store
+type OrbitDBLogStore interface {
+	BaseOrbitDB
+	OrbitDBLogStoreProvider
+}
+
+// OrbitDBLogStoreProvider Exposes a method providing an event log store
+type OrbitDBLogStoreProvider interface {
+	// Log Creates or opens an EventLogStore
+	Log(ctx context.Context, address string, options *CreateDBOptions) (EventLogStore, error)
+}
+
+// OrbitDB Provides an OrbitDB interface with the default access controllers and store types
+type OrbitDB interface {
+	BaseOrbitDB
+
+	OrbitDBKVStoreProvider
+	OrbitDBLogStoreProvider
 }
 
 // StreamOptions Defines the parameters that can be given to the Stream function of an EventLogStore
@@ -208,3 +249,6 @@ type IndexConstructor func(publicKey []byte) StoreIndex
 
 // OnWritePrototype Defines the callback function prototype which is triggered on a write
 type OnWritePrototype func(ctx context.Context, addr cid.Cid, entry ipfslog.Entry, heads []cid.Cid) error
+
+// AccessControllerConstructor Required prototype for custom controllers constructors
+type AccessControllerConstructor func(context.Context, BaseOrbitDB, accesscontroller.ManifestParams) (accesscontroller.Interface, error)

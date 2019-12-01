@@ -6,7 +6,6 @@ import (
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/iface"
-	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/basestore"
 	"berty.tech/go-orbit-db/stores/operation"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
@@ -68,10 +67,6 @@ func (o *orbitDBKeyValue) Get(ctx context.Context, key string) ([]byte, error) {
 
 func (o *orbitDBKeyValue) Type() string {
 	return "keyvalue"
-}
-
-func init() {
-	stores.RegisterStore("keyvalue", NewOrbitDBKeyValue)
 }
 
 // NewOrbitDBKeyValue Instantiates a new KeyValueStore

@@ -61,7 +61,7 @@ func (o *simpleAccessController) CanAppend(e logac.LogEntry, p identityprovider.
 }
 
 // NewSimpleAccessController Returns a non configurable access controller
-func NewSimpleAccessController(_ context.Context, _ iface.OrbitDB, options accesscontroller.ManifestParams) (accesscontroller.Interface, error) {
+func NewSimpleAccessController(_ context.Context, _ iface.BaseOrbitDB, options accesscontroller.ManifestParams) (accesscontroller.Interface, error) {
 	if options == nil {
 		return &simpleAccessController{}, errors.New("an options object is required")
 	}
