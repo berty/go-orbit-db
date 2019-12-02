@@ -125,7 +125,7 @@ func (i *ipfsAccessController) Close() error {
 }
 
 // NewIPFSAccessController Returns an access controller for IPFS
-func NewIPFSAccessController(_ context.Context, db iface.OrbitDB, options accesscontroller.ManifestParams) (accesscontroller.Interface, error) {
+func NewIPFSAccessController(_ context.Context, db iface.BaseOrbitDB, options accesscontroller.ManifestParams) (accesscontroller.Interface, error) {
 	if options == nil {
 		return &ipfsAccessController{}, errors.New("an options object must be passed")
 	}

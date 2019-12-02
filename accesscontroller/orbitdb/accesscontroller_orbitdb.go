@@ -222,9 +222,14 @@ func (o *orbitDBAccessController) onUpdate() {
 }
 
 // NewIPFSAccessController Returns a default access controller for OrbitDB database
-func NewOrbitDBAccessController(ctx context.Context, db iface.OrbitDB, options accesscontroller.ManifestParams) (accesscontroller.Interface, error) {
+func NewOrbitDBAccessController(ctx context.Context, db iface.BaseOrbitDB, options accesscontroller.ManifestParams) (accesscontroller.Interface, error) {
 	if db == nil {
 		return &orbitDBAccessController{}, errors.New("an OrbitDB instance is required")
+	}
+
+	kvDB, ok := db.(iface.OrbitDBKVStoreProvider)
+	if !ok {
+		return &orbitDBAccessController{}, errors.New("the OrbitDB instance must provide a key value store")
 	}
 
 	addr := "default-access-controller"
@@ -234,7 +239,7 @@ func NewOrbitDBAccessController(ctx context.Context, db iface.OrbitDB, options a
 		addr = options.GetName()
 	}
 
-	kvStore, err := db.KeyValue(ctx, addr, nil)
+	kvStore, err := kvDB.KeyValue(ctx, addr, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to init key value store")
 	}
