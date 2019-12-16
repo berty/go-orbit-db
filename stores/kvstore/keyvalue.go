@@ -25,7 +25,7 @@ func (o *orbitDBKeyValue) Put(ctx context.Context, key string, value []byte) (op
 
 	e, err := o.AddOperation(ctx, op, nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "error while deleting value")
+		return nil, errors.Wrap(err, "error while adding value")
 	}
 
 	op, err = operation.ParseOperation(e)
