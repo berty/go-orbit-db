@@ -1,25 +1,26 @@
 module berty.tech/go-orbit-db
 
-go 1.12
+go 1.13
 
 require (
-	berty.tech/go-ipfs-log v0.0.0-20191118100004-2fb04713cace
-	github.com/ipfs/go-cid v0.0.2
-	github.com/ipfs/go-datastore v0.0.5
-	github.com/ipfs/go-ds-leveldb v0.0.2
-	github.com/ipfs/go-ipfs v0.4.22
-	github.com/ipfs/go-ipfs-files v0.0.3
-	github.com/ipfs/go-ipld-cbor v0.0.2
-	github.com/ipfs/interface-go-ipfs-core v0.0.8
-	github.com/libp2p/go-libp2p v0.0.28
-	github.com/libp2p/go-libp2p-core v0.0.6
-	github.com/libp2p/go-libp2p-peer v0.2.0 // indirect
-	github.com/libp2p/go-libp2p-peerstore v0.0.6
+	berty.tech/go-ipfs-log v0.0.0-20191218104035-c2dbcdce66fd
+	github.com/ipfs/go-cid v0.0.4
+	github.com/ipfs/go-datastore v0.3.1
+	github.com/ipfs/go-ds-leveldb v0.4.0
+	github.com/ipfs/go-ipfs v0.4.22-0.20191217161056-7cc392ba9dac
+	github.com/ipfs/go-ipfs-files v0.0.4
+	github.com/ipfs/go-ipld-cbor v0.0.3
+	github.com/ipfs/interface-go-ipfs-core v0.2.5
+	github.com/libp2p/go-libp2p v0.5.0
+	github.com/libp2p/go-libp2p-core v0.3.0
+	github.com/libp2p/go-libp2p-peerstore v0.1.4
 	github.com/pkg/errors v0.8.1
-	github.com/polydawn/refmt v0.0.0-20190221155625-df39d6c2d992
-	github.com/prometheus/common v0.4.0
-	github.com/smartystreets/goconvey v0.0.0-20190222223459-a17d461953aa
+	github.com/polydawn/refmt v0.0.0-20190408063855-01bf1e26dd14
+	github.com/prometheus/common v0.6.0
+	github.com/smartystreets/goconvey v0.0.0-20190330032615-68dc04aab96a
 	go.uber.org/zap v1.10.0
 )
 
-replace github.com/dgraph-io/badger => github.com/dgraph-io/badger v0.0.0-20190809121831-9d7b751e85c9
+replace github.com/golangci/golangci-lint => github.com/golangci/golangci-lint v1.18.0
+
+replace github.com/go-critic/go-critic v0.0.0-20181204210945-ee9bf5809ead => github.com/go-critic/go-critic v0.3.5-0.20190526074819-1df300866540

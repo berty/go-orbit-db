@@ -50,6 +50,10 @@ func (w *wrappedCache) Delete(key datastore.Key) error {
 	return w.wrappedCache.Delete(key)
 }
 
+func (w *wrappedCache) Sync(key datastore.Key) error {
+	return w.wrappedCache.Sync(key)
+}
+
 func (w *wrappedCache) Close() error {
 	if w.closed {
 		return nil
