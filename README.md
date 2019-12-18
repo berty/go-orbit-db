@@ -52,7 +52,7 @@ See [GoDoc](https://godoc.org/github.com/berty/go-orbit-db).
 
 Constraints:
 
-* `go-orbit-db` currently only works with **go1.12**
+* `go-orbit-db` currently only works with **go1.13** and later
 * You need to use the canonical import: `berty.tech/go-orbit-db` instead of `github.com/berty/go-orbit-db`
 * If you have `410 gone` errors, make sure that you use a reliable `$GOPROXY` or disable it completely
 
@@ -60,7 +60,7 @@ Example:
 
 ```console
 $ go version
-go version go1.12.10 linux/amd64
+go version go1.13.4 darwin/amd64
 $ go get berty.tech/go-orbit-db
 [...]
 $

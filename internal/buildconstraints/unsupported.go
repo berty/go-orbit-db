@@ -6,5 +6,5 @@ func error() {
 	`Unsupported go version, please use go1.13`
 }
 
-// this file is called for (version<1.12 OR version>=go1.13)
+// this file is called for (version < go1.13)
 // See https://golang.org/pkg/go/build/
