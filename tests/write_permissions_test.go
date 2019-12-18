@@ -1,10 +1,9 @@
 package tests
 
 import (
-	"berty.tech/go-orbit-db/accesscontroller"
 	"context"
-	"os"
-	"path"
+
+	"berty.tech/go-orbit-db/accesscontroller"
 
 	orbitdb "berty.tech/go-orbit-db"
 	"berty.tech/go-orbit-db/events"
@@ -16,16 +15,22 @@ import (
 )
 
 func TestWritePermissions(t *testing.T) {
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*20)
-	dbPath := "./orbitdb/tests/write-permissions"
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
 
-	_, ipfs := MakeIPFS(ctx, t)
+	mocknet := testingMockNet(ctx)
+
+	node, clean := testingIPFSNode(ctx, t, mocknet)
+	defer clean()
+
+	ipfs := testingCoreAPI(t, node)
 
 	Convey("orbit-db - Write Permissions", t, FailureHalts, func(c C) {
-		dbPath1 := path.Join(dbPath, "/1")
-		dbPath2 := path.Join(dbPath, "/2")
+		dbPath1, clean := testingTempDir(t, "db1")
+		defer clean()
 
-		defer os.RemoveAll(dbPath)
+		dbPath2, clean := testingTempDir(t, "db2")
+		defer clean()
 
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs, &orbitdb.NewOrbitDBOptions{Directory: &dbPath1})
 		c.So(err, ShouldBeNil)
@@ -180,11 +185,12 @@ func TestWritePermissions(t *testing.T) {
 				defer db2.Close()
 
 				subCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+				defer cancel()
+
 				go db1.Subscribe(subCtx, func(evt events.Event) {
 					switch evt.(type) {
 					case *stores.EventReplicated:
 						c.So("this", ShouldEqual, "should not occur")
-						cancel()
 					}
 				})
 

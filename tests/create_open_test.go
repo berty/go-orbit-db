@@ -1,13 +1,14 @@
 package tests
 
 import (
-	"berty.tech/go-orbit-db/accesscontroller"
 	"context"
 	"fmt"
 	"os"
 	"path"
 	"testing"
 	"time"
+
+	"berty.tech/go-orbit-db/accesscontroller"
 
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/io"
@@ -24,16 +25,21 @@ import (
 
 func TestCreateOpen(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	_, ipfs := MakeIPFS(ctx, t)
 	defer cancel()
 
-	Convey("orbit-db - Create & Open", t, FailureHalts, func(c C) {
-		dbPath := path.Join("./orbitdb/tests/create-open", "1")
+	mocknet := testingMockNet(ctx)
+	node, clean := testingIPFSNode(ctx, t, mocknet)
+	defer clean()
 
-		defer os.RemoveAll("./orbitdb/tests/create-open")
+	ipfs := testingCoreAPI(t, node)
+
+	Convey("orbit-db - Create & Open", t, FailureHalts, func(c C) {
+		dbPath, clean := testingTempDir(t, "db")
+		defer clean()
 
 		orbit, err := orbitdb.NewOrbitDB(ctx, ipfs, &orbitdb.NewOrbitDBOptions{Directory: &dbPath})
 		c.So(err, ShouldBeNil)
+
 		defer orbit.Close()
 
 		c.Convey("Create", FailureHalts, func(c C) {
@@ -139,11 +145,13 @@ func TestCreateOpen(t *testing.T) {
 				})
 
 				c.Convey("can pass local database directory as an option", FailureHalts, func(c C) {
-					dir := path.Join("./orbitdb/tests/create-open/another-feed")
-					db, err := orbit.Create(ctx, "third", "eventlog", &orbitdb.CreateDBOptions{Directory: &dir})
+					dbPath2, clean := testingTempDir(t, "db2")
+					defer clean()
+
+					db, err := orbit.Create(ctx, "third", "eventlog", &orbitdb.CreateDBOptions{Directory: &dbPath2})
 					c.So(err, ShouldBeNil)
 
-					localDataPath = path.Join(dir, db.Address().GetRoot().String(), db.Address().GetPath())
+					localDataPath = path.Join(dbPath2, db.Address().GetRoot().String(), db.Address().GetPath())
 
 					_, err = os.Stat(localDataPath)
 					c.So(os.IsNotExist(err), ShouldBeFalse)
@@ -356,6 +364,5 @@ func TestCreateOpen(t *testing.T) {
 			})
 		})
 
-		TeardownNetwork()
 	})
 }

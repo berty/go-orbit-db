@@ -4,35 +4,34 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/ipfs/go-cid"
-	"os"
-	"path"
 	"testing"
-	"time"
+
+	"github.com/ipfs/go-cid"
 
 	orbitdb "berty.tech/go-orbit-db"
 	"berty.tech/go-orbit-db/stores/operation"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
-func cidPtr (c cid.Cid) *cid.Cid{
+func cidPtr(c cid.Cid) *cid.Cid {
 	return &c
 }
 
 func TestLogDatabase(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	const dbPath = "./orbitdb/tests/eventlog"
-	defer os.RemoveAll(dbPath)
+	db1Path, clean := testingTempDir(t, "db1")
+	defer clean()
 
 	//.createInstance(ipfs, { directory: path.join(dbPath, '1') })
 	Convey("creates and opens a database", t, FailureHalts, func(c C) {
-		err := os.RemoveAll(dbPath)
-		c.So(err, ShouldBeNil)
+		mocknet := testingMockNet(ctx)
+		node, clean := testingIPFSNode(ctx, t, mocknet)
+		defer clean()
 
-		db1Path := path.Join(dbPath, "1")
-		_, db1IPFS := MakeIPFS(ctx, t)
+		db1IPFS := testingCoreAPI(t, node)
+
 		infinity := -1
 
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, db1IPFS, &orbitdb.NewOrbitDBOptions{
@@ -428,7 +427,5 @@ func TestLogDatabase(t *testing.T) {
 				})
 			})
 		})
-
-		TeardownNetwork()
 	})
 }

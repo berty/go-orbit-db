@@ -2,8 +2,6 @@ package tests
 
 import (
 	"context"
-	"os"
-	"path"
 	"testing"
 	"time"
 
@@ -15,20 +13,21 @@ func TestKeyValueStore(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	dbPath := "./orbitdb/tests/keystore"
+	dbPath, clean := testingTempDir(t, "db-keystore")
+	defer clean()
+
 	dbname := "orbit-db-tests"
 
-	defer os.RemoveAll(dbPath)
-
 	Convey("orbit-db - Key-Value Database", t, FailureHalts, func(c C) {
-		err := os.RemoveAll(dbPath)
-		c.So(err, ShouldBeNil)
+		mocknet := testingMockNet(ctx)
 
-		db1Path := path.Join(dbPath, "1")
-		_, db1IPFS := MakeIPFS(ctx, t)
+		node, clean := testingIPFSNode(ctx, t, mocknet)
+		defer clean()
+
+		db1IPFS := testingCoreAPI(t, node)
 
 		orbitdb1, err := orbitdb2.NewOrbitDB(ctx, db1IPFS, &orbitdb2.NewOrbitDBOptions{
-			Directory: &db1Path,
+			Directory: &dbPath,
 		})
 		defer orbitdb1.Close()
 
@@ -133,6 +132,5 @@ func TestKeyValueStore(t *testing.T) {
 			c.So(value, ShouldEqual, nil)
 		})
 
-		TeardownNetwork()
 	})
 }

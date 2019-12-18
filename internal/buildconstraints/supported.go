@@ -1,6 +1,6 @@
-// +build go1.12,!go1.13
+// +build go1.13
 
 package buildconstraints
 
-// this file is called for (version>=go1.12 AND version<go.13)
+// this file is called for (version >= go1.13)
 // see https://golang.org/pkg/go/build/
