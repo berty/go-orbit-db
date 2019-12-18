@@ -2,6 +2,8 @@ package tests
 
 import (
 	"context"
+	"io/ioutil"
+	"os"
 	"testing"
 
 	ipfsCore "github.com/ipfs/go-ipfs/core"
@@ -19,18 +21,17 @@ func init() {
 	//zap.ReplaceGlobals(logger)
 }
 
+type cleanFunc func()
+
 // TestNetwork is a pointer for the mocked network used in tests
-var TestNetwork mocknet.Mocknet
 
 // MakeIPFS Creates a new IPFS node for testing purposes
-func MakeIPFS(ctx context.Context, t *testing.T) (*ipfsCore.IpfsNode, iface.CoreAPI) {
-	if TestNetwork == nil {
-		TestNetwork = mocknet.New(ctx)
-	}
+func testingIPFSNode(ctx context.Context, t *testing.T, m mocknet.Mocknet) (*ipfsCore.IpfsNode, cleanFunc) {
+	t.Helper()
 
 	core, err := ipfsCore.NewNode(ctx, &ipfsCore.BuildCfg{
 		Online: true,
-		Host:   mock.MockHostOption(TestNetwork),
+		Host:   mock.MockHostOption(m),
 		ExtraOpts: map[string]bool{
 			"pubsub": true,
 		},
@@ -40,15 +41,35 @@ func MakeIPFS(ctx context.Context, t *testing.T) (*ipfsCore.IpfsNode, iface.Core
 		t.Fatal(err)
 	}
 
-	api, err := coreapi.NewCoreAPI(core)
+	return core, func() {
+		core.Close()
+	}
+}
+
+func testingCoreAPI(t *testing.T, core *ipfsCore.IpfsNode) (api iface.CoreAPI) {
+	t.Helper()
+
+	var err error
+	if api, err = coreapi.NewCoreAPI(core); err != nil {
+		t.Fatal(err)
+	}
+
+	return
+}
+
+func testingMockNet(ctx context.Context) mocknet.Mocknet {
+	return mocknet.New(ctx)
+}
+
+func testingTempDir(t *testing.T, name string) (string, cleanFunc) {
+	t.Helper()
+
+	path, err := ioutil.TempDir("", name)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	return core, api
-}
-
-// TeardownNetwork Clears the mock net pointer
-func TeardownNetwork() {
-	TestNetwork = nil
+	return path, func() {
+		os.RemoveAll(path)
+	}
 }

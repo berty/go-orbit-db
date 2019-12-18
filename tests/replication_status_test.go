@@ -2,7 +2,6 @@ package tests
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -14,15 +13,22 @@ func TestReplicationStatus(t *testing.T) {
 	Convey("orbit-db - Replication Status", t, FailureHalts, func(c C) {
 		var db, db2 orbitdb.EventLogStore
 
-		ctx, _ := context.WithTimeout(context.Background(), time.Second*60)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
+		defer cancel()
+
 		infinity := -1
 		create := false
-		dbPath1 := "./orbitdb/tests/replication-status/1"
-		dbPath2 := "./orbitdb/tests/replication-status/2"
+		dbPath1, clean := testingTempDir(t, "db1")
+		defer clean()
 
-		defer os.RemoveAll("./orbitdb/tests/replication-status/")
+		dbPath2, clean := testingTempDir(t, "db2")
+		defer clean()
 
-		_, ipfs := MakeIPFS(ctx, t)
+		mocknet := testingMockNet(ctx)
+		node, clean := testingIPFSNode(ctx, t, mocknet)
+		defer clean()
+
+		ipfs := testingCoreAPI(t, node)
 
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs, &orbitdb.NewOrbitDBOptions{Directory: &dbPath1})
 		c.So(err, ShouldBeNil)

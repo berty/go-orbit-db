@@ -3,8 +3,6 @@ package tests
 import (
 	"context"
 	"fmt"
-	"os"
-	"path"
 	"sync"
 	"testing"
 	"time"
@@ -20,23 +18,24 @@ func TestPersistence(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	dbPath := "./orbitdb/tests/persistence"
 	entryCount := 65
 	infinity := -1
 
-	_, db1IPFS := MakeIPFS(ctx, t)
+	mocknet := testingMockNet(ctx)
+	node, clean := testingIPFSNode(ctx, t, mocknet)
+	defer clean()
 
-	defer os.RemoveAll(dbPath)
+	db1IPFS := testingCoreAPI(t, node)
 
 	Convey("orbit-db - Create & Open", t, FailureHalts, func(c C) {
-		err := os.RemoveAll(dbPath)
-		c.So(err, ShouldBeNil)
-
-		db1Path := path.Join(dbPath, "1")
+		db1Path, clean := testingTempDir(t, "db1")
+		defer clean()
 
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, db1IPFS, &orbitdb.NewOrbitDBOptions{
 			Directory: &db1Path,
 		})
+
+		c.So(err, ShouldBeNil)
 
 		c.Convey("load", FailureHalts, func(c C) {
 			dbName := fmt.Sprintf("%d", time.Now().UnixNano())
@@ -295,7 +294,5 @@ func TestPersistence(t *testing.T) {
 				}
 			})
 		})
-
-		TeardownNetwork()
 	})
 }

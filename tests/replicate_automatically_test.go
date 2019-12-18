@@ -1,10 +1,10 @@
 package tests
 
 import (
-	"berty.tech/go-orbit-db/accesscontroller"
 	"context"
 	"fmt"
-	"os"
+
+	"berty.tech/go-orbit-db/accesscontroller"
 
 	orbitdb "berty.tech/go-orbit-db"
 	"berty.tech/go-orbit-db/events"
@@ -28,25 +28,34 @@ func TestReplicateAutomatically(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*180)
 		defer cancel()
 
-		dbPath1 := "./orbitdb/tests/replicate-automatically/1"
-		dbPath2 := "./orbitdb/tests/replicate-automatically/2"
+		dbPath1, clean := testingTempDir(t, "db1")
+		defer clean()
 
-		defer os.RemoveAll("./orbitdb/tests/replicate-automatically/")
+		dbPath2, clean := testingTempDir(t, "db2")
+		defer clean()
 
-		ipfsd1, ipfs1 := MakeIPFS(ctx, t)
-		ipfsd2, ipfs2 := MakeIPFS(ctx, t)
+		mocknet := testingMockNet(ctx)
 
-		zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node1 is %s", ipfsd1.Identity.String()))
-		zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node2 is %s", ipfsd2.Identity.String()))
+		node1, clean := testingIPFSNode(ctx, t, mocknet)
+		defer clean()
 
-		_, err := TestNetwork.LinkPeers(ipfsd1.Identity, ipfsd2.Identity)
+		node2, clean := testingIPFSNode(ctx, t, mocknet)
+		defer clean()
+
+		ipfs1 := testingCoreAPI(t, node1)
+		ipfs2 := testingCoreAPI(t, node2)
+
+		zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node1 is %s", node1.Identity.String()))
+		zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node2 is %s", node2.Identity.String()))
+
+		_, err := mocknet.LinkPeers(node1.Identity, node2.Identity)
 		c.So(err, ShouldBeNil)
 
-		peerInfo2 := peerstore.PeerInfo{ID: ipfsd2.Identity, Addrs: ipfsd2.PeerHost.Addrs()}
+		peerInfo2 := peerstore.PeerInfo{ID: node2.Identity, Addrs: node2.PeerHost.Addrs()}
 		err = ipfs1.Swarm().Connect(ctx, peerInfo2)
 		c.So(err, ShouldBeNil)
 
-		peerInfo1 := peerstore.PeerInfo{ID: ipfsd1.Identity, Addrs: ipfsd1.PeerHost.Addrs()}
+		peerInfo1 := peerstore.PeerInfo{ID: node1.Identity, Addrs: node1.PeerHost.Addrs()}
 		err = ipfs2.Swarm().Connect(ctx, peerInfo1)
 		c.So(err, ShouldBeNil)
 
@@ -226,6 +235,5 @@ func TestReplicateAutomatically(t *testing.T) {
 			c.So(err, ShouldBeNil)
 		}
 
-		TeardownNetwork()
 	})
 }
