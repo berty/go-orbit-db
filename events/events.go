@@ -33,7 +33,7 @@ type EventEmitter struct {
 
 func (e *EventEmitter) UnsubscribeAll() {
 	e.lock.RLock()
-	subs := e.Subscribers
+	subs := append([]*eventSubscription(nil), e.Subscribers...)
 	e.lock.RUnlock()
 
 	for _, c := range subs {
@@ -43,7 +43,7 @@ func (e *EventEmitter) UnsubscribeAll() {
 
 func (e *EventEmitter) Emit(evt Event) {
 	e.lock.RLock()
-	subs := e.Subscribers
+	subs := append([]*eventSubscription(nil), e.Subscribers...)
 	e.lock.RUnlock()
 
 	for _, s := range subs {
@@ -84,13 +84,16 @@ func (e *EventEmitter) Subscribe(ctx context.Context, handler func(Event)) {
 
 func (e *EventEmitter) unsubscribe(c *eventSubscription) {
 	e.lock.Lock()
+	subs := append([]*eventSubscription(nil), e.Subscribers...)
 	defer e.lock.Unlock()
 
-	for i, s := range e.Subscribers {
+	for i, s := range subs {
 		if s == c {
 			c.Cancel()
-			e.Subscribers[len(e.Subscribers)-1], e.Subscribers[i] = e.Subscribers[i], e.Subscribers[len(e.Subscribers)-1]
-			e.Subscribers = e.Subscribers[:len(e.Subscribers)-1]
+
+			subs[i] = subs[len(subs)-1]
+			e.Subscribers = subs[:len(subs)-1]
+
 			return
 		}
 	}
