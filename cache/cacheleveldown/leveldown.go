@@ -1,9 +1,9 @@
 package cacheleveldown
 
 import (
-	"fmt"
 	"os"
 	"path"
+	"sync"
 
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/cache"
@@ -11,12 +11,16 @@ import (
 	"github.com/ipfs/go-datastore/query"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
+
+var InMemoryDirectory = ":memory:"
 
 var singleton cache.Interface
 
 type levelDownCache struct {
-	caches map[string]*wrappedCache
+	muCaches sync.Mutex
+	caches   map[string]*wrappedCache
 }
 
 type wrappedCache struct {
@@ -59,39 +63,49 @@ func (w *wrappedCache) Close() error {
 		return nil
 	}
 
+	w.manager.muCaches.Lock()
+
 	w.closed = true
 	err := w.wrappedCache.Close()
 	delete(w.manager.caches, w.id)
+
+	w.manager.muCaches.Unlock()
+
 	return err
 }
 
-func (l *levelDownCache) Load(directory string, dbAddress address.Address) (datastore.Datastore, error) {
-	cachePath := datastoreKey(directory, dbAddress)
-	var ds datastore.Datastore
+func (l *levelDownCache) Load(directory string, dbAddress address.Address) (ds datastore.Datastore, err error) {
+	keyPath := datastoreKey(directory, dbAddress)
 
-	if c, ok := l.caches[cachePath]; ok {
-		return c, nil
+	l.muCaches.Lock()
+	defer l.muCaches.Unlock()
+
+	var ok bool
+	if ds, ok = l.caches[keyPath]; ok {
+		return
 	}
 
-	logger().Debug(fmt.Sprintf("opening cache db from path %s", cachePath))
+	logger().Debug("opening cache db", zap.String("path", keyPath))
 
-	ds, err := leveldb.NewDatastore(cachePath, nil)
-
-	//ds = datastore.NewLogDatastore(ds, "cache-ds")
+	if directory == InMemoryDirectory {
+		ds, err = leveldb.NewDatastore("", nil)
+	} else {
+		ds, err = leveldb.NewDatastore(keyPath, nil)
+	}
 
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to init leveldb datastore")
+		err = errors.Wrap(err, "unable to init leveldb datastore")
+		return
 	}
 
-	l.caches[cachePath] = &wrappedCache{wrappedCache: ds, id: cachePath, manager: l}
+	l.caches[keyPath] = &wrappedCache{wrappedCache: ds, id: keyPath, manager: l}
 
-	return ds, nil
+	return
 }
 
 func (l *levelDownCache) Close() error {
-	for k, c := range l.caches {
+	for _, c := range l.caches {
 		_ = c.Close()
-		delete(l.caches, k)
 	}
 
 	return nil
@@ -99,15 +113,16 @@ func (l *levelDownCache) Close() error {
 
 func datastoreKey(directory string, dbAddress address.Address) string {
 	dbPath := path.Join(dbAddress.GetRoot().String(), dbAddress.GetPath())
-	cachePath := path.Join(directory, dbPath)
+	keyPath := path.Join(directory, dbPath)
 
-	return cachePath
+	return keyPath
 }
 
 func (l *levelDownCache) Destroy(directory string, dbAddress address.Address) error {
-	err := os.RemoveAll(datastoreKey(directory, dbAddress))
-	if err != nil {
-		return errors.Wrap(err, "unable to delete datastore")
+	if directory != InMemoryDirectory {
+		if err := os.RemoveAll(datastoreKey(directory, dbAddress)); err != nil {
+			return errors.Wrap(err, "unable to delete datastore")
+		}
 	}
 
 	return nil

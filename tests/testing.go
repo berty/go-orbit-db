@@ -13,13 +13,13 @@ import (
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 )
 
-func init() {
-	//zaptest.Level(zapcore.DebugLevel)
-	//config := zap.NewDevelopmentConfig()
-	//config.OutputPaths = []string{"stdout"}
-	//logger, _ := config.Build()
-	//zap.ReplaceGlobals(logger)
-}
+// func init() {
+// 	zaptest.Level(zapcore.DebugLevel)
+// 	config := zap.NewDevelopmentConfig()
+// 	config.OutputPaths = []string{"stdout"}
+// 	logger, _ := config.Build()
+// 	zap.ReplaceGlobals(logger)
+// }
 
 type cleanFunc func()
 
