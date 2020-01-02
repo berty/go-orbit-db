@@ -21,7 +21,8 @@ func TestLogDatabase(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	dbPath := ":memory:"
+	db1Path, clean := testingTempDir(t, "db1")
+	defer clean()
 
 	//.createInstance(ipfs, { directory: path.join(dbPath, '1') })
 	Convey("creates and opens a database", t, FailureHalts, func(c C) {
@@ -34,7 +35,7 @@ func TestLogDatabase(t *testing.T) {
 		infinity := -1
 
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, db1IPFS, &orbitdb.NewOrbitDBOptions{
-			Directory: &dbPath,
+			Directory: &db1Path,
 		})
 		c.So(err, ShouldBeNil)
 

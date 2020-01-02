@@ -18,16 +18,14 @@ func TestReplication(t *testing.T) {
 	Convey("orbit-db - Replication", t, FailureHalts, func(c C) {
 		var db1, db2 orbitdb.EventLogStore
 
-		inMemoryPath := ":memory:"
-
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*180)
 		defer cancel()
 
-		// dbPath1, clean := testingTempDir(t, "db1")
-		// defer clean()
+		dbPath1, clean := testingTempDir(t, "db1")
+		defer clean()
 
-		// dbPath2, clean := testingTempDir(t, "db2")
-		// defer clean()
+		dbPath2, clean := testingTempDir(t, "db2")
+		defer clean()
 
 		mocknet := testingMockNet(ctx)
 
@@ -54,10 +52,10 @@ func TestReplication(t *testing.T) {
 		err = ipfs2.Swarm().Connect(ctx, peerInfo1)
 		c.So(err, ShouldBeNil)
 
-		orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{Directory: &inMemoryPath})
+		orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{Directory: &dbPath1})
 		c.So(err, ShouldBeNil)
 
-		orbitdb2, err := orbitdb.NewOrbitDB(ctx, ipfs2, &orbitdb.NewOrbitDBOptions{Directory: &inMemoryPath})
+		orbitdb2, err := orbitdb.NewOrbitDB(ctx, ipfs2, &orbitdb.NewOrbitDBOptions{Directory: &dbPath2})
 		c.So(err, ShouldBeNil)
 
 		access := &accesscontroller.CreateAccessControllerOptions{
@@ -72,14 +70,14 @@ func TestReplication(t *testing.T) {
 		c.So(err, ShouldBeNil)
 
 		db1, err = orbitdb1.Log(ctx, "replication-tests", &orbitdb.CreateDBOptions{
-			Directory:        &inMemoryPath,
+			Directory:        &dbPath1,
 			AccessController: access,
 		})
 		c.So(err, ShouldBeNil)
 
 		c.Convey("replicates database of 1 entry", FailureHalts, func(c C) {
 			db2, err = orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
-				Directory:        &inMemoryPath,
+				Directory:        &dbPath2,
 				AccessController: access,
 			})
 			c.So(err, ShouldBeNil)
@@ -96,7 +94,7 @@ func TestReplication(t *testing.T) {
 
 		c.Convey("replicates database of 100 entries", FailureHalts, func(c C) {
 			db2, err = orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
-				Directory:        &inMemoryPath,
+				Directory:        &dbPath2,
 				AccessController: access,
 			})
 			c.So(err, ShouldBeNil)
