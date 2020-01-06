@@ -99,7 +99,6 @@ func (l *levelDownCache) Load(directory string, dbAddress address.Address) (ds d
 	}
 
 	l.caches[keyPath] = &wrappedCache{wrappedCache: ds, id: keyPath, manager: l}
-
 	return
 }
 
@@ -119,8 +118,16 @@ func datastoreKey(directory string, dbAddress address.Address) string {
 }
 
 func (l *levelDownCache) Destroy(directory string, dbAddress address.Address) error {
+	keyPath := datastoreKey(directory, dbAddress)
+	l.muCaches.Lock()
+	defer l.muCaches.Unlock()
+
+	if wc, ok := l.caches[keyPath]; ok {
+		wc.Close()
+	}
+
 	if directory != InMemoryDirectory {
-		if err := os.RemoveAll(datastoreKey(directory, dbAddress)); err != nil {
+		if err := os.RemoveAll(keyPath); err != nil {
 			return errors.Wrap(err, "unable to delete datastore")
 		}
 	}
