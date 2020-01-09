@@ -8,13 +8,14 @@ import (
 	"sync"
 	"time"
 
-	"berty.tech/go-orbit-db/events"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	iface "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	p2pcore "github.com/libp2p/go-libp2p-core"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+
+	"berty.tech/go-orbit-db/events"
 )
 
 type channel struct {
@@ -26,30 +27,20 @@ type channel struct {
 	peers      []p2pcore.PeerID
 	sub        iface.PubSubSubscription
 	done       bool
-	lock       sync.RWMutex
+	muDone     sync.RWMutex
 }
 
 func (c *channel) ID() string {
-	c.lock.RLock()
-	id := c.id
-	c.lock.RUnlock()
-
-	return id
+	return c.id
 }
 
 func (c *channel) Peers() []p2pcore.PeerID {
-	c.lock.RLock()
-	peers := c.peers
-	c.lock.RUnlock()
-
-	return peers
+	return c.peers
 
 }
 
 func (c *channel) Connect(ctx context.Context) error {
-	c.lock.RLock()
 	receiverID := c.receiverID
-	c.lock.RUnlock()
 
 	err := c.waitForPeers(ctx, []p2pcore.PeerID{receiverID})
 	if err != nil {
@@ -60,11 +51,7 @@ func (c *channel) Connect(ctx context.Context) error {
 }
 
 func (c *channel) IPFS() iface.CoreAPI {
-	c.lock.RLock()
-	ipfs := c.ipfs
-	c.lock.RUnlock()
-
-	return ipfs
+	return c.ipfs
 }
 
 func (c *channel) waitForPeers(ctx context.Context, peersToWait []p2pcore.PeerID) error {
@@ -116,30 +103,26 @@ func (c *channel) Send(ctx context.Context, data []byte) error {
 }
 
 func (c *channel) Done() bool {
-	c.lock.RLock()
-	done := c.done
-	c.lock.RUnlock()
+	c.muDone.RLock()
+	defer c.muDone.RUnlock()
 
-	return done
+	return c.done
 }
 
 func (c *channel) Close() error {
 	c.UnsubscribeAll()
 	_ = c.sub.Close() // TODO: handle errors
 
-	c.lock.Lock()
+	c.muDone.Lock()
+	defer c.muDone.Unlock()
+
 	c.done = true
-	c.lock.Unlock()
 
 	return nil
 }
 
 func (c *channel) SenderID() string {
-	c.lock.RLock()
-	senderID := c.senderID.String()
-	c.lock.RUnlock()
-
-	return senderID
+	return c.senderID.String()
 }
 
 // NewChannel Creates a new pubsub topic for communication between two peers

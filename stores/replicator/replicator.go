@@ -11,7 +11,7 @@ import (
 	"berty.tech/go-orbit-db/events"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
-	"github.com/prometheus/common/log"
+	"go.uber.org/zap"
 )
 
 var batchSize = 1
@@ -43,13 +43,16 @@ func (r *replicator) Stop() {
 }
 
 func (r *replicator) GetQueue() []cid.Cid {
-	var queue []cid.Cid
-
 	r.lock.RLock()
+	defer r.lock.RUnlock()
+
+	queue := make([]cid.Cid, len(r.queue))
+	i := 0
+
 	for _, c := range r.queue {
-		queue = append(queue, c)
+		queue[i] = c
+		i++
 	}
-	r.lock.RUnlock()
 
 	return queue
 }
@@ -130,18 +133,6 @@ func (r *replicator) tasksFinished() uint {
 	return r.statsTasksProcessed
 }
 
-func (r *replicator) queueSlice() []cid.Cid {
-	var slice []cid.Cid
-
-	r.lock.RLock()
-	for _, v := range r.queue {
-		slice = append(slice, v)
-	}
-	r.lock.RUnlock()
-
-	return slice
-}
-
 func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, error) {
 	r.lock.RLock()
 	_, isFetching := r.fetching[h.String()]
@@ -186,12 +177,10 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 	r.statsTasksProcessed++
 	r.lock.Unlock()
 
-	r.lock.RLock()
-	b := r.buffer
-	r.lock.RUnlock()
-
 	// Notify subscribers that we made progress
-	r.Emit(NewEventLoadProgress("", h, latest, nil, len(b))) // TODO JS: this._id should be undefined
+	r.lock.RLock()
+	r.Emit(NewEventLoadProgress("", h, latest, len(r.buffer))) // TODO JS: this._id should be undefined
+	r.lock.RUnlock()
 
 	var nextValues []cid.Cid
 
@@ -212,7 +201,7 @@ func (r *replicator) processQueue(ctx context.Context) {
 
 	var hashesList [][]cid.Cid
 	capacity := r.concurrency - r.tasksRunning()
-	slicedQueue := r.queueSlice()
+	slicedQueue := r.GetQueue()
 	if uint(len(slicedQueue)) < capacity {
 		capacity = uint(len(slicedQueue))
 	}
@@ -229,7 +218,7 @@ func (r *replicator) processQueue(ctx context.Context) {
 
 		hashes, err := r.processOne(ctx, e)
 		if err != nil {
-			log.Errorf("unable to get data to process %v", err)
+			logger().Error("unable to get data to process %v", zap.Error(err))
 			return
 		}
 
@@ -239,14 +228,15 @@ func (r *replicator) processQueue(ctx context.Context) {
 	for _, hashes := range hashesList {
 		r.lock.RLock()
 		b := r.buffer
+		bLen := len(b)
 		r.lock.RUnlock()
 
-		if (len(items) > 0 && len(b) > 0) || (r.tasksRunning() == 0 && len(b) > 0) {
+		if (len(items) > 0 && bLen > 0) || (r.tasksRunning() == 0 && bLen > 0) {
 			r.lock.Lock()
 			r.buffer = []ipfslog.Log{}
 			r.lock.Unlock()
 
-			logger().Debug(fmt.Sprintf("load end logs, logs found :%d", len(b)))
+			logger().Debug(fmt.Sprintf("load end logs, logs found :%d", bLen))
 
 			r.Emit(NewEventLoadEnd(b))
 		}
@@ -259,9 +249,10 @@ func (r *replicator) processQueue(ctx context.Context) {
 
 func (r *replicator) addToQueue(h cid.Cid) {
 	r.lock.Lock()
+	defer r.lock.Unlock()
+
 	r.statsTasksRequested++
 	r.queue[h.String()] = h
-	r.lock.Unlock()
 }
 
 var _ Replicator = &replicator{}

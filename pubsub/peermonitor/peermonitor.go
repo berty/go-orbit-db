@@ -33,38 +33,37 @@ var defaultPeerMonitorOptions = &NewPeerMonitorOptions{
 
 type peerMonitor struct {
 	events.EventEmitter
-	cancelFunc      func()
-	ipfs            coreapi.CoreAPI
-	topic           string
-	started         bool
-	pollInterval    time.Duration
-	peers           map[peer.ID]struct{}
-	peerMonitorLock sync.RWMutex
+	cancelFunc   func()
+	ipfs         coreapi.CoreAPI
+	topic        string
+	started      bool
+	pollInterval time.Duration
+	peers        map[peer.ID]struct{}
+
+	muPeers   sync.RWMutex
+	muStarted sync.RWMutex
 }
 
 func (p *peerMonitor) Start(ctx context.Context) func() {
-	p.peerMonitorLock.RLock()
-	stated := p.started == true
-	p.peerMonitorLock.RUnlock()
-	if stated {
+	if p.Started() {
 		p.Stop()
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 
-	p.peerMonitorLock.Lock()
+	p.muStarted.Lock()
 	p.started = true
 	p.cancelFunc = cancelFunc
-	p.peerMonitorLock.Unlock()
+	p.muStarted.Unlock()
 
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
-				p.peerMonitorLock.Lock()
+				p.muStarted.Lock()
 				p.cancelFunc = nil
 				p.started = false
-				p.peerMonitorLock.Unlock()
+				p.muStarted.Unlock()
 				return
 
 			case <-time.After(p.pollInterval):
@@ -82,9 +81,9 @@ func (p *peerMonitor) Start(ctx context.Context) func() {
 }
 
 func (p *peerMonitor) Stop() {
-	p.peerMonitorLock.RLock()
+	p.muStarted.RLock()
 	cancelFunc := p.cancelFunc
-	p.peerMonitorLock.RUnlock()
+	p.muStarted.RUnlock()
 
 	if cancelFunc != nil {
 		cancelFunc()
@@ -92,37 +91,40 @@ func (p *peerMonitor) Stop() {
 }
 
 func (p *peerMonitor) GetPeers() []peer.ID {
-	var peerIDs []peer.ID
-	p.peerMonitorLock.RLock()
-	peers := p.peers
-	p.peerMonitorLock.RUnlock()
+	p.muPeers.RLock()
+	defer p.muPeers.RUnlock()
 
-	for p := range peers {
-		peerIDs = append(peerIDs, p)
+	peerIDs := make([]peer.ID, len(p.peers))
+	i := 0
+
+	for p := range p.peers {
+		peerIDs[i] = p
+		i++
 	}
 
 	return peerIDs
 }
 
 func (p *peerMonitor) HasPeer(id peer.ID) bool {
-	p.peerMonitorLock.RLock()
+	p.muPeers.RLock()
+	defer p.muPeers.RUnlock()
+
 	_, ok := p.peers[id]
-	p.peerMonitorLock.RUnlock()
 
 	return ok
 }
 
 func (p *peerMonitor) pollPeers(ctx context.Context) error {
 	peerIDs, err := p.ipfs.PubSub().Peers(ctx, options.PubSub.Topic(p.topic))
+	p.muPeers.Lock()
+	defer p.muPeers.Unlock()
 
 	currentlyKnownPeers := map[peer.ID]struct{}{}
 	allPeers := map[peer.ID]struct{}{}
 
-	p.peerMonitorLock.RLock()
 	for peerID := range p.peers {
 		currentlyKnownPeers[peerID] = struct{}{}
 	}
-	p.peerMonitorLock.RUnlock()
 
 	if err != nil {
 		return err
@@ -142,11 +144,16 @@ func (p *peerMonitor) pollPeers(ctx context.Context) error {
 		p.Emit(NewEventPeerLeave(peerID))
 	}
 
-	p.peerMonitorLock.Lock()
 	p.peers = allPeers
-	p.peerMonitorLock.Unlock()
 
 	return nil
+}
+
+func (p *peerMonitor) Started() bool {
+	p.muStarted.RLock()
+	defer p.muStarted.RUnlock()
+
+	return p.started
 }
 
 // NewPeerMonitor Creates a new PeerMonitor instance

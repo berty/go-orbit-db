@@ -10,6 +10,7 @@ import (
 	orbitdb "berty.tech/go-orbit-db"
 	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/stores"
+	"berty.tech/go-orbit-db/stores/basestore"
 	"berty.tech/go-orbit-db/stores/operation"
 	. "github.com/smartystreets/goconvey/convey"
 )
@@ -179,7 +180,7 @@ func TestPersistence(t *testing.T) {
 					c.So(err, ShouldBeNil)
 
 					address := db.Address().String()
-					_, err = db.SaveSnapshot(ctx)
+					_, err = basestore.SaveSnapshot(ctx, db)
 					c.So(err, ShouldBeNil)
 
 					err = db.Close()
@@ -215,7 +216,7 @@ func TestPersistence(t *testing.T) {
 					entryArr = append(entryArr, op)
 				}
 
-				_, err = db.SaveSnapshot(ctx)
+				_, err = basestore.SaveSnapshot(ctx, db)
 				c.So(err, ShouldBeNil)
 
 				err = db.Close()
@@ -257,7 +258,7 @@ func TestPersistence(t *testing.T) {
 						c.So(string(items[0].GetValue()), ShouldEqual, "hello0")
 						c.So(string(items[len(items)-1].GetValue()), ShouldEqual, fmt.Sprintf("hello%d", entryCount+i))
 
-						_, err = db.SaveSnapshot(ctx)
+						_, err = basestore.SaveSnapshot(ctx, db)
 						c.So(err, ShouldBeNil)
 
 						err = db.Close()

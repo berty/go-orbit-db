@@ -11,10 +11,10 @@ import (
 )
 
 type pubSub struct {
-	ipfs          coreapi.CoreAPI
-	id            peer.ID
-	subscriptions map[string]Subscription
-	pubSubLock    sync.RWMutex
+	ipfs            coreapi.CoreAPI
+	id              peer.ID
+	subscriptions   map[string]Subscription
+	muSubscriptions sync.RWMutex
 }
 
 // NewPubSub Creates a new pubsub client
@@ -37,9 +37,9 @@ func NewPubSub(is coreapi.CoreAPI, id peer.ID) (Interface, error) {
 }
 
 func (p *pubSub) Subscribe(ctx context.Context, topic string) (Subscription, error) {
-	p.pubSubLock.RLock()
+	p.muSubscriptions.RLock()
 	sub, ok := p.subscriptions[topic]
-	p.pubSubLock.RUnlock()
+	p.muSubscriptions.RUnlock()
 	if ok {
 		return sub, nil
 	}
@@ -53,27 +53,27 @@ func (p *pubSub) Subscribe(ctx context.Context, topic string) (Subscription, err
 		return nil, errors.Wrap(err, "unable to create new pubsub subscription")
 	}
 
-	p.pubSubLock.Lock()
+	p.muSubscriptions.Lock()
 	p.subscriptions[topic] = s
-	p.pubSubLock.Unlock()
+	p.muSubscriptions.Unlock()
 
 	return s, nil
 }
 
 func (p *pubSub) Publish(ctx context.Context, topic string, message []byte) error {
-	p.pubSubLock.RLock()
+	p.muSubscriptions.RLock()
 	if _, ok := p.subscriptions[topic]; !ok {
 		return errors.New("to subscribed to this topic")
 	}
-	p.pubSubLock.RUnlock()
+	p.muSubscriptions.RUnlock()
 
 	return p.ipfs.PubSub().Publish(ctx, topic, message)
 }
 
 func (p *pubSub) Close() error {
-	p.pubSubLock.RLock()
+	p.muSubscriptions.RLock()
 	subs := p.subscriptions
-	p.pubSubLock.RUnlock()
+	p.muSubscriptions.RUnlock()
 
 	for _, sub := range subs {
 		_ = sub.Close()
@@ -83,9 +83,9 @@ func (p *pubSub) Close() error {
 }
 
 func (p *pubSub) Unsubscribe(topic string) error {
-	p.pubSubLock.RLock()
+	p.muSubscriptions.RLock()
 	s, ok := p.subscriptions[topic]
-	p.pubSubLock.RUnlock()
+	p.muSubscriptions.RUnlock()
 
 	if !ok {
 		return errors.New("no subscription found")

@@ -22,4 +22,7 @@ type Interface interface {
 
 	// HasPeer Checks if a peer is present on the topic
 	HasPeer(id peer.ID) bool
+
+	// Started Returns whether the peer monitor has been started
+	Started() bool
 }
