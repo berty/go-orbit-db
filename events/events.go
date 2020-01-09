@@ -31,22 +31,21 @@ type EventEmitter struct {
 	lock        sync.RWMutex
 }
 
-func (e *EventEmitter) UnsubscribeAll() {
+func (e *EventEmitter) allEventSubscription() []*eventSubscription {
 	e.lock.RLock()
-	subs := append([]*eventSubscription(nil), e.Subscribers...)
-	e.lock.RUnlock()
+	defer e.lock.RUnlock()
 
-	for _, c := range subs {
+	return e.Subscribers
+}
+
+func (e *EventEmitter) UnsubscribeAll() {
+	for _, c := range e.allEventSubscription() {
 		c.Cancel()
 	}
 }
 
 func (e *EventEmitter) Emit(evt Event) {
-	e.lock.RLock()
-	subs := append([]*eventSubscription(nil), e.Subscribers...)
-	e.lock.RUnlock()
-
-	for _, s := range subs {
+	for _, s := range e.allEventSubscription() {
 		select {
 		case s.Chan <- evt:
 			break
@@ -84,8 +83,9 @@ func (e *EventEmitter) Subscribe(ctx context.Context, handler func(Event)) {
 
 func (e *EventEmitter) unsubscribe(c *eventSubscription) {
 	e.lock.Lock()
-	subs := append([]*eventSubscription(nil), e.Subscribers...)
 	defer e.lock.Unlock()
+
+	subs := append([]*eventSubscription(nil), e.Subscribers...)
 
 	for i, s := range subs {
 		if s == c {

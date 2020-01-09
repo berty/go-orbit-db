@@ -13,20 +13,20 @@ type eventIndex struct {
 
 func (i *eventIndex) Get(key string) interface{} {
 	i.lock.RLock()
-	idx := i.index
-	i.lock.RUnlock()
+	defer i.lock.RUnlock()
 
-	if idx == nil {
+	if i.index == nil {
 		return nil
 	}
 
-	return idx.Values().Slice()
+	return i.index.Values().Slice()
 }
 
 func (i *eventIndex) UpdateIndex(log ipfslog.Log, _ []ipfslog.Entry) error {
 	i.lock.Lock()
+	defer i.lock.Unlock()
+
 	i.index = log
-	i.lock.Unlock()
 
 	return nil
 }

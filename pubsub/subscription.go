@@ -52,6 +52,8 @@ func (s *subscription) Close() error {
 		logger().Error("error while closing subscription", zap.Error(err))
 	}
 
+	s.cancel()
+
 	return nil
 }
 

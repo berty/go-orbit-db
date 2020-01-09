@@ -4,12 +4,13 @@ import (
 	"context"
 
 	"berty.tech/go-ipfs-log/identityprovider"
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	"github.com/pkg/errors"
+
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores/basestore"
 	"berty.tech/go-orbit-db/stores/operation"
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/pkg/errors"
 )
 
 type orbitDBKeyValue struct {
@@ -17,7 +18,21 @@ type orbitDBKeyValue struct {
 }
 
 func (o *orbitDBKeyValue) All() map[string][]byte {
-	return o.Index().(*kvIndex).index
+	idx, ok := o.Index().(*kvIndex)
+	if !ok {
+		return map[string][]byte{}
+	}
+
+	idx.muIndex.RLock()
+	defer idx.muIndex.RUnlock()
+
+	copiedIndex := map[string][]byte{}
+
+	for k, v := range idx.index {
+		copiedIndex[k] = v
+	}
+
+	return copiedIndex
 }
 
 func (o *orbitDBKeyValue) Put(ctx context.Context, key string, value []byte) (operation.Operation, error) {

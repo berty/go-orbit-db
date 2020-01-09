@@ -3,6 +3,7 @@ package accesscontroller
 import (
 	"context"
 	"strings"
+	"sync"
 
 	"berty.tech/go-ipfs-log/io"
 	"github.com/ipfs/go-cid"
@@ -25,19 +26,16 @@ type CreateAccessControllerOptions struct {
 	Type         string
 	Name         string
 	Access       map[string][]string
+
+	muAccess sync.RWMutex
 }
 
 func CloneManifestParams(m ManifestParams) *CreateAccessControllerOptions {
-	access := map[string][]string{}
-	for k, v := range m.GetAllAccess() {
-		access[k] = v
-	}
-
 	return &CreateAccessControllerOptions{
 		Type:         m.GetType(),
 		SkipManifest: m.GetSkipManifest(),
 		Name:         m.GetName(),
-		Access:       access,
+		Access:       m.GetAllAccess(),
 		Address:      m.GetAddress(),
 	}
 }
@@ -51,6 +49,9 @@ func (m *CreateAccessControllerOptions) SetName(name string) {
 }
 
 func (m *CreateAccessControllerOptions) SetAccess(role string, allowed []string) {
+	m.muAccess.Lock()
+	defer m.muAccess.Unlock()
+
 	if m.Access == nil {
 		m.Access = make(map[string][]string)
 	}
@@ -59,15 +60,26 @@ func (m *CreateAccessControllerOptions) SetAccess(role string, allowed []string)
 }
 
 func (m *CreateAccessControllerOptions) GetAccess(role string) []string {
+	m.muAccess.RLock()
+	defer m.muAccess.RUnlock()
+
 	return m.Access[role]
 }
 
 func (m *CreateAccessControllerOptions) GetAllAccess() map[string][]string {
+	m.muAccess.RLock()
+	defer m.muAccess.RUnlock()
+
 	if m.Access == nil {
 		return map[string][]string{}
 	}
 
-	return m.Access
+	accessCopy := map[string][]string{}
+	for k, v := range m.Access {
+		accessCopy[k] = v
+	}
+
+	return accessCopy
 }
 
 func (m *CreateAccessControllerOptions) GetType() string {

@@ -134,6 +134,12 @@ type Store interface {
 	// ReplicationStatus Returns the current ReplicationInfo status
 	ReplicationStatus() replicator.ReplicationInfo
 
+	// Replicator Returns the Replicator object
+	Replicator() replicator.Replicator
+
+	// Replicator Returns the Cache object
+	Cache() datastore.Datastore
+
 	// Drop Removes all the local store content
 	Drop() error
 
@@ -145,9 +151,6 @@ type Store interface {
 
 	// LoadMoreFrom Loads more entries from the given CIDs
 	LoadMoreFrom(ctx context.Context, amount uint, entries []cid.Cid)
-
-	// SaveSnapshot Save the current state of the store and returns a CID
-	SaveSnapshot(ctx context.Context) (cid.Cid, error)
 
 	// LoadFromSnapshot Loads store content from a snapshot
 	LoadFromSnapshot(ctx context.Context) error

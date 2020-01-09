@@ -3,7 +3,7 @@ module berty.tech/go-orbit-db
 go 1.13
 
 require (
-	berty.tech/go-ipfs-log v0.0.0-20191218104035-c2dbcdce66fd
+	berty.tech/go-ipfs-log v1.0.0
 	github.com/ipfs/go-cid v0.0.4
 	github.com/ipfs/go-datastore v0.3.1
 	github.com/ipfs/go-ds-leveldb v0.4.0
@@ -16,7 +16,6 @@ require (
 	github.com/libp2p/go-libp2p-peerstore v0.1.4
 	github.com/pkg/errors v0.8.1
 	github.com/polydawn/refmt v0.0.0-20190408063855-01bf1e26dd14
-	github.com/prometheus/common v0.6.0
 	github.com/smartystreets/goconvey v0.0.0-20190330032615-68dc04aab96a
 	go.uber.org/zap v1.10.0
 )
