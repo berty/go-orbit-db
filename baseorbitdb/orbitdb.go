@@ -110,8 +110,6 @@ func (o *orbitDB) Identity() *identityprovider.Identity {
 	return o.identity
 }
 
-var defaultDirectory = "./orbitdb"
-
 func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity, options *NewOrbitDBOptions) (BaseOrbitDB, error) {
 	if is == nil {
 		return nil, errors.New("ipfs is a required argument")
@@ -145,7 +143,7 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 	}
 
 	if options.Directory == nil {
-		options.Directory = &defaultDirectory
+		options.Directory = &cacheleveldown.InMemoryDirectory
 	}
 
 	return &orbitDB{
@@ -181,11 +179,20 @@ func NewOrbitDB(ctx context.Context, ipfs coreapi.CoreAPI, options *NewOrbitDBOp
 	}
 
 	if options.Directory == nil {
-		options.Directory = &defaultDirectory
+		options.Directory = &cacheleveldown.InMemoryDirectory
 	}
 
 	if options.Keystore == nil {
-		ds, err := leveldb.NewDatastore(path.Join(*options.Directory, id.String(), "/keystore"), nil)
+		var err error
+		var ds *leveldb.Datastore
+
+		// create new datastore
+		if *options.Directory == cacheleveldown.InMemoryDirectory {
+			ds, err = leveldb.NewDatastore("", nil)
+		} else {
+			ds, err = leveldb.NewDatastore(path.Join(*options.Directory, id.String(), "/keystore"), nil)
+		}
+
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to create data store used by keystore")
 		}

@@ -14,11 +14,11 @@ import (
 )
 
 func init() {
-	//zaptest.Level(zapcore.DebugLevel)
-	//config := zap.NewDevelopmentConfig()
-	//config.OutputPaths = []string{"stdout"}
-	//logger, _ := config.Build()
-	//zap.ReplaceGlobals(logger)
+	// 	zaptest.Level(zapcore.DebugLevel)
+	// 	config := zap.NewDevelopmentConfig()
+	// 	config.OutputPaths = []string{"stdout"}
+	// 	logger, _ := config.Build()
+	// 	zap.ReplaceGlobals(logger)
 }
 
 type cleanFunc func()
