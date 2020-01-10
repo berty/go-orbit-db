@@ -10,14 +10,26 @@ import (
 )
 
 func TestKeyValueStore(t *testing.T) {
+	tmpDir, clean := testingTempDir(t, "db-keystore")
+	defer clean()
+
+	cases := []struct{ Name, Directory string }{
+		{Name: "in memory", Directory: ":memory:"},
+		{Name: "persistent", Directory: tmpDir},
+	}
+
+	for _, c := range cases {
+		t.Run(c.Name, func(t *testing.T) {
+			testingKeyValueStore(t, c.Directory)
+		})
+	}
+}
+
+func testingKeyValueStore(t *testing.T, dir string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	dbPath, clean := testingTempDir(t, "db-keystore")
-	defer clean()
-
 	dbname := "orbit-db-tests"
-
 	Convey("orbit-db - Key-Value Database", t, FailureHalts, func(c C) {
 		mocknet := testingMockNet(ctx)
 
@@ -27,7 +39,7 @@ func TestKeyValueStore(t *testing.T) {
 		db1IPFS := testingCoreAPI(t, node)
 
 		orbitdb1, err := orbitdb2.NewOrbitDB(ctx, db1IPFS, &orbitdb2.NewOrbitDBOptions{
-			Directory: &dbPath,
+			Directory: &dir,
 		})
 		defer orbitdb1.Close()
 
