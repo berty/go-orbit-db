@@ -3,7 +3,6 @@ package tests
 import (
 	"context"
 	"testing"
-	"time"
 
 	orbitdb2 "berty.tech/go-orbit-db"
 	. "github.com/smartystreets/goconvey/convey"
@@ -26,7 +25,7 @@ func TestKeyValueStore(t *testing.T) {
 }
 
 func testingKeyValueStore(t *testing.T, dir string) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	dbname := "orbit-db-tests"

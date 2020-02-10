@@ -156,6 +156,7 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 	l, err := ipfslog.NewFromEntryHash(ctx, r.store.IPFS(), r.store.Identity(), h, &ipfslog.LogOptions{
 		ID:               r.store.OpLog().GetID(),
 		AccessController: r.store.AccessController(),
+		SortFn:           r.store.SortFn(),
 	}, &ipfslog.FetchOptions{
 		Length: &batchSize,
 	})

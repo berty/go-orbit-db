@@ -9,7 +9,7 @@ jobs:
   build:
     docker:
       - image: circleci/golang:1.13
-    working_directory: /go/src/berty.tech/go-ipfs-log
+    working_directory: /go/src/berty.tech/go-orbit-db
     environment:
       GO111MODULE: "on"
       GOPROXY: "https://proxy.golang.org"

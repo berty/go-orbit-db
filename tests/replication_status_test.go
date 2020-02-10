@@ -6,6 +6,8 @@ import (
 	"time"
 
 	orbitdb "berty.tech/go-orbit-db"
+	"berty.tech/go-orbit-db/stores/basestore"
+
 	. "github.com/smartystreets/goconvey/convey"
 )
 
@@ -13,7 +15,7 @@ func TestReplicationStatus(t *testing.T) {
 	Convey("orbit-db - Replication Status", t, FailureHalts, func(c C) {
 		var db, db2 orbitdb.EventLogStore
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		infinity := -1
@@ -92,21 +94,26 @@ func TestReplicationStatus(t *testing.T) {
 				c.So(db2.ReplicationStatus().GetMax(), ShouldEqual, 2)
 			})
 
-			//c.Convey("has correct replication info after loading from snapshot", FailureHalts, func (c C) {
-			//	_, err = db.SaveSnapshot(ctx)
-			//	c.So(err, ShouldBeNil)
-			//
-			//	db, err = orbitdb1.Log(ctx, "replication status tests", nil)
-			//	c.So(err, ShouldBeNil)
-			//
-			//	err = db.LoadFromSnapshot(ctx)
-			//	c.So(err, ShouldBeNil)
-			//
-			//	c.So(db.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
-			//	c.So(db.ReplicationStatus().GetQueued(), ShouldEqual, 0)
-			//	c.So(db.ReplicationStatus().GetProgress(), ShouldEqual, 2)
-			//	c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 2)
-			//})
+			c.Convey("has correct replication info after loading from snapshot", FailureHalts, func(c C) {
+				_, err = db.Add(ctx, []byte("hello2"))
+				c.So(err, ShouldBeNil)
+
+				_, err = basestore.SaveSnapshot(ctx, db)
+				c.So(err, ShouldBeNil)
+
+				db, err = orbitdb1.Log(ctx, "replication status tests", nil)
+				c.So(err, ShouldBeNil)
+
+				err = db.LoadFromSnapshot(ctx)
+				c.So(err, ShouldBeNil)
+
+				<-time.After(100 * time.Millisecond)
+
+				c.So(db.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
+				c.So(db.ReplicationStatus().GetQueued(), ShouldEqual, 0)
+				c.So(db.ReplicationStatus().GetProgress(), ShouldEqual, 2)
+				c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 2)
+			})
 		})
 
 		if orbitdb1 != nil {

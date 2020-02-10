@@ -63,7 +63,7 @@ func (p *pubSub) Subscribe(ctx context.Context, topic string) (Subscription, err
 func (p *pubSub) Publish(ctx context.Context, topic string, message []byte) error {
 	p.muSubscriptions.RLock()
 	if _, ok := p.subscriptions[topic]; !ok {
-		return errors.New("to subscribed to this topic")
+		return errors.New("not subscribed to this topic")
 	}
 	p.muSubscriptions.RUnlock()
 

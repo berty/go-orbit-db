@@ -6,7 +6,6 @@ import (
 	"os"
 	"path"
 	"testing"
-	"time"
 
 	"berty.tech/go-orbit-db/accesscontroller"
 
@@ -24,7 +23,7 @@ import (
 )
 
 func TestCreateOpen(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	mocknet := testingMockNet(ctx)

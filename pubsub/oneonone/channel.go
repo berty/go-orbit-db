@@ -58,36 +58,42 @@ func (c *channel) waitForPeers(ctx context.Context, peersToWait []p2pcore.PeerID
 	id := c.ID()
 	ipfs := c.IPFS()
 
-	peers, err := ipfs.PubSub().Peers(ctx, options.PubSub.Topic(id))
-	if err != nil {
-		logger().Error("failed to get peers on pub sub")
-		return err
-	}
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 
-	foundAllPeers := true
-	for _, p1 := range peersToWait {
-		foundPeer := false
-		for _, p2 := range peers {
-			if p1 == p2 {
-				foundPeer = true
+		peers, err := ipfs.PubSub().Peers(ctx, options.PubSub.Topic(id))
+		if err != nil {
+			logger().Error("failed to get peers on pub sub")
+			return err
+		}
+
+		foundAllPeers := true
+		for _, p1 := range peersToWait {
+			foundPeer := false
+			for _, p2 := range peers {
+				if p1 == p2 {
+					foundPeer = true
+					break
+				}
+			}
+
+			if !foundPeer {
+				foundAllPeers = false
 				break
 			}
 		}
 
-		if !foundPeer {
-			foundAllPeers = false
+		if foundAllPeers {
 			break
 		}
+
+		logger().Debug("Failed to get peer on pub sub retrying...")
+		<-time.After(100 * time.Millisecond)
 	}
 
-	if foundAllPeers {
-		return nil
-	}
-
-	logger().Debug("Failed to get peer on pub sub retrying...")
-	<-time.After(100 * time.Millisecond)
-
-	return c.waitForPeers(ctx, peersToWait)
+	return nil
 }
 
 func (c *channel) Send(ctx context.Context, data []byte) error {

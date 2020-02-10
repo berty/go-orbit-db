@@ -29,6 +29,7 @@ type CreateDBOptions struct {
 	Keystore                keystore.Interface
 	Cache                   datastore.Datastore
 	Identity                *identityprovider.Identity
+	SortFn                  ipfslog.SortFn
 }
 
 // DetermineAddressOptions Lists the arguments used to determine a store address
@@ -242,6 +243,7 @@ type NewStoreOptions struct {
 	Replicate              *bool
 	MaxHistory             *int
 	Directory              string
+	SortFn                 ipfslog.SortFn
 }
 
 // StoreConstructor Defines the expected constructor for a custom store

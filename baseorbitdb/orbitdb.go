@@ -739,6 +739,7 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 		Cache:            options.Cache,
 		Replicate:        options.Replicate,
 		Directory:        *options.Directory,
+		SortFn:           options.SortFn,
 		CacheDestroy:     func() error { return o.cache.Destroy(o.directory, parsedDBAddress) },
 	})
 	if err != nil {

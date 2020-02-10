@@ -152,7 +152,7 @@ func CreateManifest(ctx context.Context, ipfs coreapi.CoreAPI, controllerType st
 		},
 	}
 
-	return io.WriteCBOR(ctx, ipfs, manifest)
+	return io.WriteCBOR(ctx, ipfs, manifest, nil)
 }
 
 // ResolveManifest Retrieves a manifest from its address

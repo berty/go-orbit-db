@@ -36,7 +36,6 @@ func NewSubscription(ctx context.Context, ipfs coreapi.CoreAPI, topic string, ca
 	s := &subscription{
 		ipfs:      ipfs,
 		pubSubSub: pubSubSub,
-		cancel:    cancel,
 		id:        id.ID(),
 	}
 
@@ -52,7 +51,9 @@ func (s *subscription) Close() error {
 		logger().Error("error while closing subscription", zap.Error(err))
 	}
 
-	s.cancel()
+	if s.cancel != nil {
+		s.cancel()
+	}
 
 	return nil
 }

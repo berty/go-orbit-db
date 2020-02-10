@@ -123,7 +123,7 @@ func (i *ipfsAccessController) Save(ctx context.Context) (accesscontroller.Manif
 		return nil, errors.Wrap(err, "unable to serialize write access")
 	}
 
-	c, err := io.WriteCBOR(ctx, i.ipfs, &cborWriteAccess{Write: string(writeAccess)})
+	c, err := io.WriteCBOR(ctx, i.ipfs, &cborWriteAccess{Write: string(writeAccess)}, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to save access controller")
 	}
