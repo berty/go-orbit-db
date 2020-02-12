@@ -6,12 +6,12 @@ import (
 	"time"
 
 	orbitdb "berty.tech/go-orbit-db"
-	. "github.com/smartystreets/goconvey/convey"
+
 	"github.com/stretchr/testify/assert"
 )
 
 func TestReplicationStatus(t *testing.T) {
-	Convey("orbit-db - Replication Status", t, FailureHalts, func(c C) {
+	t.Run("orbit-db - Replication Status", func(t *testing.T) {
 		var db, db2 orbitdb.EventLogStore
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
@@ -40,14 +40,14 @@ func TestReplicationStatus(t *testing.T) {
 		db, err = orbitdb1.Log(ctx, "replication status tests", nil)
 		assert.NoError(t, err)
 
-		c.Convey("has correct initial state", FailureHalts, func(c C) {
+		t.Run("has correct initial state", func(t *testing.T) {
 			assert.Equal(t, 0, db.ReplicationStatus().GetBuffered())
 			assert.Equal(t, 0, db.ReplicationStatus().GetQueued())
 			assert.Equal(t, 0, db.ReplicationStatus().GetProgress())
 			assert.Equal(t, 0, db.ReplicationStatus().GetMax())
 		})
 
-		c.Convey("has correct replication info after load", FailureHalts, func(c C) {
+		t.Run("has correct replication info after load", func(t *testing.T) {
 			_, err = db.Add(ctx, []byte("hello"))
 			assert.NoError(t, err)
 
@@ -62,7 +62,7 @@ func TestReplicationStatus(t *testing.T) {
 			assert.Equal(t, 1, db.ReplicationStatus().GetProgress())
 			assert.Equal(t, 1, db.ReplicationStatus().GetMax())
 
-			c.Convey("has correct replication info after close", FailureHalts, func(c C) {
+			t.Run("has correct replication info after close", func(t *testing.T) {
 				assert.Nil(t, db.Close())
 				assert.Equal(t, 0, db.ReplicationStatus().GetBuffered())
 				assert.Equal(t, 0, db.ReplicationStatus().GetQueued())
@@ -70,7 +70,7 @@ func TestReplicationStatus(t *testing.T) {
 				assert.Equal(t, 0, db.ReplicationStatus().GetMax())
 			})
 
-			c.Convey("has correct replication info after sync", FailureHalts, func(c C) {
+			t.Run("has correct replication info after sync", func(t *testing.T) {
 				_, err = db.Add(ctx, []byte("hello2"))
 				assert.NoError(t, err)
 
@@ -93,7 +93,7 @@ func TestReplicationStatus(t *testing.T) {
 				assert.Equal(t, 2, db2.ReplicationStatus().GetMax())
 			})
 
-			//c.Convey("has correct replication info after loading from snapshot", FailureHalts, func (c C) {
+			//t.Run("has correct replication info after loading from snapshot", func(t *testing.T) {
 			//	_, err = db.SaveSnapshot(ctx)
 			//	assert.NoError(t, err)
 			//

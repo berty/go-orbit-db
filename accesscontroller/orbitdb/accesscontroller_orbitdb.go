@@ -1,9 +1,10 @@
 package orbitdb
 
 import (
-	logac "berty.tech/go-ipfs-log/accesscontroller"
 	"context"
 	"encoding/json"
+
+	logac "berty.tech/go-ipfs-log/accesscontroller"
 	"github.com/ipfs/go-cid"
 
 	"berty.tech/go-ipfs-log/identityprovider"
@@ -228,6 +229,7 @@ func NewOrbitDBAccessController(ctx context.Context, db iface.BaseOrbitDB, optio
 	}
 
 	kvDB, ok := db.(iface.OrbitDBKVStoreProvider)
+
 	if !ok {
 		return &orbitDBAccessController{}, errors.New("the OrbitDB instance must provide a key value store")
 	}

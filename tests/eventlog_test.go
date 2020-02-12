@@ -11,7 +11,6 @@ import (
 
 	orbitdb "berty.tech/go-orbit-db"
 	"berty.tech/go-orbit-db/stores/operation"
-	. "github.com/smartystreets/goconvey/convey"
 )
 
 func cidPtr(c cid.Cid) *cid.Cid {
@@ -26,7 +25,7 @@ func TestLogDatabase(t *testing.T) {
 	defer clean()
 
 	//.createInstance(ipfs, { directory: path.join(dbPath, '1') })
-	Convey("creates and opens a database", t, FailureHalts, func(c C) {
+	t.Run("creates and opens a database", func(t *testing.T) {
 		mocknet := testingMockNet(ctx)
 		node, clean := testingIPFSNode(ctx, t, mocknet)
 		defer clean()
@@ -42,7 +41,7 @@ func TestLogDatabase(t *testing.T) {
 
 		defer orbitdb1.Close()
 
-		c.Convey("basic tests", FailureHalts, func(c C) {
+		t.Run("basic tests", func(t *testing.T) {
 			db, err := orbitdb1.Log(ctx, "log database", nil)
 			assert.NoError(t, err)
 			if db == nil {
@@ -92,7 +91,7 @@ func TestLogDatabase(t *testing.T) {
 			assert.Equal(t, op.GetEntry().GetHash().String(), ops[1].GetEntry().GetHash().String())
 		})
 
-		c.Convey("adds five items", FailureHalts, func(c C) {
+		t.Run("adds five items", func(t *testing.T) {
 			db, err := orbitdb1.Log(ctx, "second database", nil)
 			assert.NoError(t, err)
 
@@ -110,7 +109,7 @@ func TestLogDatabase(t *testing.T) {
 			}
 		})
 
-		c.Convey("adds an item that is > 256 bytes", FailureHalts, func(c C) {
+		t.Run("adds an item that is > 256 bytes", func(t *testing.T) {
 			db, err := orbitdb1.Log(ctx, "third database", nil)
 			assert.NoError(t, err)
 
@@ -121,7 +120,7 @@ func TestLogDatabase(t *testing.T) {
 			assert.Regexp(t, "^bafy", op.GetEntry().GetHash().String())
 		})
 
-		c.Convey("iterator & collect & options", FailureHalts, func(c C) {
+		t.Run("iterator & collect & options", func(t *testing.T) {
 			itemCount := 5
 			var ops []operation.Operation
 
@@ -134,9 +133,9 @@ func TestLogDatabase(t *testing.T) {
 				ops = append(ops, op)
 			}
 
-			c.Convey("iterator", FailureHalts, func(c C) {
-				c.Convey("defaults", FailureHalts, func(c C) {
-					c.Convey("returns an item with the correct structure", FailureHalts, func(c C) {
+			t.Run("iterator", func(t *testing.T) {
+				t.Run("defaults", func(t *testing.T) {
+					t.Run("returns an item with the correct structure", func(t *testing.T) {
 						ch := make(chan operation.Operation, 100)
 
 						err = db.Stream(ctx, ch, nil)
@@ -150,7 +149,7 @@ func TestLogDatabase(t *testing.T) {
 						assert.Equal(t, "hello4", string(next.GetValue()))
 					})
 
-					c.Convey("implements Iterator interface", FailureHalts, func(c C) {
+					t.Run("implements Iterator interface", func(t *testing.T) {
 						ch := make(chan operation.Operation, 100)
 
 						err = db.Stream(ctx, ch, &orbitdb.StreamOptions{Amount: &infinity})
@@ -159,7 +158,7 @@ func TestLogDatabase(t *testing.T) {
 						assert.Equal(t, itemCount, len(ch))
 					})
 
-					c.Convey("returns 1 item as default", FailureHalts, func(c C) {
+					t.Run("returns 1 item as default", func(t *testing.T) {
 						ch := make(chan operation.Operation, 100)
 
 						err = db.Stream(ctx, ch, nil)
@@ -173,7 +172,7 @@ func TestLogDatabase(t *testing.T) {
 						assert.Equal(t, "hello4", string(first.GetValue()))
 					})
 
-					c.Convey("returns items in the correct order", FailureHalts, func(c C) {
+					t.Run("returns items in the correct order", func(t *testing.T) {
 						ch := make(chan operation.Operation, 100)
 
 						amount := 3
@@ -191,8 +190,8 @@ func TestLogDatabase(t *testing.T) {
 				})
 			})
 
-			c.Convey("collect", FailureHalts, func(c C) {
-				c.Convey("returns all items", FailureHalts, func(c C) {
+			t.Run("collect", func(t *testing.T) {
+				t.Run("returns all items", func(t *testing.T) {
 					messages, err := db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 
 					assert.NoError(t, err)
@@ -201,14 +200,14 @@ func TestLogDatabase(t *testing.T) {
 					assert.Equal(t, "hello4", string(messages[len(messages)-1].GetValue()))
 				})
 
-				c.Convey("returns 1 item", FailureHalts, func(c C) {
+				t.Run("returns 1 item", func(t *testing.T) {
 					messages, err := db.List(ctx, nil)
 
 					assert.NoError(t, err)
 					assert.Equal(t, 1, len(messages))
 				})
 
-				c.Convey("returns 3 items", FailureHalts, func(c C) {
+				t.Run("returns 3 items", func(t *testing.T) {
 					three := 3
 					messages, err := db.List(ctx, &orbitdb.StreamOptions{Amount: &three})
 
@@ -217,8 +216,8 @@ func TestLogDatabase(t *testing.T) {
 				})
 			})
 
-			c.Convey("Options: limit", FailureHalts, func(c C) {
-				c.Convey("returns 1 item when limit is 0", FailureHalts, func(c C) {
+			t.Run("Options: limit", func(t *testing.T) {
+				t.Run("returns 1 item when limit is 0", func(t *testing.T) {
 					ch := make(chan operation.Operation, 100)
 					zero := 0
 					err = db.Stream(ctx, ch, &orbitdb.StreamOptions{Amount: &zero})
@@ -233,7 +232,7 @@ func TestLogDatabase(t *testing.T) {
 					assert.Nil(t, second)
 				})
 
-				c.Convey("returns 1 item when limit is 1", FailureHalts, func(c C) {
+				t.Run("returns 1 item when limit is 1", func(t *testing.T) {
 					ch := make(chan operation.Operation, 100)
 					one := 1
 					err = db.Stream(ctx, ch, &orbitdb.StreamOptions{Amount: &one})
@@ -248,7 +247,7 @@ func TestLogDatabase(t *testing.T) {
 					assert.Nil(t, second)
 				})
 
-				c.Convey("returns 3 items", FailureHalts, func(c C) {
+				t.Run("returns 3 items", func(t *testing.T) {
 					ch := make(chan operation.Operation, 100)
 					three := 3
 					err = db.Stream(ctx, ch, &orbitdb.StreamOptions{Amount: &three})
@@ -267,7 +266,7 @@ func TestLogDatabase(t *testing.T) {
 					assert.Nil(t, fourth)
 				})
 
-				c.Convey("returns all items", FailureHalts, func(c C) {
+				t.Run("returns all items", func(t *testing.T) {
 					ch := make(chan operation.Operation, 100)
 					err = db.Stream(ctx, ch, &orbitdb.StreamOptions{Amount: &infinity})
 					assert.NoError(t, err)
@@ -282,7 +281,7 @@ func TestLogDatabase(t *testing.T) {
 					assert.Equal(t, ops[len(ops)-1].GetEntry().GetHash().String(), last.GetEntry().GetHash().String())
 				})
 
-				c.Convey("returns all items when limit is bigger than -1", FailureHalts, func(c C) {
+				t.Run("returns all items when limit is bigger than -1", func(t *testing.T) {
 					ch := make(chan operation.Operation, 100)
 					minusThreeHundred := -300
 					err = db.Stream(ctx, ch, &orbitdb.StreamOptions{Amount: &minusThreeHundred})
@@ -298,7 +297,7 @@ func TestLogDatabase(t *testing.T) {
 					assert.Equal(t, ops[len(ops)-1].GetEntry().GetHash().String(), last.GetEntry().GetHash().String())
 				})
 
-				c.Convey("returns all items when limit is bigger than number of items", FailureHalts, func(c C) {
+				t.Run("returns all items when limit is bigger than number of items", func(t *testing.T) {
 					ch := make(chan operation.Operation, 100)
 					threeHundred := 300
 					err = db.Stream(ctx, ch, &orbitdb.StreamOptions{Amount: &threeHundred})
@@ -315,22 +314,22 @@ func TestLogDatabase(t *testing.T) {
 				})
 			})
 
-			c.Convey("Options: ranges", FailureHalts, func(c C) {
-				c.Convey("gt & gte", FailureHalts, func(c C) {
-					c.Convey("returns 1 item when gte is the head", FailureHalts, func(c C) {
+			t.Run("Options: ranges", func(t *testing.T) {
+				t.Run("gt & gte", func(t *testing.T) {
+					t.Run("returns 1 item when gte is the head", func(t *testing.T) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{GTE: cidPtr(ops[len(ops)-1].GetEntry().GetHash()), Amount: &infinity})
 						assert.NoError(t, err)
 
 						assert.Equal(t, 1, len(messages))
 						assert.Equal(t, ops[len(ops)-1].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
 					})
-					c.Convey("returns 0 items when gt is the head", FailureHalts, func(c C) {
+					t.Run("returns 0 items when gt is the head", func(t *testing.T) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{GT: cidPtr(ops[len(ops)-1].GetEntry().GetHash()), Amount: &infinity})
 						assert.NoError(t, err)
 
 						assert.Equal(t, 0, len(messages))
 					})
-					c.Convey("returns 2 item when gte is defined", FailureHalts, func(c C) {
+					t.Run("returns 2 item when gte is defined", func(t *testing.T) {
 						gte := ops[len(ops)-2].GetEntry().GetHash()
 
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{GTE: &gte, Amount: &infinity})
@@ -340,7 +339,7 @@ func TestLogDatabase(t *testing.T) {
 						assert.Equal(t, ops[len(ops)-2].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
 						assert.Equal(t, ops[len(ops)-1].GetEntry().GetHash().String(), messages[1].GetEntry().GetHash().String())
 					})
-					c.Convey("returns all items when gte is the root item", FailureHalts, func(c C) {
+					t.Run("returns all items when gte is the root item", func(t *testing.T) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{GTE: cidPtr(ops[0].GetEntry().GetHash()), Amount: &infinity})
 						assert.NoError(t, err)
 
@@ -348,7 +347,7 @@ func TestLogDatabase(t *testing.T) {
 						assert.Equal(t, ops[0].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
 						assert.Equal(t, ops[len(ops)-1].GetEntry().GetHash().String(), messages[len(messages)-1].GetEntry().GetHash().String())
 					})
-					c.Convey("returns items when gt is the root item", FailureHalts, func(c C) {
+					t.Run("returns items when gt is the root item", func(t *testing.T) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{GT: cidPtr(ops[0].GetEntry().GetHash()), Amount: &infinity})
 						assert.NoError(t, err)
 
@@ -356,7 +355,7 @@ func TestLogDatabase(t *testing.T) {
 						assert.Equal(t, ops[1].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
 						assert.Equal(t, ops[len(ops)-1].GetEntry().GetHash().String(), messages[len(messages)-1].GetEntry().GetHash().String())
 					})
-					c.Convey("returns items when gt is defined", FailureHalts, func(c C) {
+					t.Run("returns items when gt is defined", func(t *testing.T) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 						assert.NoError(t, err)
 						assert.Equal(t, 5, len(messages))
@@ -373,15 +372,15 @@ func TestLogDatabase(t *testing.T) {
 					})
 				})
 
-				c.Convey("lt & lte", FailureHalts, func(c C) {
-					c.Convey("returns one item after head when lt is the head", FailureHalts, func(c C) {
+				t.Run("lt & lte", func(t *testing.T) {
+					t.Run("returns one item after head when lt is the head", func(t *testing.T) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{LT: cidPtr(ops[len(ops)-1].GetEntry().GetHash())})
 						assert.NoError(t, err)
 
 						assert.Equal(t, 1, len(messages))
 						assert.Equal(t, ops[len(ops)-2].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
 					})
-					c.Convey("returns all items when lt is head and limit is -1", FailureHalts, func(c C) {
+					t.Run("returns all items when lt is head and limit is -1", func(t *testing.T) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{LT: cidPtr(ops[len(ops)-1].GetEntry().GetHash()), Amount: &infinity})
 						assert.NoError(t, err)
 
@@ -389,7 +388,7 @@ func TestLogDatabase(t *testing.T) {
 						assert.Equal(t, ops[0].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
 						assert.Equal(t, ops[len(ops)-2].GetEntry().GetHash().String(), messages[len(messages)-1].GetEntry().GetHash().String())
 					})
-					c.Convey("returns 3 items when lt is head and limit is 3", FailureHalts, func(c C) {
+					t.Run("returns 3 items when lt is head and limit is 3", func(t *testing.T) {
 						three := 3
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{LT: cidPtr(ops[len(ops)-1].GetEntry().GetHash()), Amount: &three})
 						assert.NoError(t, err)
@@ -398,25 +397,25 @@ func TestLogDatabase(t *testing.T) {
 						assert.Equal(t, ops[len(ops)-4].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
 						assert.Equal(t, ops[len(ops)-2].GetEntry().GetHash().String(), messages[2].GetEntry().GetHash().String())
 					})
-					c.Convey("returns null when lt is the root item", FailureHalts, func(c C) {
+					t.Run("returns null when lt is the root item", func(t *testing.T) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{LT: cidPtr(ops[0].GetEntry().GetHash())})
 						assert.NoError(t, err)
 						assert.Equal(t, 0, len(messages))
 					})
-					c.Convey("returns one item when lte is the root item", FailureHalts, func(c C) {
+					t.Run("returns one item when lte is the root item", func(t *testing.T) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{LTE: cidPtr(ops[0].GetEntry().GetHash())})
 						assert.NoError(t, err)
 						assert.Equal(t, 1, len(messages))
 						assert.Equal(t, ops[0].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
 					})
-					c.Convey("returns all items when lte is the head", FailureHalts, func(c C) {
+					t.Run("returns all items when lte is the head", func(t *testing.T) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{LTE: cidPtr(ops[len(ops)-1].GetEntry().GetHash()), Amount: &infinity})
 						assert.NoError(t, err)
 						assert.Equal(t, itemCount, len(messages))
 						assert.Equal(t, ops[0].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
 						assert.Equal(t, ops[itemCount-1].GetEntry().GetHash().String(), messages[4].GetEntry().GetHash().String())
 					})
-					c.Convey("returns 3 items when lte is the head", FailureHalts, func(c C) {
+					t.Run("returns 3 items when lte is the head", func(t *testing.T) {
 						three := 3
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{LTE: cidPtr(ops[len(ops)-1].GetEntry().GetHash()), Amount: &three})
 						assert.NoError(t, err)

@@ -16,13 +16,13 @@ import (
 	"time"
 
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
-	. "github.com/smartystreets/goconvey/convey"
+
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
 
 func TestReplicateAutomatically(t *testing.T) {
-	Convey("orbit-db - Replication", t, FailureHalts, func(c C) {
+	t.Run("orbit-db - Replication", func(t *testing.T) {
 		var db1, db2 orbitdb.EventLogStore
 		var db3, db4 orbitdb.KeyValueStore
 
@@ -87,7 +87,7 @@ func TestReplicateAutomatically(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		c.Convey("starts replicating the database when peers connect", FailureHalts, func(c C) {
+		t.Run("starts replicating the database when peers connect", func(t *testing.T) {
 			const entryCount = 10
 
 			for i := 0; i < entryCount; i++ {
@@ -132,7 +132,7 @@ func TestReplicateAutomatically(t *testing.T) {
 			assert.True(t, hasAllResults)
 		})
 
-		c.Convey("automatic replication exchanges the correct heads", FailureHalts, func(c C) {
+		t.Run("automatic replication exchanges the correct heads", func(t *testing.T) {
 			entryCount := 33
 
 			for i := 0; i < entryCount; i++ {

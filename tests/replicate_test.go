@@ -10,13 +10,13 @@ import (
 
 	orbitdb "berty.tech/go-orbit-db"
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
-	. "github.com/smartystreets/goconvey/convey"
+
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
 
 func TestReplication(t *testing.T) {
-	Convey("orbit-db - Replication", t, FailureHalts, func(c C) {
+	t.Run("orbit-db - Replication", func(t *testing.T) {
 		var db1, db2 orbitdb.EventLogStore
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*180)
@@ -76,7 +76,7 @@ func TestReplication(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		c.Convey("replicates database of 1 entry", FailureHalts, func(c C) {
+		t.Run("replicates database of 1 entry", func(t *testing.T) {
 			db2, err = orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
 				Directory:        &dbPath2,
 				AccessController: access,
@@ -93,7 +93,7 @@ func TestReplication(t *testing.T) {
 			assert.Equal(t, "hello", string(items[0].GetValue()))
 		})
 
-		c.Convey("replicates database of 100 entries", FailureHalts, func(c C) {
+		t.Run("replicates database of 100 entries", func(t *testing.T) {
 			db2, err = orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
 				Directory:        &dbPath2,
 				AccessController: access,

@@ -11,7 +11,7 @@ import (
 	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/operation"
-	. "github.com/smartystreets/goconvey/convey"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -28,7 +28,7 @@ func TestPersistence(t *testing.T) {
 
 	db1IPFS := testingCoreAPI(t, node)
 
-	Convey("orbit-db - Create & Open", t, FailureHalts, func(c C) {
+	t.Run("orbit-db - Create & Open", func(t *testing.T) {
 		db1Path, clean := testingTempDir(t, "db1")
 		defer clean()
 
@@ -38,7 +38,7 @@ func TestPersistence(t *testing.T) {
 
 		assert.NoError(t, err)
 
-		c.Convey("load", FailureHalts, func(c C) {
+		t.Run("load", func(t *testing.T) {
 			dbName := fmt.Sprintf("%d", time.Now().UnixNano())
 
 			db, err := orbitdb1.Log(ctx, dbName, nil)
@@ -51,7 +51,7 @@ func TestPersistence(t *testing.T) {
 				assert.NoError(t, err)
 			}
 
-			c.Convey("loads database from local cache", FailureHalts, func(c C) {
+			t.Run("loads database from local cache", func(t *testing.T) {
 				db, err := orbitdb1.Log(ctx, address.String(), nil)
 				assert.NoError(t, err)
 
@@ -64,7 +64,7 @@ func TestPersistence(t *testing.T) {
 				assert.Equal(t, fmt.Sprintf("hello%d", entryCount-1), string(items[len(items)-1].GetValue()))
 			})
 
-			c.Convey("loads database partially", FailureHalts, func(c C) {
+			t.Run("loads database partially", func(t *testing.T) {
 				amount := 33
 				db, err := orbitdb1.Log(ctx, address.String(), nil)
 				assert.NoError(t, err)
@@ -81,7 +81,7 @@ func TestPersistence(t *testing.T) {
 				assert.Equal(t, fmt.Sprintf("hello%d", entryCount-1), string(items[len(items)-1].GetValue()))
 			})
 
-			c.Convey("load and close several times", FailureHalts, func(c C) {
+			t.Run("load and close several times", func(t *testing.T) {
 				amount := 8
 				for i := 0; i < amount; i++ {
 					db, err := orbitdb1.Log(ctx, address.String(), nil)
@@ -103,7 +103,7 @@ func TestPersistence(t *testing.T) {
 				}
 			})
 
-			c.Convey("closes database while loading", FailureHalts, func(c C) {
+			t.Run("closes database while loading", func(t *testing.T) {
 				db, err := orbitdb1.Log(ctx, address.String(), nil)
 				assert.NoError(t, err)
 
@@ -116,7 +116,7 @@ func TestPersistence(t *testing.T) {
 				//TODO: assert.equal(db._cache.store, null)
 			})
 
-			c.Convey("load, add one, close - several times", FailureHalts, func(c C) {
+			t.Run("load, add one, close - several times", func(t *testing.T) {
 				const amount = 8
 				for i := 0; i < amount; i++ {
 					db, err := orbitdb1.Log(ctx, address.String(), nil)
@@ -139,7 +139,7 @@ func TestPersistence(t *testing.T) {
 				}
 			})
 
-			c.Convey("loading a database emits 'ready' event", FailureHalts, func(c C) {
+			t.Run("loading a database emits 'ready' event", func(t *testing.T) {
 				db, err := orbitdb1.Log(ctx, address.String(), nil)
 				assert.NoError(t, err)
 
@@ -170,12 +170,12 @@ func TestPersistence(t *testing.T) {
 				l.RUnlock()
 			})
 
-			c.Convey("loading a database emits 'load.progress' event", FailureHalts, func(c C) {
+			t.Run("loading a database emits 'load.progress' event", func(t *testing.T) {
 				// TODO:
 			})
 
-			c.Convey("load from empty snapshot", FailureHalts, func(c C) {
-				c.Convey("loads database from an empty snapshot", FailureHalts, func(c C) {
+			t.Run("load from empty snapshot", func(t *testing.T) {
+				t.Run("loads database from an empty snapshot", func(t *testing.T) {
 					db, err := orbitdb1.Log(ctx, "empty-snapshot", nil)
 					assert.NoError(t, err)
 
@@ -200,7 +200,7 @@ func TestPersistence(t *testing.T) {
 				})
 			})
 
-			c.Convey("load from snapshot", FailureHalts, func(c C) {
+			t.Run("load from snapshot", func(t *testing.T) {
 				dbName := time.Now().String()
 				var entryArr []operation.Operation
 
@@ -223,7 +223,7 @@ func TestPersistence(t *testing.T) {
 				assert.NoError(t, err)
 				db = nil
 
-				c.Convey("loads database from snapshot", FailureHalts, func(c C) {
+				t.Run("loads database from snapshot", func(t *testing.T) {
 					db, err = orbitdb1.Log(ctx, address, nil)
 					assert.NoError(t, err)
 
@@ -238,7 +238,7 @@ func TestPersistence(t *testing.T) {
 					assert.Equal(t, fmt.Sprintf("hello%d", entryCount-1), string(items[entryCount-1].GetValue()))
 				})
 
-				c.Convey("load, add one and save snapshot several times", FailureHalts, func(c C) {
+				t.Run("load, add one and save snapshot several times", func(t *testing.T) {
 					const amount = 4
 
 					for i := 0; i < amount; i++ {
@@ -266,7 +266,7 @@ func TestPersistence(t *testing.T) {
 					}
 				})
 
-				c.Convey("throws an error when trying to load a missing snapshot", FailureHalts, func(c C) {
+				t.Run("throws an error when trying to load a missing snapshot", func(t *testing.T) {
 					db, err := orbitdb1.Log(ctx, address, nil)
 					assert.NoError(t, err)
 
@@ -281,11 +281,11 @@ func TestPersistence(t *testing.T) {
 					assert.Contains(t, err.Error(), "not found")
 				})
 
-				c.Convey("loading a database emits 'ready' event", FailureHalts, func(c C) {
+				t.Run("loading a database emits 'ready' event", func(t *testing.T) {
 					// TODO
 				})
 
-				c.Convey("loading a database emits 'load.progress' event", FailureHalts, func(c C) {
+				t.Run("loading a database emits 'load.progress' event", func(t *testing.T) {
 					// TODO
 				})
 

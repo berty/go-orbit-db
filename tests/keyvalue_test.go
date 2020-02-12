@@ -6,7 +6,7 @@ import (
 	"time"
 
 	orbitdb2 "berty.tech/go-orbit-db"
-	. "github.com/smartystreets/goconvey/convey"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -31,7 +31,7 @@ func testingKeyValueStore(t *testing.T, dir string) {
 	defer cancel()
 
 	dbname := "orbit-db-tests"
-	Convey("orbit-db - Key-Value Database", t, FailureHalts, func(c C) {
+	t.Run("orbit-db - Key-Value Database", func(t *testing.T) {
 		mocknet := testingMockNet(ctx)
 
 		node, clean := testingIPFSNode(ctx, t, mocknet)
@@ -49,7 +49,7 @@ func testingKeyValueStore(t *testing.T, dir string) {
 		db, err := orbitdb1.KeyValue(ctx, dbname, nil)
 		assert.NoError(t, err)
 
-		c.Convey("creates and opens a database", FailureHalts, func(c C) {
+		t.Run("creates and opens a database", func(t *testing.T) {
 			db, err := orbitdb1.KeyValue(ctx, "first kv database", nil)
 			assert.NoError(t, err)
 
@@ -61,7 +61,7 @@ func testingKeyValueStore(t *testing.T, dir string) {
 			assert.Equal(t, "first kv database", db.DBName())
 		})
 
-		c.Convey("put", FailureHalts, func(c C) {
+		t.Run("put", func(t *testing.T) {
 			_, err := db.Put(ctx, "key1", []byte("hello1"))
 			assert.NoError(t, err)
 
@@ -70,7 +70,7 @@ func testingKeyValueStore(t *testing.T, dir string) {
 			assert.Equal(t, "hello1", string(value))
 		})
 
-		c.Convey("get", FailureHalts, func(c C) {
+		t.Run("get", func(t *testing.T) {
 			_, err := db.Put(ctx, "key1", []byte("hello2"))
 			assert.NoError(t, err)
 
@@ -79,7 +79,7 @@ func testingKeyValueStore(t *testing.T, dir string) {
 			assert.Equal(t, "hello2", string(value))
 		})
 
-		c.Convey("put updates a value", FailureHalts, func(c C) {
+		t.Run("put updates a value", func(t *testing.T) {
 			_, err := db.Put(ctx, "key1", []byte("hello3"))
 			assert.NoError(t, err)
 
@@ -91,7 +91,7 @@ func testingKeyValueStore(t *testing.T, dir string) {
 			assert.Equal(t, "hello4", string(value))
 		})
 
-		c.Convey("put/get - multiple keys", FailureHalts, func(c C) {
+		t.Run("put/get - multiple keys", func(t *testing.T) {
 			_, err := db.Put(ctx, "key1", []byte("hello1"))
 			assert.NoError(t, err)
 
@@ -115,7 +115,7 @@ func testingKeyValueStore(t *testing.T, dir string) {
 			assert.Equal(t, "hello3", string(v3))
 		})
 
-		c.Convey("deletes a key", FailureHalts, func(c C) {
+		t.Run("deletes a key", func(t *testing.T) {
 			_, err := db.Put(ctx, "key1", []byte("hello!"))
 			assert.NoError(t, err)
 
@@ -127,7 +127,7 @@ func testingKeyValueStore(t *testing.T, dir string) {
 			assert.Equal(t, []byte(nil), value)
 		})
 
-		c.Convey("deletes a key after multiple updates", FailureHalts, func(c C) {
+		t.Run("deletes a key after multiple updates", func(t *testing.T) {
 			_, err := db.Put(ctx, "key1", []byte("hello1"))
 			assert.NoError(t, err)
 

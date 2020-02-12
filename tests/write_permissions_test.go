@@ -8,7 +8,7 @@ import (
 	orbitdb "berty.tech/go-orbit-db"
 	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/stores"
-	. "github.com/smartystreets/goconvey/convey"
+
 	"github.com/stretchr/testify/assert"
 
 	"testing"
@@ -26,7 +26,7 @@ func TestWritePermissions(t *testing.T) {
 
 	ipfs := testingCoreAPI(t, node)
 
-	Convey("orbit-db - Write Permissions", t, FailureHalts, func(c C) {
+	t.Run("orbit-db - Write Permissions", func(t *testing.T) {
 		dbPath1, clean := testingTempDir(t, "db1")
 		defer clean()
 
@@ -41,8 +41,8 @@ func TestWritePermissions(t *testing.T) {
 		assert.NoError(t, err)
 		defer orbitdb2.Close()
 
-		c.Convey("allows multiple peers to write to the databases", FailureHalts, func(c C) {
-			c.Convey("eventlog allows multiple writers", FailureHalts, func(c C) {
+		t.Run("allows multiple peers to write to the databases", func(t *testing.T) {
+			t.Run("eventlog allows multiple writers", func(t *testing.T) {
 				ac := &accesscontroller.CreateAccessControllerOptions{
 					Access: map[string][]string{
 						"write": {
@@ -84,8 +84,8 @@ func TestWritePermissions(t *testing.T) {
 			})
 		})
 
-		c.Convey("syncs databases", FailureHalts, func(c C) {
-			c.Convey("eventlog syncs", FailureHalts, func(c C) {
+		t.Run("syncs databases", func(t *testing.T) {
+			t.Run("eventlog syncs", func(t *testing.T) {
 				ac := &accesscontroller.CreateAccessControllerOptions{
 					Access: map[string][]string{
 						"write": {
@@ -125,8 +125,8 @@ func TestWritePermissions(t *testing.T) {
 			})
 		})
 
-		c.Convey("syncs databases that anyone can write to", FailureHalts, func(c C) {
-			c.Convey("eventlog syncs", FailureHalts, func(c C) {
+		t.Run("syncs databases that anyone can write to", func(t *testing.T) {
+			t.Run("eventlog syncs", func(t *testing.T) {
 				ac := &accesscontroller.CreateAccessControllerOptions{
 					Access: map[string][]string{
 						"write": {
@@ -165,8 +165,8 @@ func TestWritePermissions(t *testing.T) {
 			})
 		})
 
-		c.Convey("doesn't sync if peer is not allowed to write to the database", FailureHalts, func(c C) {
-			c.Convey("eventlog doesn't sync", FailureHalts, func(c C) {
+		t.Run("doesn't sync if peer is not allowed to write to the database", func(t *testing.T) {
+			t.Run("eventlog doesn't sync", func(t *testing.T) {
 				ac := &accesscontroller.CreateAccessControllerOptions{
 					Access: map[string][]string{
 						"write": {orbitdb1.Identity().ID},
@@ -223,8 +223,8 @@ func TestWritePermissions(t *testing.T) {
 			})
 		})
 
-		c.Convey("throws an error if peer is not allowed to write to the database", FailureHalts, func(c C) {
-			c.Convey("eventlog doesn't sync", FailureHalts, func(c C) {
+		t.Run("throws an error if peer is not allowed to write to the database", func(t *testing.T) {
+			t.Run("eventlog doesn't sync", func(t *testing.T) {
 				ac := &accesscontroller.CreateAccessControllerOptions{
 					Access: map[string][]string{
 						"write": {},
