@@ -5,6 +5,7 @@ import (
 
 	"berty.tech/go-orbit-db/address"
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestOrbitDbAddress(t *testing.T) {
@@ -13,57 +14,57 @@ func TestOrbitDbAddress(t *testing.T) {
 		c.Convey("Parse Address", FailureHalts, func(c C) {
 			c.Convey("throws an error if address is empty", FailureHalts, func(c C) {
 				result, err := address.Parse("")
-				c.So(result, ShouldBeNil)
-				c.So(err, ShouldNotBeNil)
-				c.So(err.Error(), ShouldContainSubstring, "not a valid OrbitDB address")
+				assert.Nil(t, result)
+				assert.NotNil(t, err)
+				assert.Contains(t, err.Error(), "not a valid OrbitDB address")
 			})
 
 			c.Convey("parse address successfully", FailureHalts, func(c C) {
 				refAddr := "/orbitdb/bafyreieecvmpthaoyasxzhnew2d25uaebwldeokea2wigyq5wr4dwiaimi/first-database"
 				result, err := address.Parse(refAddr)
-				c.So(err, ShouldBeNil)
-				c.So(result, ShouldNotBeNil)
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
 
-				c.So(result.GetRoot().String(), ShouldEqual, "bafyreieecvmpthaoyasxzhnew2d25uaebwldeokea2wigyq5wr4dwiaimi")
-				c.So(result.GetPath(), ShouldEqual, "first-database")
+				assert.Equal(t, "bafyreieecvmpthaoyasxzhnew2d25uaebwldeokea2wigyq5wr4dwiaimi", result.GetRoot().String())
+				assert.Equal(t, "first-database", result.GetPath())
 
-				c.So(result.String(), ShouldStartWith, "/orbitdb")
-				c.So(result.String(), ShouldContainSubstring, "bafy")
+				assert.Regexp(t, "^/orbitdb", result.String())
+				assert.Contains(t, result.String(), "bafy")
 			})
 		})
 
 		c.Convey("isValid Address", FailureHalts, func(c C) {
 			c.Convey("returns false for empty string", FailureHalts, func(c C) {
 				err := address.IsValid("")
-				c.So(err, ShouldNotBeNil)
+				assert.NotNil(t, err)
 			})
 
 			c.Convey("validate address successfully", FailureHalts, func(c C) {
 				testAddr := "/orbitdb/bafyreieecvmpthaoyasxzhnew2d25uaebwldeokea2wigyq5wr4dwiaimi/first-database"
 				err := address.IsValid(testAddr)
 
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 			})
 
 			c.Convey("handle missing orbitdb prefix", FailureHalts, func(c C) {
 				testAddr := "bafyreieecvmpthaoyasxzhnew2d25uaebwldeokea2wigyq5wr4dwiaimi/first-database"
 				err := address.IsValid(testAddr)
 
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 			})
 
 			c.Convey("handle missing db address name", FailureHalts, func(c C) {
 				testAddr := "bafyreieecvmpthaoyasxzhnew2d25uaebwldeokea2wigyq5wr4dwiaimi"
 				err := address.IsValid(testAddr)
 
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 			})
 
 			c.Convey("handle invalid multihash", FailureHalts, func(c C) {
 				testAddr := "/orbitdb/Qmdgwt7w4uBsw8LXduzCd18zfGXeTmBsiR8edQ1hSfzc/first-database"
 				err := address.IsValid(testAddr)
 
-				c.So(err, ShouldNotBeNil)
+				assert.NotNil(t, err)
 			})
 		})
 	})

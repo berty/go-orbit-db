@@ -9,6 +9,7 @@ import (
 	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/stores"
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/assert"
 
 	"testing"
 	"time"
@@ -33,11 +34,11 @@ func TestWritePermissions(t *testing.T) {
 		defer clean()
 
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs, &orbitdb.NewOrbitDBOptions{Directory: &dbPath1})
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 		defer orbitdb1.Close()
 
 		orbitdb2, err := orbitdb.NewOrbitDB(ctx, ipfs, &orbitdb.NewOrbitDBOptions{Directory: &dbPath2})
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 		defer orbitdb2.Close()
 
 		c.Convey("allows multiple peers to write to the databases", FailureHalts, func(c C) {
@@ -54,32 +55,32 @@ func TestWritePermissions(t *testing.T) {
 				db1, err := orbitdb1.Log(ctx, "sync-test", &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 				defer db1.Close()
 
 				db2, err := orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 				defer db2.Close()
 
 				_, err = db1.Add(ctx, []byte("hello"))
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 
 				_, err = db2.Add(ctx, []byte("hello"))
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 
 				values, err := db1.List(ctx, nil)
-				c.So(err, ShouldBeNil)
-				c.So(len(values), ShouldEqual, 1)
+				assert.NoError(t, err)
+				assert.Equal(t, 1, len(values))
 
-				c.So(string(values[0].GetValue()), ShouldEqual, "hello")
+				assert.Equal(t, "hello", string(values[0].GetValue()))
 
 				values, err = db2.List(ctx, nil)
-				c.So(err, ShouldBeNil)
-				c.So(len(values), ShouldEqual, 1)
+				assert.NoError(t, err)
+				assert.Equal(t, 1, len(values))
 
-				c.So(string(values[0].GetValue()), ShouldEqual, "hello")
+				assert.Equal(t, "hello", string(values[0].GetValue()))
 			})
 		})
 
@@ -97,30 +98,30 @@ func TestWritePermissions(t *testing.T) {
 				db1, err := orbitdb1.Log(ctx, "sync-test", &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 				defer db1.Close()
 
 				db2, err := orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 				defer db2.Close()
 
 				_, err = db2.Add(ctx, []byte("hello"))
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 
-				c.So(db1.OpLog().Values().Len(), ShouldEqual, 0)
+				assert.Equal(t, 0, db1.OpLog().Values().Len())
 
 				err = db1.Sync(ctx, db2.OpLog().Heads().Slice())
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 
 				<-time.After(time.Millisecond * 300)
 
 				values, err := db1.List(ctx, nil)
-				c.So(err, ShouldBeNil)
-				c.So(len(values), ShouldEqual, 1)
+				assert.NoError(t, err)
+				assert.Equal(t, 1, len(values))
 
-				c.So(string(values[0].GetValue()), ShouldEqual, "hello")
+				assert.Equal(t, "hello", string(values[0].GetValue()))
 			})
 		})
 
@@ -137,30 +138,30 @@ func TestWritePermissions(t *testing.T) {
 				db1, err := orbitdb1.Log(ctx, "sync-test-public-dbs", &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 				defer db1.Close()
 
 				db2, err := orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 				defer db2.Close()
 
 				_, err = db2.Add(ctx, []byte("hello"))
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 
-				c.So(db1.OpLog().Values().Len(), ShouldEqual, 0)
+				assert.Equal(t, 0, db1.OpLog().Values().Len())
 
 				err = db1.Sync(ctx, db2.OpLog().Heads().Slice())
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 
 				<-time.After(time.Millisecond * 300)
 
 				values, err := db1.List(ctx, nil)
-				c.So(err, ShouldBeNil)
-				c.So(len(values), ShouldEqual, 1)
+				assert.NoError(t, err)
+				assert.Equal(t, 1, len(values))
 
-				c.So(string(values[0].GetValue()), ShouldEqual, "hello")
+				assert.Equal(t, "hello", string(values[0].GetValue()))
 			})
 		})
 
@@ -175,13 +176,13 @@ func TestWritePermissions(t *testing.T) {
 				db1, err := orbitdb1.Log(ctx, "write error test 1", &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 				defer db1.Close()
 
 				db2, err := orbitdb2.Log(ctx, "write error test 1", &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 				defer db2.Close()
 
 				subCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -190,35 +191,35 @@ func TestWritePermissions(t *testing.T) {
 				go db1.Subscribe(subCtx, func(evt events.Event) {
 					switch evt.(type) {
 					case *stores.EventReplicated:
-						c.So("this", ShouldEqual, "should not occur")
+						assert.Equal(t, "should not occur", "this")
 					}
 				})
 
 				_, err = db2.Add(ctx, []byte("hello"))
-				c.So(err, ShouldNotBeNil)
+				assert.NotNil(t, err)
 
 				<-subCtx.Done()
 
 				err = db1.Sync(ctx, db2.OpLog().Heads().Slice())
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 
 				<-time.After(300 * time.Millisecond)
 
-				c.So(db1.OpLog().Values().Len(), ShouldEqual, 0)
-				c.So(db2.OpLog().Values().Len(), ShouldEqual, 0)
+				assert.Equal(t, 0, db1.OpLog().Values().Len())
+				assert.Equal(t, 0, db2.OpLog().Values().Len())
 
 				_, err = db1.Add(ctx, []byte("hello"))
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 
 				<-subCtx.Done()
 
 				err = db2.Sync(ctx, db1.OpLog().Heads().Slice())
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 
 				<-time.After(300 * time.Millisecond)
 
-				c.So(db1.OpLog().Values().Len(), ShouldEqual, 1)
-				c.So(db2.OpLog().Values().Len(), ShouldEqual, 1)
+				assert.Equal(t, 1, db1.OpLog().Values().Len())
+				assert.Equal(t, 1, db2.OpLog().Values().Len())
 			})
 		})
 
@@ -233,17 +234,17 @@ func TestWritePermissions(t *testing.T) {
 				db1, err := orbitdb1.Log(ctx, "write error test 2", &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 				defer db1.Close()
 
 				db2, err := orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
 					AccessController: ac,
 				})
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 				defer db2.Close()
 
 				_, err = db2.Add(ctx, []byte("hello"))
-				c.So(err, ShouldNotBeNil)
+				assert.NotNil(t, err)
 			})
 		})
 	})

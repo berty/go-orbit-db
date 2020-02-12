@@ -7,6 +7,7 @@ import (
 
 	orbitdb "berty.tech/go-orbit-db"
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestReplicationStatus(t *testing.T) {
@@ -31,92 +32,92 @@ func TestReplicationStatus(t *testing.T) {
 		ipfs := testingCoreAPI(t, node)
 
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs, &orbitdb.NewOrbitDBOptions{Directory: &dbPath1})
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 
 		orbitdb2, err := orbitdb.NewOrbitDB(ctx, ipfs, &orbitdb.NewOrbitDBOptions{Directory: &dbPath2})
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 
 		db, err = orbitdb1.Log(ctx, "replication status tests", nil)
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 
 		c.Convey("has correct initial state", FailureHalts, func(c C) {
-			c.So(db.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
-			c.So(db.ReplicationStatus().GetQueued(), ShouldEqual, 0)
-			c.So(db.ReplicationStatus().GetProgress(), ShouldEqual, 0)
-			c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 0)
+			assert.Equal(t, 0, db.ReplicationStatus().GetBuffered())
+			assert.Equal(t, 0, db.ReplicationStatus().GetQueued())
+			assert.Equal(t, 0, db.ReplicationStatus().GetProgress())
+			assert.Equal(t, 0, db.ReplicationStatus().GetMax())
 		})
 
 		c.Convey("has correct replication info after load", FailureHalts, func(c C) {
 			_, err = db.Add(ctx, []byte("hello"))
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 
-			c.So(db.Close(), ShouldBeNil)
+			assert.Nil(t, db.Close())
 
 			db, err = orbitdb1.Log(ctx, "replication status tests", nil)
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 
-			c.So(db.Load(ctx, infinity), ShouldBeNil)
-			c.So(db.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
-			c.So(db.ReplicationStatus().GetQueued(), ShouldEqual, 0)
-			c.So(db.ReplicationStatus().GetProgress(), ShouldEqual, 1)
-			c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 1)
+			assert.Nil(t, db.Load(ctx, infinity))
+			assert.Equal(t, 0, db.ReplicationStatus().GetBuffered())
+			assert.Equal(t, 0, db.ReplicationStatus().GetQueued())
+			assert.Equal(t, 1, db.ReplicationStatus().GetProgress())
+			assert.Equal(t, 1, db.ReplicationStatus().GetMax())
 
 			c.Convey("has correct replication info after close", FailureHalts, func(c C) {
-				c.So(db.Close(), ShouldBeNil)
-				c.So(db.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
-				c.So(db.ReplicationStatus().GetQueued(), ShouldEqual, 0)
-				c.So(db.ReplicationStatus().GetProgress(), ShouldEqual, 0)
-				c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 0)
+				assert.Nil(t, db.Close())
+				assert.Equal(t, 0, db.ReplicationStatus().GetBuffered())
+				assert.Equal(t, 0, db.ReplicationStatus().GetQueued())
+				assert.Equal(t, 0, db.ReplicationStatus().GetProgress())
+				assert.Equal(t, 0, db.ReplicationStatus().GetMax())
 			})
 
 			c.Convey("has correct replication info after sync", FailureHalts, func(c C) {
 				_, err = db.Add(ctx, []byte("hello2"))
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 
-				c.So(db.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
-				c.So(db.ReplicationStatus().GetQueued(), ShouldEqual, 0)
-				c.So(db.ReplicationStatus().GetProgress(), ShouldEqual, 2)
-				c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 2)
+				assert.Equal(t, 0, db.ReplicationStatus().GetBuffered())
+				assert.Equal(t, 0, db.ReplicationStatus().GetQueued())
+				assert.Equal(t, 2, db.ReplicationStatus().GetProgress())
+				assert.Equal(t, 2, db.ReplicationStatus().GetMax())
 
 				db2, err = orbitdb2.Log(ctx, db.Address().String(), &orbitdb.CreateDBOptions{Create: &create})
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 
 				err = db2.Sync(ctx, db.OpLog().Heads().Slice())
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 
 				<-time.After(100 * time.Millisecond)
 
-				c.So(db2.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
-				c.So(db2.ReplicationStatus().GetQueued(), ShouldEqual, 0)
-				c.So(db2.ReplicationStatus().GetProgress(), ShouldEqual, 2)
-				c.So(db2.ReplicationStatus().GetMax(), ShouldEqual, 2)
+				assert.Equal(t, 0, db2.ReplicationStatus().GetBuffered())
+				assert.Equal(t, 0, db2.ReplicationStatus().GetQueued())
+				assert.Equal(t, 2, db2.ReplicationStatus().GetProgress())
+				assert.Equal(t, 2, db2.ReplicationStatus().GetMax())
 			})
 
 			//c.Convey("has correct replication info after loading from snapshot", FailureHalts, func (c C) {
 			//	_, err = db.SaveSnapshot(ctx)
-			//	c.So(err, ShouldBeNil)
+			//	assert.NoError(t, err)
 			//
 			//	db, err = orbitdb1.Log(ctx, "replication status tests", nil)
-			//	c.So(err, ShouldBeNil)
+			//	assert.NoError(t, err)
 			//
 			//	err = db.LoadFromSnapshot(ctx)
-			//	c.So(err, ShouldBeNil)
+			//	assert.NoError(t, err)
 			//
-			//	c.So(db.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
-			//	c.So(db.ReplicationStatus().GetQueued(), ShouldEqual, 0)
-			//	c.So(db.ReplicationStatus().GetProgress(), ShouldEqual, 2)
-			//	c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 2)
+			//	assert.Equal(t,  0, db.ReplicationStatus().GetBuffered())
+			//	assert.Equal(t,  0, db.ReplicationStatus().GetQueued())
+			//	assert.Equal(t,  2, db.ReplicationStatus().GetProgress())
+			//	assert.Equal(t,  2, db.ReplicationStatus().GetMax())
 			//})
 		})
 
 		if orbitdb1 != nil {
 			err = orbitdb1.Close()
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 		}
 
 		if orbitdb2 != nil {
 			err = orbitdb2.Close()
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 		}
 	})
 }

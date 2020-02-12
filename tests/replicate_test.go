@@ -11,6 +11,7 @@ import (
 	orbitdb "berty.tech/go-orbit-db"
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
 
@@ -42,21 +43,21 @@ func TestReplication(t *testing.T) {
 		zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node2 is %s", node2.Identity.String()))
 
 		_, err := mocknet.LinkPeers(node1.Identity, node2.Identity)
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 
 		peerInfo2 := peerstore.PeerInfo{ID: node2.Identity, Addrs: node2.PeerHost.Addrs()}
 		err = ipfs1.Swarm().Connect(ctx, peerInfo2)
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 
 		peerInfo1 := peerstore.PeerInfo{ID: node1.Identity, Addrs: node1.PeerHost.Addrs()}
 		err = ipfs2.Swarm().Connect(ctx, peerInfo1)
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{Directory: &dbPath1})
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 
 		orbitdb2, err := orbitdb.NewOrbitDB(ctx, ipfs2, &orbitdb.NewOrbitDBOptions{Directory: &dbPath2})
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 
 		access := &accesscontroller.CreateAccessControllerOptions{
 			Access: map[string][]string{
@@ -67,29 +68,29 @@ func TestReplication(t *testing.T) {
 			},
 		}
 
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 
 		db1, err = orbitdb1.Log(ctx, "replication-tests", &orbitdb.CreateDBOptions{
 			Directory:        &dbPath1,
 			AccessController: access,
 		})
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 
 		c.Convey("replicates database of 1 entry", FailureHalts, func(c C) {
 			db2, err = orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
 				Directory:        &dbPath2,
 				AccessController: access,
 			})
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 
 			_, err = db1.Add(ctx, []byte("hello"))
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 
 			<-time.After(time.Millisecond * 500)
 			items, err := db2.List(ctx, nil)
-			c.So(err, ShouldBeNil)
-			c.So(len(items), ShouldEqual, 1)
-			c.So(string(items[0].GetValue()), ShouldEqual, "hello")
+			assert.NoError(t, err)
+			assert.Equal(t, 1, len(items))
+			assert.Equal(t, "hello", string(items[0].GetValue()))
 		})
 
 		c.Convey("replicates database of 100 entries", FailureHalts, func(c C) {
@@ -97,42 +98,42 @@ func TestReplication(t *testing.T) {
 				Directory:        &dbPath2,
 				AccessController: access,
 			})
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 
 			const entryCount = 100
 			infinity := -1
 
 			for i := 0; i < entryCount; i++ {
 				_, err = db1.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 			}
 
 			<-time.After(time.Millisecond * 2000)
 			items, err := db2.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
-			c.So(err, ShouldBeNil)
-			c.So(len(items), ShouldEqual, 100)
-			c.So(string(items[0].GetValue()), ShouldEqual, "hello0")
-			c.So(string(items[len(items)-1].GetValue()), ShouldEqual, "hello99")
+			assert.NoError(t, err)
+			assert.Equal(t, 100, len(items))
+			assert.Equal(t, "hello0", string(items[0].GetValue()))
+			assert.Equal(t, "hello99", string(items[len(items)-1].GetValue()))
 		})
 
 		if db1 != nil {
 			err = db1.Drop()
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 		}
 
 		if db2 != nil {
 			err = db2.Drop()
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 		}
 
 		if orbitdb1 != nil {
 			err = orbitdb1.Close()
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 		}
 
 		if orbitdb2 != nil {
 			err = orbitdb2.Close()
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 		}
 
 	})

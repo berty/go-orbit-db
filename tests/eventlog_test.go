@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ipfs/go-cid"
+	"github.com/stretchr/testify/assert"
 
 	orbitdb "berty.tech/go-orbit-db"
 	"berty.tech/go-orbit-db/stores/operation"
@@ -37,87 +38,87 @@ func TestLogDatabase(t *testing.T) {
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, db1IPFS, &orbitdb.NewOrbitDBOptions{
 			Directory: &db1Path,
 		})
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 
 		defer orbitdb1.Close()
 
 		c.Convey("basic tests", FailureHalts, func(c C) {
 			db, err := orbitdb1.Log(ctx, "log database", nil)
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 			if db == nil {
 				t.Fatalf("db should not be nil")
 			}
 
 			////// creates and opens a database
-			c.So(db.Type(), ShouldEqual, "eventlog")
-			c.So(db.DBName(), ShouldEqual, "log database")
+			assert.Equal(t, "eventlog", db.Type())
+			assert.Equal(t, "log database", db.DBName())
 
 			////// returns 0 items when it's a fresh database
 			res := make(chan operation.Operation, 100)
 			err = db.Stream(ctx, res, &orbitdb.StreamOptions{Amount: &infinity})
-			c.So(err, ShouldBeNil)
-			c.So(len(res), ShouldEqual, 0)
+			assert.NoError(t, err)
+			assert.Equal(t, 0, len(res))
 
 			////// returns the added entry's hash, 1 entry
 			op, err := db.Add(ctx, []byte("hello1"))
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 
 			ops, err := db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 
-			c.So(err, ShouldBeNil)
-			c.So(len(ops), ShouldEqual, 1)
+			assert.NoError(t, err)
+			assert.Equal(t, 1, len(ops))
 			item := ops[0]
 
-			c.So(item.GetEntry().GetHash().String(), ShouldEqual, op.GetEntry().GetHash().String())
+			assert.Equal(t, op.GetEntry().GetHash().String(), item.GetEntry().GetHash().String())
 
 			////// returns the added entry's hash, 2 entries
 			err = db.Load(ctx, -1)
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 
 			ops, err = db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
-			c.So(err, ShouldBeNil)
-			c.So(len(ops), ShouldEqual, 1)
+			assert.NoError(t, err)
+			assert.Equal(t, 1, len(ops))
 
 			prevHash := ops[0].GetEntry().GetHash()
 
 			op, err = db.Add(ctx, []byte("hello2"))
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 
 			ops, err = db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
-			c.So(err, ShouldBeNil)
-			c.So(len(ops), ShouldEqual, 2)
+			assert.NoError(t, err)
+			assert.Equal(t, 2, len(ops))
 
-			c.So(ops[1].GetEntry().GetHash().String(), ShouldNotEqual, prevHash.String())
-			c.So(ops[1].GetEntry().GetHash().String(), ShouldEqual, op.GetEntry().GetHash().String())
+			assert.NotEqual(t, prevHash.String(), ops[1].GetEntry().GetHash().String())
+			assert.Equal(t, op.GetEntry().GetHash().String(), ops[1].GetEntry().GetHash().String())
 		})
 
 		c.Convey("adds five items", FailureHalts, func(c C) {
 			db, err := orbitdb1.Log(ctx, "second database", nil)
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 
 			for i := 1; i <= 5; i++ {
 				_, err := db.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 			}
 
 			items, err := db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
-			c.So(err, ShouldBeNil)
-			c.So(len(items), ShouldEqual, 5)
+			assert.NoError(t, err)
+			assert.Equal(t, 5, len(items))
 
 			for i := 1; i <= 5; i++ {
-				c.So(string(items[i-1].GetValue()), ShouldEqual, fmt.Sprintf("hello%d", i))
+				assert.Equal(t, fmt.Sprintf("hello%d", i), string(items[i-1].GetValue()))
 			}
 		})
 
 		c.Convey("adds an item that is > 256 bytes", FailureHalts, func(c C) {
 			db, err := orbitdb1.Log(ctx, "third database", nil)
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 
 			msg := bytes.Repeat([]byte("a"), 1024)
 
 			op, err := db.Add(ctx, msg)
-			c.So(err, ShouldBeNil)
-			c.So(op.GetEntry().GetHash().String(), ShouldStartWith, "bafy")
+			assert.NoError(t, err)
+			assert.Regexp(t, "^bafy", op.GetEntry().GetHash().String())
 		})
 
 		c.Convey("iterator & collect & options", FailureHalts, func(c C) {
@@ -125,11 +126,11 @@ func TestLogDatabase(t *testing.T) {
 			var ops []operation.Operation
 
 			db, err := orbitdb1.Log(ctx, "iterator tests", nil)
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 
 			for i := 0; i < itemCount; i++ {
 				op, err := db.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 				ops = append(ops, op)
 			}
 
@@ -139,37 +140,37 @@ func TestLogDatabase(t *testing.T) {
 						ch := make(chan operation.Operation, 100)
 
 						err = db.Stream(ctx, ch, nil)
-						c.So(err, ShouldBeNil)
+						assert.NoError(t, err)
 
 						next := <-ch
 
-						c.So(next, ShouldNotBeNil)
-						c.So(next.GetEntry().GetHash().String(), ShouldStartWith, "bafy")
-						c.So(next.GetKey(), ShouldBeNil)
-						c.So(string(next.GetValue()), ShouldEqual, "hello4")
+						assert.NotNil(t, next)
+						assert.Regexp(t, "^bafy", next.GetEntry().GetHash().String())
+						assert.Nil(t, next.GetKey())
+						assert.Equal(t, "hello4", string(next.GetValue()))
 					})
 
 					c.Convey("implements Iterator interface", FailureHalts, func(c C) {
 						ch := make(chan operation.Operation, 100)
 
 						err = db.Stream(ctx, ch, &orbitdb.StreamOptions{Amount: &infinity})
-						c.So(err, ShouldBeNil)
+						assert.NoError(t, err)
 
-						c.So(len(ch), ShouldEqual, itemCount)
+						assert.Equal(t, itemCount, len(ch))
 					})
 
 					c.Convey("returns 1 item as default", FailureHalts, func(c C) {
 						ch := make(chan operation.Operation, 100)
 
 						err = db.Stream(ctx, ch, nil)
-						c.So(err, ShouldBeNil)
+						assert.NoError(t, err)
 
 						first := <-ch
 						second := <-ch
 
-						c.So(first.GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
-						c.So(second, ShouldEqual, nil)
-						c.So(string(first.GetValue()), ShouldEqual, "hello4")
+						assert.Equal(t, ops[len(ops)-1].GetEntry().GetHash().String(), first.GetEntry().GetHash().String())
+						assert.Equal(t, nil, second)
+						assert.Equal(t, "hello4", string(first.GetValue()))
 					})
 
 					c.Convey("returns items in the correct order", FailureHalts, func(c C) {
@@ -178,12 +179,12 @@ func TestLogDatabase(t *testing.T) {
 						amount := 3
 
 						err := db.Stream(ctx, ch, &orbitdb.StreamOptions{Amount: &amount})
-						c.So(err, ShouldBeNil)
+						assert.NoError(t, err)
 
 						i := len(ops) - amount
 
 						for op := range ch {
-							c.So(string(op.GetValue()), ShouldEqual, fmt.Sprintf("hello%d", i))
+							assert.Equal(t, fmt.Sprintf("hello%d", i), string(op.GetValue()))
 							i++
 						}
 					})
@@ -194,25 +195,25 @@ func TestLogDatabase(t *testing.T) {
 				c.Convey("returns all items", FailureHalts, func(c C) {
 					messages, err := db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 
-					c.So(err, ShouldBeNil)
-					c.So(len(messages), ShouldEqual, len(ops))
-					c.So(string(messages[0].GetValue()), ShouldEqual, "hello0")
-					c.So(string(messages[len(messages)-1].GetValue()), ShouldEqual, "hello4")
+					assert.NoError(t, err)
+					assert.Equal(t, len(ops), len(messages))
+					assert.Equal(t, "hello0", string(messages[0].GetValue()))
+					assert.Equal(t, "hello4", string(messages[len(messages)-1].GetValue()))
 				})
 
 				c.Convey("returns 1 item", FailureHalts, func(c C) {
 					messages, err := db.List(ctx, nil)
 
-					c.So(err, ShouldBeNil)
-					c.So(len(messages), ShouldEqual, 1)
+					assert.NoError(t, err)
+					assert.Equal(t, 1, len(messages))
 				})
 
 				c.Convey("returns 3 items", FailureHalts, func(c C) {
 					three := 3
 					messages, err := db.List(ctx, &orbitdb.StreamOptions{Amount: &three})
 
-					c.So(err, ShouldBeNil)
-					c.So(len(messages), ShouldEqual, 3)
+					assert.NoError(t, err)
+					assert.Equal(t, 3, len(messages))
 				})
 			})
 
@@ -221,96 +222,96 @@ func TestLogDatabase(t *testing.T) {
 					ch := make(chan operation.Operation, 100)
 					zero := 0
 					err = db.Stream(ctx, ch, &orbitdb.StreamOptions{Amount: &zero})
-					c.So(err, ShouldBeNil)
+					assert.NoError(t, err)
 
-					c.So(len(ch), ShouldEqual, 1)
+					assert.Equal(t, 1, len(ch))
 
 					first := <-ch
 					second := <-ch
 
-					c.So(first.GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
-					c.So(second, ShouldBeNil)
+					assert.Equal(t, ops[len(ops)-1].GetEntry().GetHash().String(), first.GetEntry().GetHash().String())
+					assert.Nil(t, second)
 				})
 
 				c.Convey("returns 1 item when limit is 1", FailureHalts, func(c C) {
 					ch := make(chan operation.Operation, 100)
 					one := 1
 					err = db.Stream(ctx, ch, &orbitdb.StreamOptions{Amount: &one})
-					c.So(err, ShouldBeNil)
+					assert.NoError(t, err)
 
-					c.So(len(ch), ShouldEqual, 1)
+					assert.Equal(t, 1, len(ch))
 
 					first := <-ch
 					second := <-ch
 
-					c.So(first.GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
-					c.So(second, ShouldBeNil)
+					assert.Equal(t, ops[len(ops)-1].GetEntry().GetHash().String(), first.GetEntry().GetHash().String())
+					assert.Nil(t, second)
 				})
 
 				c.Convey("returns 3 items", FailureHalts, func(c C) {
 					ch := make(chan operation.Operation, 100)
 					three := 3
 					err = db.Stream(ctx, ch, &orbitdb.StreamOptions{Amount: &three})
-					c.So(err, ShouldBeNil)
+					assert.NoError(t, err)
 
-					c.So(len(ch), ShouldEqual, 3)
+					assert.Equal(t, 3, len(ch))
 
 					first := <-ch
 					second := <-ch
 					third := <-ch
 					fourth := <-ch
 
-					c.So(first.GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-3].GetEntry().GetHash().String())
-					c.So(second.GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-2].GetEntry().GetHash().String())
-					c.So(third.GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
-					c.So(fourth, ShouldBeNil)
+					assert.Equal(t, ops[len(ops)-3].GetEntry().GetHash().String(), first.GetEntry().GetHash().String())
+					assert.Equal(t, ops[len(ops)-2].GetEntry().GetHash().String(), second.GetEntry().GetHash().String())
+					assert.Equal(t, ops[len(ops)-1].GetEntry().GetHash().String(), third.GetEntry().GetHash().String())
+					assert.Nil(t, fourth)
 				})
 
 				c.Convey("returns all items", FailureHalts, func(c C) {
 					ch := make(chan operation.Operation, 100)
 					err = db.Stream(ctx, ch, &orbitdb.StreamOptions{Amount: &infinity})
-					c.So(err, ShouldBeNil)
+					assert.NoError(t, err)
 
-					c.So(len(ops), ShouldEqual, len(ch))
+					assert.Equal(t, len(ch), len(ops))
 
 					var last operation.Operation
 					for e := range ch {
 						last = e
 					}
 
-					c.So(last.GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
+					assert.Equal(t, ops[len(ops)-1].GetEntry().GetHash().String(), last.GetEntry().GetHash().String())
 				})
 
 				c.Convey("returns all items when limit is bigger than -1", FailureHalts, func(c C) {
 					ch := make(chan operation.Operation, 100)
 					minusThreeHundred := -300
 					err = db.Stream(ctx, ch, &orbitdb.StreamOptions{Amount: &minusThreeHundred})
-					c.So(err, ShouldBeNil)
+					assert.NoError(t, err)
 
-					c.So(len(ops), ShouldEqual, len(ch))
+					assert.Equal(t, len(ch), len(ops))
 
 					var last operation.Operation
 					for e := range ch {
 						last = e
 					}
 
-					c.So(last.GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
+					assert.Equal(t, ops[len(ops)-1].GetEntry().GetHash().String(), last.GetEntry().GetHash().String())
 				})
 
 				c.Convey("returns all items when limit is bigger than number of items", FailureHalts, func(c C) {
 					ch := make(chan operation.Operation, 100)
 					threeHundred := 300
 					err = db.Stream(ctx, ch, &orbitdb.StreamOptions{Amount: &threeHundred})
-					c.So(err, ShouldBeNil)
+					assert.NoError(t, err)
 
-					c.So(len(ops), ShouldEqual, len(ch))
+					assert.Equal(t, len(ch), len(ops))
 
 					var last operation.Operation
 					for e := range ch {
 						last = e
 					}
 
-					c.So(last.GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
+					assert.Equal(t, ops[len(ops)-1].GetEntry().GetHash().String(), last.GetEntry().GetHash().String())
 				})
 			})
 
@@ -318,111 +319,111 @@ func TestLogDatabase(t *testing.T) {
 				c.Convey("gt & gte", FailureHalts, func(c C) {
 					c.Convey("returns 1 item when gte is the head", FailureHalts, func(c C) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{GTE: cidPtr(ops[len(ops)-1].GetEntry().GetHash()), Amount: &infinity})
-						c.So(err, ShouldBeNil)
+						assert.NoError(t, err)
 
-						c.So(len(messages), ShouldEqual, 1)
-						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
+						assert.Equal(t, 1, len(messages))
+						assert.Equal(t, ops[len(ops)-1].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
 					})
 					c.Convey("returns 0 items when gt is the head", FailureHalts, func(c C) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{GT: cidPtr(ops[len(ops)-1].GetEntry().GetHash()), Amount: &infinity})
-						c.So(err, ShouldBeNil)
+						assert.NoError(t, err)
 
-						c.So(len(messages), ShouldEqual, 0)
+						assert.Equal(t, 0, len(messages))
 					})
 					c.Convey("returns 2 item when gte is defined", FailureHalts, func(c C) {
 						gte := ops[len(ops)-2].GetEntry().GetHash()
 
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{GTE: &gte, Amount: &infinity})
-						c.So(err, ShouldBeNil)
+						assert.NoError(t, err)
 
-						c.So(len(messages), ShouldEqual, 2)
-						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-2].GetEntry().GetHash().String())
-						c.So(messages[1].GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
+						assert.Equal(t, 2, len(messages))
+						assert.Equal(t, ops[len(ops)-2].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
+						assert.Equal(t, ops[len(ops)-1].GetEntry().GetHash().String(), messages[1].GetEntry().GetHash().String())
 					})
 					c.Convey("returns all items when gte is the root item", FailureHalts, func(c C) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{GTE: cidPtr(ops[0].GetEntry().GetHash()), Amount: &infinity})
-						c.So(err, ShouldBeNil)
+						assert.NoError(t, err)
 
-						c.So(len(messages), ShouldEqual, len(ops))
-						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[0].GetEntry().GetHash().String())
-						c.So(messages[len(messages)-1].GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
+						assert.Equal(t, len(ops), len(messages))
+						assert.Equal(t, ops[0].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
+						assert.Equal(t, ops[len(ops)-1].GetEntry().GetHash().String(), messages[len(messages)-1].GetEntry().GetHash().String())
 					})
 					c.Convey("returns items when gt is the root item", FailureHalts, func(c C) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{GT: cidPtr(ops[0].GetEntry().GetHash()), Amount: &infinity})
-						c.So(err, ShouldBeNil)
+						assert.NoError(t, err)
 
-						c.So(len(messages), ShouldEqual, len(ops)-1)
-						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[1].GetEntry().GetHash().String())
-						c.So(messages[len(messages)-1].GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-1].GetEntry().GetHash().String())
+						assert.Equal(t, len(ops)-1, len(messages))
+						assert.Equal(t, ops[1].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
+						assert.Equal(t, ops[len(ops)-1].GetEntry().GetHash().String(), messages[len(messages)-1].GetEntry().GetHash().String())
 					})
 					c.Convey("returns items when gt is defined", FailureHalts, func(c C) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
-						c.So(err, ShouldBeNil)
-						c.So(len(messages), ShouldEqual, 5)
+						assert.NoError(t, err)
+						assert.Equal(t, 5, len(messages))
 
 						gt := messages[2].GetEntry().GetHash()
 						hundred := 100
 
 						messages2, err := db.List(ctx, &orbitdb.StreamOptions{GT: &gt, Amount: &hundred})
-						c.So(err, ShouldBeNil)
+						assert.NoError(t, err)
 
-						c.So(len(messages2), ShouldEqual, 2)
-						c.So(messages2[0].GetEntry().GetHash().String(), ShouldEqual, messages[len(messages)-2].GetEntry().GetHash().String())
-						c.So(messages2[1].GetEntry().GetHash().String(), ShouldEqual, messages[len(messages)-1].GetEntry().GetHash().String())
+						assert.Equal(t, 2, len(messages2))
+						assert.Equal(t, messages[len(messages)-2].GetEntry().GetHash().String(), messages2[0].GetEntry().GetHash().String())
+						assert.Equal(t, messages[len(messages)-1].GetEntry().GetHash().String(), messages2[1].GetEntry().GetHash().String())
 					})
 				})
 
 				c.Convey("lt & lte", FailureHalts, func(c C) {
 					c.Convey("returns one item after head when lt is the head", FailureHalts, func(c C) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{LT: cidPtr(ops[len(ops)-1].GetEntry().GetHash())})
-						c.So(err, ShouldBeNil)
+						assert.NoError(t, err)
 
-						c.So(len(messages), ShouldEqual, 1)
-						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-2].GetEntry().GetHash().String())
+						assert.Equal(t, 1, len(messages))
+						assert.Equal(t, ops[len(ops)-2].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
 					})
 					c.Convey("returns all items when lt is head and limit is -1", FailureHalts, func(c C) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{LT: cidPtr(ops[len(ops)-1].GetEntry().GetHash()), Amount: &infinity})
-						c.So(err, ShouldBeNil)
+						assert.NoError(t, err)
 
-						c.So(len(messages), ShouldEqual, len(ops)-1)
-						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[0].GetEntry().GetHash().String())
-						c.So(messages[len(messages)-1].GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-2].GetEntry().GetHash().String())
+						assert.Equal(t, len(ops)-1, len(messages))
+						assert.Equal(t, ops[0].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
+						assert.Equal(t, ops[len(ops)-2].GetEntry().GetHash().String(), messages[len(messages)-1].GetEntry().GetHash().String())
 					})
 					c.Convey("returns 3 items when lt is head and limit is 3", FailureHalts, func(c C) {
 						three := 3
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{LT: cidPtr(ops[len(ops)-1].GetEntry().GetHash()), Amount: &three})
-						c.So(err, ShouldBeNil)
+						assert.NoError(t, err)
 
-						c.So(len(messages), ShouldEqual, 3)
-						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-4].GetEntry().GetHash().String())
-						c.So(messages[2].GetEntry().GetHash().String(), ShouldEqual, ops[len(ops)-2].GetEntry().GetHash().String())
+						assert.Equal(t, 3, len(messages))
+						assert.Equal(t, ops[len(ops)-4].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
+						assert.Equal(t, ops[len(ops)-2].GetEntry().GetHash().String(), messages[2].GetEntry().GetHash().String())
 					})
 					c.Convey("returns null when lt is the root item", FailureHalts, func(c C) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{LT: cidPtr(ops[0].GetEntry().GetHash())})
-						c.So(err, ShouldBeNil)
-						c.So(len(messages), ShouldEqual, 0)
+						assert.NoError(t, err)
+						assert.Equal(t, 0, len(messages))
 					})
 					c.Convey("returns one item when lte is the root item", FailureHalts, func(c C) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{LTE: cidPtr(ops[0].GetEntry().GetHash())})
-						c.So(err, ShouldBeNil)
-						c.So(len(messages), ShouldEqual, 1)
-						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[0].GetEntry().GetHash().String())
+						assert.NoError(t, err)
+						assert.Equal(t, 1, len(messages))
+						assert.Equal(t, ops[0].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
 					})
 					c.Convey("returns all items when lte is the head", FailureHalts, func(c C) {
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{LTE: cidPtr(ops[len(ops)-1].GetEntry().GetHash()), Amount: &infinity})
-						c.So(err, ShouldBeNil)
-						c.So(len(messages), ShouldEqual, itemCount)
-						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[0].GetEntry().GetHash().String())
-						c.So(messages[4].GetEntry().GetHash().String(), ShouldEqual, ops[itemCount-1].GetEntry().GetHash().String())
+						assert.NoError(t, err)
+						assert.Equal(t, itemCount, len(messages))
+						assert.Equal(t, ops[0].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
+						assert.Equal(t, ops[itemCount-1].GetEntry().GetHash().String(), messages[4].GetEntry().GetHash().String())
 					})
 					c.Convey("returns 3 items when lte is the head", FailureHalts, func(c C) {
 						three := 3
 						messages, err := db.List(ctx, &orbitdb.StreamOptions{LTE: cidPtr(ops[len(ops)-1].GetEntry().GetHash()), Amount: &three})
-						c.So(err, ShouldBeNil)
-						c.So(len(messages), ShouldEqual, three)
-						c.So(messages[0].GetEntry().GetHash().String(), ShouldEqual, ops[itemCount-3].GetEntry().GetHash().String())
-						c.So(messages[1].GetEntry().GetHash().String(), ShouldEqual, ops[itemCount-2].GetEntry().GetHash().String())
-						c.So(messages[2].GetEntry().GetHash().String(), ShouldEqual, ops[itemCount-1].GetEntry().GetHash().String())
+						assert.NoError(t, err)
+						assert.Equal(t, three, len(messages))
+						assert.Equal(t, ops[itemCount-3].GetEntry().GetHash().String(), messages[0].GetEntry().GetHash().String())
+						assert.Equal(t, ops[itemCount-2].GetEntry().GetHash().String(), messages[1].GetEntry().GetHash().String())
+						assert.Equal(t, ops[itemCount-1].GetEntry().GetHash().String(), messages[2].GetEntry().GetHash().String())
 					})
 				})
 			})

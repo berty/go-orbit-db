@@ -17,6 +17,7 @@ import (
 
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
 
@@ -49,21 +50,21 @@ func TestReplicateAutomatically(t *testing.T) {
 		zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node2 is %s", node2.Identity.String()))
 
 		_, err := mocknet.LinkPeers(node1.Identity, node2.Identity)
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 
 		peerInfo2 := peerstore.PeerInfo{ID: node2.Identity, Addrs: node2.PeerHost.Addrs()}
 		err = ipfs1.Swarm().Connect(ctx, peerInfo2)
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 
 		peerInfo1 := peerstore.PeerInfo{ID: node1.Identity, Addrs: node1.PeerHost.Addrs()}
 		err = ipfs2.Swarm().Connect(ctx, peerInfo1)
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{Directory: &dbPath1})
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 
 		orbitdb2, err := orbitdb.NewOrbitDB(ctx, ipfs2, &orbitdb.NewOrbitDBOptions{Directory: &dbPath2})
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 
 		access := &accesscontroller.CreateAccessControllerOptions{
 			Access: map[string][]string{
@@ -78,27 +79,27 @@ func TestReplicateAutomatically(t *testing.T) {
 			Directory:        &dbPath1,
 			AccessController: access,
 		})
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 
 		db3, err = orbitdb1.KeyValue(ctx, "replicate-automatically-tests-kv", &orbitdb.CreateDBOptions{
 			Directory:        &dbPath1,
 			AccessController: access,
 		})
-		c.So(err, ShouldBeNil)
+		assert.NoError(t, err)
 
 		c.Convey("starts replicating the database when peers connect", FailureHalts, func(c C) {
 			const entryCount = 10
 
 			for i := 0; i < entryCount; i++ {
 				_, err := db1.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 			}
 
 			db2, err = orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
 				Directory:        &dbPath2,
 				AccessController: access,
 			})
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 
 			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
@@ -110,10 +111,10 @@ func TestReplicateAutomatically(t *testing.T) {
 					infinity := -1
 
 					result1, err := db1.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
-					c.So(err, ShouldBeNil)
+					assert.NoError(t, err)
 
 					result2, err := db2.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
-					c.So(err, ShouldBeNil)
+					assert.NoError(t, err)
 
 					if len(result1) != len(result2) {
 						return
@@ -121,14 +122,14 @@ func TestReplicateAutomatically(t *testing.T) {
 
 					hasAllResults = true
 					for i := 0; i < len(result1); i++ {
-						c.So(string(result1[i].GetValue()), ShouldEqual, string(result2[i].GetValue()))
+						assert.Equal(t, string(result2[i].GetValue()), string(result1[i].GetValue()))
 					}
 					cancel()
 				}
 			})
 
 			<-ctx.Done()
-			c.So(hasAllResults, ShouldBeTrue)
+			assert.True(t, hasAllResults)
 		})
 
 		c.Convey("automatic replication exchanges the correct heads", FailureHalts, func(c C) {
@@ -136,20 +137,20 @@ func TestReplicateAutomatically(t *testing.T) {
 
 			for i := 0; i < entryCount; i++ {
 				_, err := db1.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
-				c.So(err, ShouldBeNil)
+				assert.NoError(t, err)
 			}
 
 			db2, err := orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
 				Directory:        &dbPath2,
 				AccessController: access,
 			})
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 
 			db4, err := orbitdb2.KeyValue(ctx, db3.Address().String(), &orbitdb.CreateDBOptions{
 				Directory:        &dbPath2,
 				AccessController: access,
 			})
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 
 			ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 			defer cancel()
@@ -161,7 +162,7 @@ func TestReplicateAutomatically(t *testing.T) {
 			go db4.Subscribe(ctx, func(event events.Event) {
 				switch event.(type) {
 				case *stores.EventReplicated:
-					c.So("", ShouldEqual, "Should not happen")
+					assert.Equal(t, "Should not happen", "")
 					cancel()
 				}
 			})
@@ -172,19 +173,19 @@ func TestReplicateAutomatically(t *testing.T) {
 					e := event.(*stores.EventReplicateProgress)
 
 					op, err := operation.ParseOperation(e.Entry)
-					c.So(err, ShouldBeNil)
+					assert.NoError(t, err)
 
-					c.So(op.GetOperation(), ShouldEqual, "ADD")
-					c.So(op.GetKey(), ShouldBeNil)
-					c.So(string(op.GetValue()), ShouldStartWith, "hello")
-					c.So(e.Entry.GetClock(), ShouldNotBeNil)
+					assert.Equal(t, "ADD", op.GetOperation())
+					assert.Nil(t, op.GetKey())
+					assert.Regexp(t, "^hello", string(op.GetValue()))
+					assert.NotNil(t, e.Entry.GetClock())
 
 				case *stores.EventReplicated:
 					result1, err := db1.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
-					c.So(err, ShouldBeNil)
+					assert.NoError(t, err)
 
 					result2, err := db2.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
-					c.So(err, ShouldBeNil)
+					assert.NoError(t, err)
 
 					if len(result1) != len(result2) {
 						return
@@ -192,7 +193,7 @@ func TestReplicateAutomatically(t *testing.T) {
 
 					hasAllResults = true
 					for i := 0; i < len(result1); i++ {
-						c.So(string(result1[i].GetValue()), ShouldEqual, string(result2[i].GetValue()))
+						assert.Equal(t, string(result2[i].GetValue()), string(result1[i].GetValue()))
 					}
 
 					<-time.After(2 * time.Second) // Grace period so db4 EventReplicated can be received
@@ -202,37 +203,37 @@ func TestReplicateAutomatically(t *testing.T) {
 
 			<-ctx.Done()
 
-			c.So(hasAllResults, ShouldBeTrue)
+			assert.True(t, hasAllResults)
 		})
 
 		if db1 != nil {
 			err = db1.Drop()
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 		}
 
 		if db2 != nil {
 			err = db2.Drop()
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 		}
 
 		if db3 != nil {
 			err = db3.Drop()
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 		}
 
 		if db4 != nil {
 			err = db4.Drop()
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 		}
 
 		if orbitdb1 != nil {
 			err = orbitdb1.Close()
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 		}
 
 		if orbitdb2 != nil {
 			err = orbitdb2.Close()
-			c.So(err, ShouldBeNil)
+			assert.NoError(t, err)
 		}
 
 	})
