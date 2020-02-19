@@ -55,8 +55,12 @@ func TestReplication(t *testing.T) {
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{Directory: &dbPath1})
 		c.So(err, ShouldBeNil)
 
+		defer orbitdb1.Close()
+
 		orbitdb2, err := orbitdb.NewOrbitDB(ctx, ipfs2, &orbitdb.NewOrbitDBOptions{Directory: &dbPath2})
 		c.So(err, ShouldBeNil)
+
+		defer orbitdb2.Close()
 
 		access := &accesscontroller.CreateAccessControllerOptions{
 			Access: map[string][]string{
@@ -75,6 +79,8 @@ func TestReplication(t *testing.T) {
 		})
 		c.So(err, ShouldBeNil)
 
+		defer db1.Close()
+
 		for _, amount := range []int{1, 10} {
 			// TODO: find out why this tests fails for 100 entries on CircleCI while having  the `-race` flag on
 
@@ -84,6 +90,8 @@ func TestReplication(t *testing.T) {
 					AccessController: access,
 				})
 				c.So(err, ShouldBeNil)
+
+				defer db2.Close()
 
 				infinity := -1
 
@@ -104,26 +112,5 @@ func TestReplication(t *testing.T) {
 				c.So(string(items[len(items)-1].GetValue()), ShouldEqual, fmt.Sprintf("hello%d", amount-1))
 			})
 		}
-
-		if db1 != nil {
-			err = db1.Drop()
-			c.So(err, ShouldBeNil)
-		}
-
-		if db2 != nil {
-			err = db2.Drop()
-			c.So(err, ShouldBeNil)
-		}
-
-		if orbitdb1 != nil {
-			err = orbitdb1.Close()
-			c.So(err, ShouldBeNil)
-		}
-
-		if orbitdb2 != nil {
-			err = orbitdb2.Close()
-			c.So(err, ShouldBeNil)
-		}
-
 	})
 }

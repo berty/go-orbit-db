@@ -67,6 +67,9 @@ func TestCreateOpen(t *testing.T) {
 						t.Fatalf("db1 should not be nil")
 					}
 
+					defer db1.Drop()
+					defer db1.Close()
+
 					db2, err := orbit.Create(ctx, "first", "eventlog", &orbitdb.CreateDBOptions{Replicate: &replicate})
 					c.So(err, ShouldNotBeNil)
 					c.So(db2, ShouldBeNil)
@@ -82,6 +85,9 @@ func TestCreateOpen(t *testing.T) {
 						t.Fatalf("db1 should not be nil")
 					}
 
+					defer db1.Drop()
+					defer db1.Close()
+
 					db2, err := orbit.Log(ctx, db1.Address().String(), nil)
 					c.So(err, ShouldNotBeNil)
 					c.So(db2, ShouldBeNil)
@@ -96,6 +102,9 @@ func TestCreateOpen(t *testing.T) {
 				if db1 == nil {
 					t.Fatalf("db1 should not be nil")
 				}
+
+				defer db1.Drop()
+				defer db1.Close()
 
 				localDataPath := path.Join(dbPath, db1.Address().GetRoot().String(), db1.Address().GetPath())
 
@@ -119,6 +128,8 @@ func TestCreateOpen(t *testing.T) {
 
 					ds, err := leveldb.NewDatastore(localDataPath, &leveldb.Options{ReadOnly: true})
 					c.So(err, ShouldBeNil)
+
+					defer ds.Close()
 
 					val, err := ds.Get(datastore.NewKey(fmt.Sprintf("%s/_manifest", addr)))
 					c.So(err, ShouldBeNil)
@@ -150,6 +161,9 @@ func TestCreateOpen(t *testing.T) {
 					db, err := orbit.Create(ctx, "third", "eventlog", &orbitdb.CreateDBOptions{Directory: &dbPath2})
 					c.So(err, ShouldBeNil)
 
+					defer db.Drop()
+					defer db.Close()
+
 					localDataPath = path.Join(dbPath2, db.Address().GetRoot().String(), db.Address().GetPath())
 
 					_, err = os.Stat(localDataPath)
@@ -160,6 +174,9 @@ func TestCreateOpen(t *testing.T) {
 					c.Convey("creates an access controller and adds ourselves as writer by default", FailureHalts, func(c C) {
 						db, err := orbit.Create(ctx, "fourth", "eventlog", nil)
 						c.So(err, ShouldBeNil)
+
+						defer db.Drop()
+						defer db.Close()
 
 						accessController := db.AccessController()
 						allowed, err := accessController.GetAuthorizedByRole("write")
@@ -182,6 +199,9 @@ func TestCreateOpen(t *testing.T) {
 							Overwrite:        &overwrite,
 						})
 						c.So(err, ShouldBeNil)
+
+						defer db.Drop()
+						defer db.Close()
 
 						accessController := db.AccessController()
 						allowed, err := accessController.GetAuthorizedByRole("write")
@@ -236,6 +256,9 @@ func TestCreateOpen(t *testing.T) {
 					db, err := orbit.Create(ctx, "third", "eventlog", &orbitdb.CreateDBOptions{Replicate: &replicate})
 
 					c.So(err, ShouldBeNil)
+
+					defer db.Close()
+
 					c.So(addr.String(), ShouldStartWith, "/orbitdb")
 					c.So(addr.String(), ShouldContainSubstring, "bafy")
 					c.So(addr.String(), ShouldEqual, db.Address().String())
@@ -254,6 +277,9 @@ func TestCreateOpen(t *testing.T) {
 			if db == nil {
 				t.Fatalf("db should not be nil")
 			}
+
+			defer db.Drop()
+			defer db.Close()
 
 			c.Convey("throws an error if trying to open a database with name only and 'create' is not set to 'true'", FailureHalts, func(c C) {
 				create := false
@@ -276,6 +302,10 @@ func TestCreateOpen(t *testing.T) {
 				db, err := orbit.Open(ctx, "abc", &orbitdb.CreateDBOptions{Create: &create, StoreType: &storeType, Overwrite: &overwrite})
 
 				c.So(err, ShouldBeNil)
+
+				defer db.Drop()
+				defer db.Close()
+
 				c.So(db.Address().String(), ShouldStartWith, "/orbitdb")
 				c.So(db.Address().String(), ShouldContainSubstring, "bafy")
 				c.So(db.Address().String(), ShouldContainSubstring, "abc")
@@ -284,6 +314,8 @@ func TestCreateOpen(t *testing.T) {
 			c.Convey("opens a database - with a different identity", FailureHalts, func(c C) {
 				idDS, err := leveldb.NewDatastore("", nil)
 				c.So(err, ShouldBeNil)
+
+				defer idDS.Close()
 
 				idKeystore, err := keystore.NewKeystore(idDS)
 				c.So(err, ShouldBeNil)
@@ -295,6 +327,9 @@ func TestCreateOpen(t *testing.T) {
 				db, err = orbit.Open(ctx, "abc", &orbitdb.CreateDBOptions{Create: &create, StoreType: &storeType, Overwrite: &overwrite, Identity: identity})
 				c.So(err, ShouldBeNil)
 
+				defer db.Drop()
+				defer db.Close()
+
 				c.So(db.Address().String(), ShouldStartWith, "/orbitdb")
 				c.So(db.Address().String(), ShouldContainSubstring, "bafy")
 				c.So(db.Address().String(), ShouldContainSubstring, "abc")
@@ -305,6 +340,10 @@ func TestCreateOpen(t *testing.T) {
 				db, err := orbit.Open(ctx, db.Address().String(), nil)
 
 				c.So(err, ShouldBeNil)
+
+				defer db.Drop()
+				defer db.Close()
+
 				c.So(db.Address().String(), ShouldStartWith, "/orbitdb")
 				c.So(db.Address().String(), ShouldContainSubstring, "bafy")
 				c.So(db.Address().String(), ShouldContainSubstring, "abc")
@@ -314,6 +353,10 @@ func TestCreateOpen(t *testing.T) {
 				db, err := orbit.Open(ctx, "abc", &orbitdb.CreateDBOptions{Create: &create, StoreType: &storeType, Overwrite: &overwrite})
 
 				c.So(err, ShouldBeNil)
+
+				defer db.Drop()
+				defer db.Close()
+
 				allowed, err := db.AccessController().GetAuthorizedByRole("write")
 				c.So(err, ShouldBeNil)
 				c.So(len(allowed), ShouldEqual, 1)
@@ -332,6 +375,9 @@ func TestCreateOpen(t *testing.T) {
 				db, err := orbit.Open(ctx, "ZZZ", &orbitdb.CreateDBOptions{Create: &create, StoreType: &storeType})
 				c.So(err, ShouldBeNil)
 
+				defer db.Drop()
+				defer db.Close()
+
 				logStore, ok := db.(orbitdb.EventLogStore)
 				c.So(ok, ShouldBeTrue)
 
@@ -343,6 +389,9 @@ func TestCreateOpen(t *testing.T) {
 
 				db, err = orbit.Open(ctx, db.Address().String(), nil)
 				c.So(err, ShouldBeNil)
+
+				defer db.Drop()
+				defer db.Close()
 
 				err = db.Load(ctx, -1)
 				c.So(err, ShouldBeNil)
@@ -362,6 +411,5 @@ func TestCreateOpen(t *testing.T) {
 				c.So(string(res2.GetValue()), ShouldEqual, "hello2")
 			})
 		})
-
 	})
 }

@@ -47,6 +47,8 @@ func testingKeyValueStore(t *testing.T, dir string) {
 		db, err := orbitdb1.KeyValue(ctx, dbname, nil)
 		c.So(err, ShouldBeNil)
 
+		defer db.Close()
+
 		c.Convey("creates and opens a database", FailureHalts, func(c C) {
 			db, err := orbitdb1.KeyValue(ctx, "first kv database", nil)
 			c.So(err, ShouldBeNil)
@@ -54,6 +56,8 @@ func testingKeyValueStore(t *testing.T, dir string) {
 			if db == nil {
 				t.Fatalf("db should not be nil")
 			}
+
+			defer db.Close()
 
 			c.So(db.Type(), ShouldEqual, "keyvalue")
 			c.So(db.DBName(), ShouldEqual, "first kv database")

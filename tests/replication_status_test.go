@@ -35,11 +35,17 @@ func TestReplicationStatus(t *testing.T) {
 		orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs, &orbitdb.NewOrbitDBOptions{Directory: &dbPath1})
 		c.So(err, ShouldBeNil)
 
+		defer orbitdb1.Close()
+
 		orbitdb2, err := orbitdb.NewOrbitDB(ctx, ipfs, &orbitdb.NewOrbitDBOptions{Directory: &dbPath2})
 		c.So(err, ShouldBeNil)
 
+		defer orbitdb2.Close()
+
 		db, err = orbitdb1.Log(ctx, "replication status tests", nil)
 		c.So(err, ShouldBeNil)
+
+		defer db.Close()
 
 		c.Convey("has correct initial state", FailureHalts, func(c C) {
 			c.So(db.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
@@ -56,6 +62,8 @@ func TestReplicationStatus(t *testing.T) {
 
 			db, err = orbitdb1.Log(ctx, "replication status tests", nil)
 			c.So(err, ShouldBeNil)
+
+			defer db.Close()
 
 			c.So(db.Load(ctx, infinity), ShouldBeNil)
 			c.So(db.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
@@ -115,15 +123,5 @@ func TestReplicationStatus(t *testing.T) {
 				c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 2)
 			})
 		})
-
-		if orbitdb1 != nil {
-			err = orbitdb1.Close()
-			c.So(err, ShouldBeNil)
-		}
-
-		if orbitdb2 != nil {
-			err = orbitdb2.Close()
-			c.So(err, ShouldBeNil)
-		}
 	})
 }
