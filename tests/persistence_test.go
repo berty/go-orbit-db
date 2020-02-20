@@ -7,11 +7,13 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/smartystreets/goconvey/convey"
+
 	orbitdb "berty.tech/go-orbit-db"
 	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/stores"
+	"berty.tech/go-orbit-db/stores/basestore"
 	"berty.tech/go-orbit-db/stores/operation"
-	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestPersistence(t *testing.T) {
@@ -37,6 +39,8 @@ func TestPersistence(t *testing.T) {
 
 		c.So(err, ShouldBeNil)
 
+		defer orbitdb1.Close()
+
 		c.Convey("load", FailureHalts, func(c C) {
 			dbName := fmt.Sprintf("%d", time.Now().UnixNano())
 
@@ -45,6 +49,8 @@ func TestPersistence(t *testing.T) {
 			address := db.Address()
 
 			defer db.Drop()
+			defer db.Close()
+
 			for i := 0; i < entryCount; i++ {
 				_, err := db.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
 				c.So(err, ShouldBeNil)
@@ -142,11 +148,12 @@ func TestPersistence(t *testing.T) {
 				db, err := orbitdb1.Log(ctx, address.String(), nil)
 				c.So(err, ShouldBeNil)
 
-				wg := sync.WaitGroup{}
-				wg.Add(1)
 				l := sync.RWMutex{}
 
 				var items []operation.Operation
+
+				ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+				defer cancel()
 
 				go db.Subscribe(ctx, func(evt events.Event) {
 					switch evt.(type) {
@@ -154,13 +161,13 @@ func TestPersistence(t *testing.T) {
 						l.Lock()
 						items, err = db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 						l.Unlock()
-						wg.Done()
+						cancel()
 						return
 					}
 				})
 
 				c.So(db.Load(ctx, infinity), ShouldBeNil)
-				wg.Wait()
+				<-ctx.Done()
 
 				l.RLock()
 				c.So(len(items), ShouldEqual, entryCount)
@@ -179,7 +186,7 @@ func TestPersistence(t *testing.T) {
 					c.So(err, ShouldBeNil)
 
 					address := db.Address().String()
-					_, err = db.SaveSnapshot(ctx)
+					_, err = basestore.SaveSnapshot(ctx, db)
 					c.So(err, ShouldBeNil)
 
 					err = db.Close()
@@ -215,7 +222,7 @@ func TestPersistence(t *testing.T) {
 					entryArr = append(entryArr, op)
 				}
 
-				_, err = db.SaveSnapshot(ctx)
+				_, err = basestore.SaveSnapshot(ctx, db)
 				c.So(err, ShouldBeNil)
 
 				err = db.Close()
@@ -235,6 +242,9 @@ func TestPersistence(t *testing.T) {
 					c.So(len(items), ShouldEqual, entryCount)
 					c.So(string(items[0].GetValue()), ShouldEqual, "hello0")
 					c.So(string(items[entryCount-1].GetValue()), ShouldEqual, fmt.Sprintf("hello%d", entryCount-1))
+
+					db.Drop()
+					db.Close()
 				})
 
 				c.Convey("load, add one and save snapshot several times", FailureHalts, func(c C) {
@@ -257,7 +267,7 @@ func TestPersistence(t *testing.T) {
 						c.So(string(items[0].GetValue()), ShouldEqual, "hello0")
 						c.So(string(items[len(items)-1].GetValue()), ShouldEqual, fmt.Sprintf("hello%d", entryCount+i))
 
-						_, err = db.SaveSnapshot(ctx)
+						_, err = basestore.SaveSnapshot(ctx, db)
 						c.So(err, ShouldBeNil)
 
 						err = db.Close()
@@ -287,11 +297,6 @@ func TestPersistence(t *testing.T) {
 				c.Convey("loading a database emits 'load.progress' event", FailureHalts, func(c C) {
 					// TODO
 				})
-
-				if db != nil {
-					err = db.Drop()
-					c.So(err, ShouldBeNil)
-				}
 			})
 		})
 	})

@@ -3,7 +3,6 @@ package tests
 import (
 	"context"
 	"testing"
-	"time"
 
 	orbitdb2 "berty.tech/go-orbit-db"
 	. "github.com/smartystreets/goconvey/convey"
@@ -26,7 +25,7 @@ func TestKeyValueStore(t *testing.T) {
 }
 
 func testingKeyValueStore(t *testing.T, dir string) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	dbname := "orbit-db-tests"
@@ -48,6 +47,8 @@ func testingKeyValueStore(t *testing.T, dir string) {
 		db, err := orbitdb1.KeyValue(ctx, dbname, nil)
 		c.So(err, ShouldBeNil)
 
+		defer db.Close()
+
 		c.Convey("creates and opens a database", FailureHalts, func(c C) {
 			db, err := orbitdb1.KeyValue(ctx, "first kv database", nil)
 			c.So(err, ShouldBeNil)
@@ -55,6 +56,8 @@ func testingKeyValueStore(t *testing.T, dir string) {
 			if db == nil {
 				t.Fatalf("db should not be nil")
 			}
+
+			defer db.Close()
 
 			c.So(db.Type(), ShouldEqual, "keyvalue")
 			c.So(db.DBName(), ShouldEqual, "first kv database")

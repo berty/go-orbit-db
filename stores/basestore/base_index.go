@@ -2,6 +2,7 @@ package basestore
 
 import (
 	ipfslog "berty.tech/go-ipfs-log"
+
 	"berty.tech/go-orbit-db/iface"
 )
 

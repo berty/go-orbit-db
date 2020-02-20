@@ -27,7 +27,7 @@ func CreateDBManifest(ctx context.Context, ipfs coreapi.CoreAPI, name string, db
 		AccessController: path.Join("/ipfs", accessControllerAddress),
 	}
 
-	c, err := io.WriteCBOR(ctx, ipfs, manifest)
+	c, err := io.WriteCBOR(ctx, ipfs, manifest, nil)
 	if err != nil {
 		return cid.Cid{}, errors.Wrap(err, "unable to write cbor data")
 	}

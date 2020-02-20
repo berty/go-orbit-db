@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	logac "berty.tech/go-ipfs-log/accesscontroller"
 	"berty.tech/go-ipfs-log/identityprovider"
@@ -25,8 +26,9 @@ type cborWriteAccess struct {
 
 type ipfsAccessController struct {
 	events.EventEmitter
-	ipfs        coreapi.CoreAPI
-	writeAccess []string
+	ipfs          coreapi.CoreAPI
+	writeAccess   []string
+	muWriteAccess sync.RWMutex
 }
 
 func (i *ipfsAccessController) Type() string {
@@ -38,6 +40,9 @@ func (i *ipfsAccessController) Address() address.Address {
 }
 
 func (i *ipfsAccessController) CanAppend(entry logac.LogEntry, p identityprovider.Interface, additionalContext accesscontroller.CanAppendAdditionalContext) error {
+	i.muWriteAccess.RLock()
+	defer i.muWriteAccess.RUnlock()
+
 	key := entry.GetIdentity().ID
 	for _, allowedKey := range i.writeAccess {
 		if allowedKey == key || allowedKey == "*" {
@@ -49,6 +54,9 @@ func (i *ipfsAccessController) CanAppend(entry logac.LogEntry, p identityprovide
 }
 
 func (i *ipfsAccessController) GetAuthorizedByRole(role string) ([]string, error) {
+	i.muWriteAccess.RLock()
+	defer i.muWriteAccess.RUnlock()
+
 	if role == "admin" || role == "write" {
 		return i.writeAccess, nil
 	}
@@ -99,18 +107,23 @@ func (i *ipfsAccessController) Load(ctx context.Context, address string) error {
 		return errors.Wrap(err, "unable to unmarshal json write access")
 	}
 
+	i.muWriteAccess.Lock()
 	i.writeAccess = writeAccess
+	i.muWriteAccess.Unlock()
 
 	return nil
 }
 
 func (i *ipfsAccessController) Save(ctx context.Context) (accesscontroller.ManifestParams, error) {
+	i.muWriteAccess.RLock()
 	writeAccess, err := json.Marshal(i.writeAccess)
+	i.muWriteAccess.RUnlock()
+
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to serialize write access")
 	}
 
-	c, err := io.WriteCBOR(ctx, i.ipfs, &cborWriteAccess{Write: string(writeAccess)})
+	c, err := io.WriteCBOR(ctx, i.ipfs, &cborWriteAccess{Write: string(writeAccess)}, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to save access controller")
 	}

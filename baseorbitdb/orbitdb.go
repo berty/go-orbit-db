@@ -14,6 +14,15 @@ import (
 	idp "berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/io"
 	"berty.tech/go-ipfs-log/keystore"
+	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
+	leveldb "github.com/ipfs/go-ds-leveldb"
+	cbornode "github.com/ipfs/go-ipld-cbor"
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	p2pcore "github.com/libp2p/go-libp2p-core"
+	"github.com/pkg/errors"
+	"go.uber.org/zap"
+
 	"berty.tech/go-orbit-db/accesscontroller"
 	acutils "berty.tech/go-orbit-db/accesscontroller/utils"
 	"berty.tech/go-orbit-db/address"
@@ -27,15 +36,9 @@ import (
 	"berty.tech/go-orbit-db/pubsub/peermonitor"
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/utils"
-	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
-	leveldb "github.com/ipfs/go-ds-leveldb"
-	cbornode "github.com/ipfs/go-ipld-cbor"
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	p2pcore "github.com/libp2p/go-libp2p-core"
-	"github.com/pkg/errors"
-	"go.uber.org/zap"
 )
+
+var defaultDirectory = "./orbitdb"
 
 // OrbitDB An alias of the type defined in the iface package
 type BaseOrbitDB = iface.BaseOrbitDB
@@ -103,11 +106,240 @@ type orbitDB struct {
 	directConnections     map[p2pcore.PeerID]oneonone.Channel
 	directory             string
 	cache                 cache.Interface
-	lock                  sync.RWMutex
+
+	muStoreTypes            sync.RWMutex
+	muStores                sync.RWMutex
+	muIdentity              sync.RWMutex
+	muID                    sync.RWMutex
+	muPubSub                sync.RWMutex
+	muIPFS                  sync.RWMutex
+	muKeyStore              sync.RWMutex
+	muCaches                sync.RWMutex
+	muDirectConnections     sync.RWMutex
+	muAccessControllerTypes sync.RWMutex
+}
+
+func (o *orbitDB) IPFS() coreapi.CoreAPI {
+	o.muIPFS.RLock()
+	defer o.muIPFS.RUnlock()
+
+	return o.ipfs
 }
 
 func (o *orbitDB) Identity() *identityprovider.Identity {
+	o.muIdentity.RLock()
+	defer o.muIdentity.RUnlock()
+
 	return o.identity
+}
+
+func (o *orbitDB) PeerID() p2pcore.PeerID {
+	o.muID.RLock()
+	defer o.muID.RUnlock()
+
+	return o.id
+}
+
+func (o *orbitDB) PubSub() pubsub.Interface {
+	o.muPubSub.RLock()
+	defer o.muPubSub.RUnlock()
+
+	return o.pubsub
+}
+
+func (o *orbitDB) KeyStore() keystore.Interface {
+	// TODO: check why o.keystore is never set
+	o.muKeyStore.RLock()
+	defer o.muKeyStore.RUnlock()
+
+	return o.keystore
+}
+
+func (o *orbitDB) CloseKeyStore() func() error {
+	// TODO: check why o.closeKeystore is never set
+	o.muKeyStore.RLock()
+	defer o.muKeyStore.RUnlock()
+
+	return o.closeKeystore
+}
+
+func (o *orbitDB) setStore(address string, store iface.Store) {
+	o.muStores.Lock()
+	defer o.muStores.Unlock()
+
+	o.stores[address] = store
+}
+
+func (o *orbitDB) getStore(address string) (iface.Store, bool) {
+	o.muStores.RLock()
+	defer o.muStores.RUnlock()
+
+	store, ok := o.stores[address]
+
+	return store, ok
+}
+
+func (o *orbitDB) deleteStore(address string) {
+	o.muStores.Lock()
+	defer o.muStores.Unlock()
+
+	delete(o.stores, address)
+}
+
+func (o *orbitDB) closeAllStores() {
+	o.muStores.Lock()
+	defer o.muStores.Unlock()
+
+	for _, store := range o.stores {
+		if err := store.Close(); err != nil {
+			logger().Error("unable to close store", zap.Error(err))
+		}
+	}
+
+	o.stores = map[string]Store{}
+}
+
+func (o *orbitDB) closePubSub() {
+	o.muPubSub.Lock()
+	defer o.muPubSub.Unlock()
+
+	if o.pubsub != nil {
+		if err := o.pubsub.Close(); err != nil {
+			logger().Error("unable to close pubsub", zap.Error(err))
+		}
+	}
+
+	o.pubsub = nil
+}
+
+func (o *orbitDB) closeCache() {
+	o.muCaches.Lock()
+	defer o.muCaches.Unlock()
+
+	if err := o.cache.Close(); err != nil {
+		logger().Error("unable to close cache", zap.Error(err))
+	}
+}
+
+func (o *orbitDB) closeDirectConnections() {
+	o.muDirectConnections.Lock()
+	defer o.muDirectConnections.Unlock()
+
+	for _, conn := range o.directConnections {
+		if err := conn.Close(); err != nil {
+			logger().Error("unable to close connection", zap.Error(err))
+		}
+	}
+
+	o.directConnections = map[p2pcore.PeerID]oneonone.Channel{}
+}
+
+func (o *orbitDB) closeKeyStore() {
+	o.muKeyStore.Lock()
+	defer o.muKeyStore.Unlock()
+
+	if o.closeKeystore != nil {
+		if err := o.closeKeystore(); err != nil {
+			logger().Error("unable to close key store", zap.Error(err))
+		}
+	}
+}
+
+// GetAccessControllerType Gets an access controller type
+func (o *orbitDB) GetAccessControllerType(controllerType string) (iface.AccessControllerConstructor, bool) {
+	o.muAccessControllerTypes.RLock()
+	defer o.muAccessControllerTypes.RUnlock()
+
+	acType, ok := o.accessControllerTypes[controllerType]
+
+	return acType, ok
+}
+
+func (o *orbitDB) UnregisterAccessControllerType(controllerType string) {
+	o.muAccessControllerTypes.Lock()
+	defer o.muAccessControllerTypes.Unlock()
+
+	delete(o.accessControllerTypes, controllerType)
+}
+
+func (o *orbitDB) RegisterAccessControllerType(constructor iface.AccessControllerConstructor) error {
+	o.muAccessControllerTypes.Lock()
+	defer o.muAccessControllerTypes.Unlock()
+
+	if constructor == nil {
+		return errors.New("accessController class needs to be given as an option")
+	}
+
+	controller, _ := constructor(context.Background(), nil, nil)
+
+	controllerType := controller.Type()
+
+	if controller.Type() == "" {
+		panic("controller type cannot be empty")
+	}
+
+	o.accessControllerTypes[controllerType] = constructor
+
+	return nil
+
+}
+
+func (o *orbitDB) getDirectConnection(ctx context.Context, peerID p2pcore.PeerID) (oneonone.Channel, error) {
+	o.muDirectConnections.Lock()
+	defer o.muDirectConnections.Unlock()
+
+	if conn, ok := o.directConnections[peerID]; ok {
+		return conn, nil
+	}
+
+	channel, err := oneonone.NewChannel(ctx, o.IPFS(), peerID)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to create a direct connection with peer")
+	}
+
+	o.directConnections[peerID] = channel
+	o.watchOneOnOneMessage(ctx, channel)
+
+	return channel, nil
+}
+
+// RegisterStoreType Registers a new store type which can be used by its name
+func (o *orbitDB) RegisterStoreType(storeType string, constructor iface.StoreConstructor) {
+	o.muStoreTypes.Lock()
+	defer o.muStoreTypes.Unlock()
+
+	o.storeTypes[storeType] = constructor
+}
+
+// UnregisterStoreType Unregisters a store type by its name
+func (o *orbitDB) UnregisterStoreType(storeType string) {
+	o.muStoreTypes.Lock()
+	defer o.muStoreTypes.Unlock()
+
+	delete(o.storeTypes, storeType)
+}
+
+func (o *orbitDB) storeTypesNames() []string {
+	o.muStoreTypes.RLock()
+	defer o.muStoreTypes.RUnlock()
+
+	names := make([]string, len(o.storeTypes))
+	i := 0
+
+	for k := range o.storeTypes {
+		names[i] = k
+		i++
+	}
+
+	return names
+}
+
+func (o *orbitDB) getStoreConstructor(s string) (iface.StoreConstructor, bool) {
+	o.muStoreTypes.RLock()
+	defer o.muStoreTypes.RUnlock()
+
+	constructor, ok := o.storeTypes[s]
+	return constructor, ok
 }
 
 func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity, options *NewOrbitDBOptions) (BaseOrbitDB, error) {
@@ -228,87 +460,12 @@ func NewOrbitDB(ctx context.Context, ipfs coreapi.CoreAPI, options *NewOrbitDBOp
 	return newOrbitDB(ctx, ipfs, options.Identity, options)
 }
 
-func (o *orbitDB) RegisterAccessControllerType(constructor iface.AccessControllerConstructor) error {
-	if constructor == nil {
-		return errors.New("accessController class needs to be given as an option")
-	}
-
-	controller, _ := constructor(context.Background(), nil, nil)
-
-	controllerType := controller.Type()
-
-	if controller.Type() == "" {
-		panic("controller type cannot be empty")
-	}
-
-	o.lock.Lock()
-	o.accessControllerTypes[controllerType] = constructor
-	o.lock.Unlock()
-
-	return nil
-
-}
-
-// GetAccessControllerType Gets an access controller type
-func (o *orbitDB) GetAccessControllerType(controllerType string) (iface.AccessControllerConstructor, bool) {
-	o.lock.RLock()
-	acType, ok := o.accessControllerTypes[controllerType]
-	o.lock.RUnlock()
-
-	return acType, ok
-}
-
-func (o *orbitDB) UnregisterAccessControllerType(controllerType string) {
-	o.lock.Lock()
-	delete(o.accessControllerTypes, controllerType)
-	o.lock.Unlock()
-}
-
 func (o *orbitDB) Close() error {
-	o.lock.RLock()
-	c := o.cache
-	s := o.stores
-	dc := o.directConnections
-	ps := o.pubsub
-	closeKS := o.closeKeystore
-	o.lock.RUnlock()
-
-	for _, store := range s {
-		err := store.Close()
-		if err != nil {
-			logger().Error("unable to close store", zap.Error(err))
-		}
-	}
-
-	for _, conn := range dc {
-		err := conn.Close()
-		if err != nil {
-			logger().Error("unable to close connection", zap.Error(err))
-		}
-	}
-
-	if ps != nil {
-		err := ps.Close()
-		if err != nil {
-			logger().Error("unable to close pubsub", zap.Error(err))
-		}
-	}
-
-	o.lock.Lock()
-	o.stores = map[string]Store{}
-	o.directConnections = map[p2pcore.PeerID]oneonone.Channel{}
-	o.pubsub = nil
-	o.lock.Unlock()
-
-	if err := c.Close(); err != nil {
-		logger().Error("unable to close cache", zap.Error(err))
-	}
-
-	if closeKS != nil {
-		if err := closeKS(); err != nil {
-			logger().Error("unable to close key store", zap.Error(err))
-		}
-	}
+	o.closeAllStores()
+	o.closeDirectConnections()
+	o.closePubSub()
+	o.closeCache()
+	o.closeKeyStore()
 
 	return nil
 }
@@ -411,7 +568,7 @@ func (o *orbitDB) Open(ctx context.Context, dbAddress string, options *CreateDBO
 		return nil, errors.New(fmt.Sprintf("database %s doesn't exist!", dbAddress))
 	}
 
-	manifestNode, err := io.ReadCBOR(ctx, o.ipfs, parsedDBAddress.GetRoot())
+	manifestNode, err := io.ReadCBOR(ctx, o.IPFS(), parsedDBAddress.GetRoot())
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to fetch database manifest")
 	}
@@ -471,7 +628,7 @@ func (o *orbitDB) DetermineAddress(ctx context.Context, name string, storeType s
 	}
 
 	// Save the manifest to IPFS
-	manifestHash, err := utils.CreateDBManifest(ctx, o.ipfs, name, storeType, accessControllerAddress.String())
+	manifestHash, err := utils.CreateDBManifest(ctx, o.IPFS(), name, storeType, accessControllerAddress.String())
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to save manifest on ipfs")
 	}
@@ -524,10 +681,6 @@ func (o *orbitDB) addManifestToCache(directory string, dbAddress address.Address
 	return nil
 }
 
-func (o *orbitDB) IPFS() coreapi.CoreAPI {
-	return o.ipfs
-}
-
 func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAddress address.Address, options *CreateDBOptions) (Store, error) {
 	var err error
 	storeFunc, ok := o.getStoreConstructor(storeType)
@@ -569,10 +722,10 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 	}
 
 	//options.AccessController = accessController
-	options.Keystore = o.keystore
+	options.Keystore = o.KeyStore()
 	options.Cache = c
 
-	identity := o.identity
+	identity := o.Identity()
 	if options.Identity != nil {
 		identity = options.Identity
 	}
@@ -581,11 +734,12 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 		options.Directory = &o.directory
 	}
 
-	store, err := storeFunc(ctx, o.ipfs, identity, parsedDBAddress, &iface.NewStoreOptions{
+	store, err := storeFunc(ctx, o.IPFS(), identity, parsedDBAddress, &iface.NewStoreOptions{
 		AccessController: accessController,
 		Cache:            options.Cache,
 		Replicate:        options.Replicate,
 		Directory:        *options.Directory,
+		SortFn:           options.SortFn,
 		CacheDestroy:     func() error { return o.cache.Destroy(o.directory, parsedDBAddress) },
 	})
 	if err != nil {
@@ -593,18 +747,12 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 	}
 
 	o.storeListener(ctx, store)
-
-	o.lock.Lock()
-	o.stores[parsedDBAddress.String()] = store
-	o.lock.Unlock()
+	o.setStore(parsedDBAddress.String(), store)
 
 	// Subscribe to pubsub to get updates from peers,
 	// this is what hooks us into the message propagation layer
 	// and the p2p network
-	o.lock.RLock()
-	ps := o.pubsub
-	o.lock.RUnlock()
-	if *options.Replicate && ps != nil {
+	if ps := o.PubSub(); *options.Replicate && ps != nil {
 		sub, err := ps.Subscribe(ctx, parsedDBAddress.String())
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to subscribe to pubsub")
@@ -618,18 +766,13 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 
 func (o *orbitDB) onClose(ctx context.Context, addr cid.Cid) error {
 	// Unsubscribe from pubsub
-	o.lock.RLock()
-	ps := o.pubsub
-	o.lock.RUnlock()
-	if ps != nil {
+	if ps := o.PubSub(); ps != nil {
 		if err := ps.Unsubscribe(addr.String()); err != nil {
 			return errors.Wrap(err, "unable to unsubscribe from pubsub")
 		}
 	}
 
-	o.lock.Lock()
-	delete(o.stores, addr.String())
-	o.lock.Unlock()
+	o.deleteStore(addr.String())
 
 	return nil
 }
@@ -652,11 +795,7 @@ func (o *orbitDB) storeListener(ctx context.Context, store Store) {
 				return
 			}
 
-			o.lock.RLock()
-			ps := o.pubsub
-			o.lock.RUnlock()
-
-			if ps != nil {
+			if ps := o.PubSub(); ps != nil {
 				headsBytes, err := json.Marshal(e.Heads)
 				if err != nil {
 					logger().Debug(fmt.Sprintf("unable to serialize heads %v", err))
@@ -683,10 +822,7 @@ func (o *orbitDB) pubSubChanListener(ctx context.Context, sub pubsub.Subscriptio
 			evt := e.(*pubsub.MessageEvent)
 
 			addr := evt.Topic
-
-			o.lock.RLock()
-			store, ok := o.stores[addr]
-			o.lock.RUnlock()
+			store, ok := o.getStore(addr)
 
 			if !ok {
 				logger().Error(fmt.Sprintf("unable to find store for address %s", addr))
@@ -718,11 +854,11 @@ func (o *orbitDB) pubSubChanListener(ctx context.Context, sub pubsub.Subscriptio
 		case *peermonitor.EventPeerJoin:
 			evt := e.(*peermonitor.EventPeerJoin)
 			o.onNewPeerJoined(ctx, evt.Peer, addr)
-			logger().Debug(fmt.Sprintf("peer %s joined from %s self is %s", evt.Peer.String(), addr, o.id))
+			logger().Debug(fmt.Sprintf("peer %s joined from %s self is %s", evt.Peer.String(), addr, o.PeerID()))
 
 		case *peermonitor.EventPeerLeave:
 			evt := e.(*peermonitor.EventPeerLeave)
-			logger().Debug(fmt.Sprintf("peer %s left from %s self is %s", evt.Peer.String(), addr, o.id))
+			logger().Debug(fmt.Sprintf("peer %s left from %s self is %s", evt.Peer.String(), addr, o.PeerID()))
 
 		default:
 			logger().Debug("unhandled event, can't match type")
@@ -731,7 +867,7 @@ func (o *orbitDB) pubSubChanListener(ctx context.Context, sub pubsub.Subscriptio
 }
 
 func (o *orbitDB) onNewPeerJoined(ctx context.Context, p p2pcore.PeerID, addr address.Address) {
-	self, err := o.ipfs.Key().Self(ctx)
+	self, err := o.IPFS().Key().Self(ctx)
 	if err == nil {
 		logger().Debug(fmt.Sprintf("%s: New peer '%s' connected to %s", self.ID(), p, addr.String()))
 	} else {
@@ -745,9 +881,7 @@ func (o *orbitDB) onNewPeerJoined(ctx context.Context, p p2pcore.PeerID, addr ad
 		return
 	}
 
-	o.lock.RLock()
-	store, ok := o.stores[addr.String()]
-	o.lock.RUnlock()
+	store, ok := o.getStore(addr.String())
 
 	if !ok {
 		logger().Error(fmt.Sprintf("unable to get store for address %s", addr.String()))
@@ -758,9 +892,7 @@ func (o *orbitDB) onNewPeerJoined(ctx context.Context, p p2pcore.PeerID, addr ad
 }
 
 func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, addr address.Address) (oneonone.Channel, error) {
-	o.lock.RLock()
-	store, ok := o.stores[addr.String()]
-	o.lock.RUnlock()
+	store, ok := o.getStore(addr.String())
 
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("unable to get store for address %s", addr.String()))
@@ -823,10 +955,8 @@ func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel oneonone.Cha
 				logger().Error("unable to unmarshal heads", zap.Error(err))
 			}
 
-			logger().Debug(fmt.Sprintf("%s: Received %d heads for '%s':", o.id.String(), len(heads.Heads), heads.Address))
-			o.lock.RLock()
-			store, ok := o.stores[heads.Address]
-			o.lock.RUnlock()
+			logger().Debug(fmt.Sprintf("%s: Received %d heads for '%s':", o.PeerID().String(), len(heads.Heads), heads.Address))
+			store, ok := o.getStore(heads.Address)
 
 			if !ok {
 				logger().Debug("Heads from unknown store, skipping")
@@ -848,64 +978,6 @@ func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel oneonone.Cha
 			logger().Debug("unhandled event type")
 		}
 	})
-}
-
-func (o *orbitDB) getDirectConnection(ctx context.Context, peerID p2pcore.PeerID) (oneonone.Channel, error) {
-	o.lock.RLock()
-	conn, ok := o.directConnections[peerID]
-	o.lock.RUnlock()
-
-	if ok {
-		return conn, nil
-	}
-
-	channel, err := oneonone.NewChannel(ctx, o.ipfs, peerID)
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to create a direct connection with peer")
-	}
-
-	o.lock.Lock()
-	o.directConnections[peerID] = channel
-	o.lock.Unlock()
-
-	o.watchOneOnOneMessage(ctx, channel)
-
-	return channel, nil
-}
-
-// RegisterStoreType Registers a new store type which can be used by its name
-func (o *orbitDB) RegisterStoreType(storeType string, constructor iface.StoreConstructor) {
-	o.lock.Lock()
-	o.storeTypes[storeType] = constructor
-	o.lock.Unlock()
-}
-
-// UnregisterStoreType Unregisters a store type by its name
-func (o *orbitDB) UnregisterStoreType(storeType string) {
-	o.lock.Lock()
-	delete(o.storeTypes, storeType)
-	o.lock.Unlock()
-}
-
-func (o *orbitDB) storeTypesNames() []string {
-	o.lock.RLock()
-	var names []string
-
-	for k := range o.storeTypes {
-		names = append(names, k)
-	}
-
-	o.lock.RUnlock()
-
-	return names
-}
-
-func (o *orbitDB) getStoreConstructor(s string) (iface.StoreConstructor, bool) {
-	o.lock.RLock()
-	constructor, ok := o.storeTypes[s]
-	o.lock.RUnlock()
-
-	return constructor, ok
 }
 
 var _ BaseOrbitDB = &orbitDB{}

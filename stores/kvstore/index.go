@@ -1,6 +1,8 @@
 package kvstore
 
 import (
+	"sync"
+
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores/operation"
@@ -8,10 +10,14 @@ import (
 )
 
 type kvIndex struct {
-	index map[string][]byte
+	index   map[string][]byte
+	muIndex sync.RWMutex
 }
 
 func (i *kvIndex) Get(key string) interface{} {
+	i.muIndex.RLock()
+	defer i.muIndex.RUnlock()
+
 	return i.index[key]
 }
 
@@ -20,6 +26,9 @@ func (i *kvIndex) UpdateIndex(oplog ipfslog.Log, _ []ipfslog.Entry) error {
 	size := len(entries)
 
 	handled := map[string]struct{}{}
+
+	i.muIndex.Lock()
+	defer i.muIndex.Unlock()
 
 	for idx := range entries {
 		item, err := operation.ParseOperation(entries[size-idx-1])

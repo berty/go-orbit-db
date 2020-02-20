@@ -48,6 +48,8 @@ func TestLogDatabase(t *testing.T) {
 				t.Fatalf("db should not be nil")
 			}
 
+			defer db.Close()
+
 			////// creates and opens a database
 			c.So(db.Type(), ShouldEqual, "eventlog")
 			c.So(db.DBName(), ShouldEqual, "log database")
@@ -95,6 +97,8 @@ func TestLogDatabase(t *testing.T) {
 			db, err := orbitdb1.Log(ctx, "second database", nil)
 			c.So(err, ShouldBeNil)
 
+			defer db.Close()
+
 			for i := 1; i <= 5; i++ {
 				_, err := db.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
 				c.So(err, ShouldBeNil)
@@ -113,6 +117,8 @@ func TestLogDatabase(t *testing.T) {
 			db, err := orbitdb1.Log(ctx, "third database", nil)
 			c.So(err, ShouldBeNil)
 
+			defer db.Close()
+
 			msg := bytes.Repeat([]byte("a"), 1024)
 
 			op, err := db.Add(ctx, msg)
@@ -126,6 +132,8 @@ func TestLogDatabase(t *testing.T) {
 
 			db, err := orbitdb1.Log(ctx, "iterator tests", nil)
 			c.So(err, ShouldBeNil)
+
+			defer db.Close()
 
 			for i := 0; i < itemCount; i++ {
 				op, err := db.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))

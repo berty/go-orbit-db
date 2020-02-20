@@ -15,7 +15,7 @@ import (
 )
 
 func TestWritePermissions(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	mocknet := testingMockNet(ctx)
