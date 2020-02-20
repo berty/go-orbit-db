@@ -8,17 +8,17 @@ import (
 	p2pcore "github.com/libp2p/go-libp2p-core"
 )
 
-//type EventReplicate struct {
-//	Address address.Address
-//	Entry   ipfslog.Entry
-//}
-//
-//func NewEventReplicate(addr address.Address, e ipfslog.Entry) *EventReplicate {
-//	return &EventReplicate{
-//		Address: addr,
-//		Entry:   e,
-//	}
-//}
+type EventReplicate struct {
+	Address address.Address
+	Hash    cid.Cid
+}
+
+func NewEventReplicate(addr address.Address, c cid.Cid) *EventReplicate {
+	return &EventReplicate{
+		Address: addr,
+		Hash:    c,
+	}
+}
 
 // EventReplicateProgress An event containing the current replication progress.
 type EventReplicateProgress struct {
@@ -109,18 +109,6 @@ func NewEventWrite(addr address.Address, e ipfslog.Entry, heads []ipfslog.Entry)
 		Address: addr,
 		Entry:   e,
 		Heads:   heads,
-	}
-}
-
-// EventNewPeer An event sent when the store is closed
-type EventClosed struct {
-	Address address.Address
-}
-
-// NewEventClosed Creates a new EventClosed event
-func NewEventClosed(addr address.Address) *EventClosed {
-	return &EventClosed{
-		Address: addr,
 	}
 }
 

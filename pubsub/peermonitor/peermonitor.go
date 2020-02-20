@@ -139,12 +139,12 @@ func (p *peerMonitor) pollPeers(ctx context.Context) error {
 		if _, ok := currentlyKnownPeers[peerID]; ok {
 			delete(currentlyKnownPeers, peerID)
 		} else {
-			p.Emit(NewEventPeerJoin(peerID))
+			p.Emit(ctx, NewEventPeerJoin(peerID))
 		}
 	}
 
 	for peerID := range currentlyKnownPeers {
-		p.Emit(NewEventPeerLeave(peerID))
+		p.Emit(ctx, NewEventPeerLeave(peerID))
 	}
 
 	p.peers = allPeers

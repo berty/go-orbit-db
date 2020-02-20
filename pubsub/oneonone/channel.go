@@ -183,7 +183,7 @@ func NewChannel(ctx context.Context, ipfs coreapi.CoreAPI, pid p2pcore.PeerID) (
 				continue
 			}
 
-			ch.Emit(NewEventMessage(msg.Data()))
+			ch.Emit(ctx, NewEventMessage(msg.Data()))
 		}
 	}()
 

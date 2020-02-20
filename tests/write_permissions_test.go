@@ -6,7 +6,6 @@ import (
 	"berty.tech/go-orbit-db/accesscontroller"
 
 	orbitdb "berty.tech/go-orbit-db"
-	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/stores"
 	. "github.com/smartystreets/goconvey/convey"
 
@@ -187,12 +186,15 @@ func TestWritePermissions(t *testing.T) {
 				subCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 				defer cancel()
 
-				go db1.Subscribe(subCtx, func(evt events.Event) {
-					switch evt.(type) {
-					case *stores.EventReplicated:
-						c.So("this", ShouldEqual, "should not occur")
+				go func() {
+					for evt := range db1.Subscribe(ctx) {
+						switch evt.(type) {
+						case *stores.EventReplicated:
+							c.So("this", ShouldEqual, "should not occur")
+						}
 					}
-				})
+
+				}()
 
 				_, err = db2.Add(ctx, []byte("hello"))
 				c.So(err, ShouldNotBeNil)

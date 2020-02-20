@@ -12,7 +12,6 @@ import (
 
 	orbitdb "berty.tech/go-orbit-db"
 	"berty.tech/go-orbit-db/accesscontroller"
-	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/operation"
 )
@@ -114,28 +113,30 @@ func TestReplicateAutomatically(t *testing.T) {
 			defer cancel()
 
 			hasAllResults := false
-			go db2.Subscribe(ctx, func(evt events.Event) {
-				switch evt.(type) {
-				case *stores.EventReplicated:
-					infinity := -1
+			go func() {
+				for evt := range db2.Subscribe(ctx) {
+					switch evt.(type) {
+					case *stores.EventReplicated:
+						infinity := -1
 
-					result1, err := db1.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
-					c.So(err, ShouldBeNil)
+						result1, err := db1.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
+						c.So(err, ShouldBeNil)
 
-					result2, err := db2.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
-					c.So(err, ShouldBeNil)
+						result2, err := db2.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
+						c.So(err, ShouldBeNil)
 
-					if len(result1) != len(result2) {
-						return
+						if len(result1) != len(result2) {
+							continue
+						}
+
+						hasAllResults = true
+						for i := 0; i < len(result1); i++ {
+							c.So(string(result1[i].GetValue()), ShouldEqual, string(result2[i].GetValue()))
+						}
+						cancel()
 					}
-
-					hasAllResults = true
-					for i := 0; i < len(result1); i++ {
-						c.So(string(result1[i].GetValue()), ShouldEqual, string(result2[i].GetValue()))
-					}
-					cancel()
 				}
-			})
+			}()
 
 			<-ctx.Done()
 			c.So(hasAllResults, ShouldBeTrue)
@@ -172,51 +173,55 @@ func TestReplicateAutomatically(t *testing.T) {
 
 			infinity := -1
 
-			go db4.Subscribe(subCtx, func(event events.Event) {
-				switch event.(type) {
-				case *stores.EventReplicated:
-					c.So("", ShouldEqual, "Should not happen")
-					subCancel()
+			go func() {
+				for event := range db4.Subscribe(ctx) {
+					switch event.(type) {
+					case *stores.EventReplicated:
+						c.So("", ShouldEqual, "Should not happen")
+						subCancel()
+					}
 				}
-			})
+			}()
 
 			<-subCtx.Done()
 
 			subCtx, subCancel = context.WithTimeout(ctx, time.Second)
 			defer subCancel()
 
-			go db2.Subscribe(subCtx, func(event events.Event) {
-				switch event.(type) {
-				case *stores.EventReplicateProgress:
-					e := event.(*stores.EventReplicateProgress)
+			go func() {
+				for event := range db2.Subscribe(ctx) {
+					switch event.(type) {
+					case *stores.EventReplicateProgress:
+						e := event.(*stores.EventReplicateProgress)
 
-					op, err := operation.ParseOperation(e.Entry)
-					c.So(err, ShouldBeNil)
+						op, err := operation.ParseOperation(e.Entry)
+						c.So(err, ShouldBeNil)
 
-					c.So(op.GetOperation(), ShouldEqual, "ADD")
-					c.So(op.GetKey(), ShouldBeNil)
-					c.So(string(op.GetValue()), ShouldStartWith, "hello")
-					c.So(e.Entry.GetClock(), ShouldNotBeNil)
+						c.So(op.GetOperation(), ShouldEqual, "ADD")
+						c.So(op.GetKey(), ShouldBeNil)
+						c.So(string(op.GetValue()), ShouldStartWith, "hello")
+						c.So(e.Entry.GetClock(), ShouldNotBeNil)
 
-				case *stores.EventReplicated:
-					result1, err := db1.List(subCtx, &orbitdb.StreamOptions{Amount: &infinity})
-					c.So(err, ShouldBeNil)
+					case *stores.EventReplicated:
+						result1, err := db1.List(subCtx, &orbitdb.StreamOptions{Amount: &infinity})
+						c.So(err, ShouldBeNil)
 
-					result2, err := db2.List(subCtx, &orbitdb.StreamOptions{Amount: &infinity})
-					c.So(err, ShouldBeNil)
+						result2, err := db2.List(subCtx, &orbitdb.StreamOptions{Amount: &infinity})
+						c.So(err, ShouldBeNil)
 
-					if len(result1) != len(result2) {
-						return
+						if len(result1) != len(result2) {
+							continue
+						}
+
+						hasAllResults = true
+						for i := 0; i < len(result1); i++ {
+							c.So(string(result1[i].GetValue()), ShouldEqual, string(result2[i].GetValue()))
+						}
+
+						cancel()
 					}
-
-					hasAllResults = true
-					for i := 0; i < len(result1); i++ {
-						c.So(string(result1[i].GetValue()), ShouldEqual, string(result2[i].GetValue()))
-					}
-
-					cancel()
 				}
-			})
+			}()
 
 			for i := 0; i < entryCount; i++ {
 				_, err := db1.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
