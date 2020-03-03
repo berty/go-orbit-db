@@ -28,7 +28,6 @@ import (
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/cache"
 	"berty.tech/go-orbit-db/cache/cacheleveldown"
-	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/iface"
 	_ "berty.tech/go-orbit-db/internal/buildconstraints" // fail for bad go version
 	"berty.tech/go-orbit-db/pubsub"
@@ -778,92 +777,90 @@ func (o *orbitDB) onClose(ctx context.Context, addr cid.Cid) error {
 }
 
 func (o *orbitDB) storeListener(ctx context.Context, store Store) {
-	go store.Subscribe(ctx, func(evt events.Event) {
-		switch evt.(type) {
-		case *stores.EventClosed:
-			logger().Debug("received stores.close event")
-
-			e := evt.(*stores.EventClosed)
-			err := o.onClose(ctx, e.Address.GetRoot())
-			logger().Debug(fmt.Sprintf("unable to perform onClose %v", err))
-
-		case *stores.EventWrite:
-			logger().Debug("received stores.write event")
-			e := evt.(*stores.EventWrite)
-			if len(e.Heads) == 0 {
-				logger().Debug(fmt.Sprintf("'heads' are not defined"))
-				return
-			}
-
-			if ps := o.PubSub(); ps != nil {
-				headsBytes, err := json.Marshal(e.Heads)
-				if err != nil {
-					logger().Debug(fmt.Sprintf("unable to serialize heads %v", err))
-					return
+	go func() {
+		for evt := range store.Subscribe(ctx) {
+			switch e := evt.(type) {
+			case *stores.EventWrite:
+				logger().Debug("received stores.write event")
+				if len(e.Heads) == 0 {
+					logger().Debug(fmt.Sprintf("'heads' are not defined"))
+					continue
 				}
 
-				err = ps.Publish(ctx, e.Address.String(), headsBytes)
-				if err != nil {
-					logger().Debug(fmt.Sprintf("unable to publish message on pubsub %v", err))
-					return
-				}
+				if ps := o.PubSub(); ps != nil {
+					headsBytes, err := json.Marshal(e.Heads)
+					if err != nil {
+						logger().Debug(fmt.Sprintf("unable to serialize heads %v", err))
+						continue
+					}
 
-				logger().Debug("stores.write event: published event on pub sub")
+					err = ps.Publish(ctx, e.Address.String(), headsBytes)
+					if err != nil {
+						logger().Debug(fmt.Sprintf("unable to publish message on pubsub %v", err))
+						continue
+					}
+
+					logger().Debug("stores.write event: published event on pub sub")
+				}
 			}
 		}
-	})
+
+		logger().Debug("received stores.close event")
+
+		if err := o.onClose(ctx, store.Address().GetRoot()); err != nil {
+			logger().Debug(fmt.Sprintf("unable to perform onClose %v", err))
+		}
+	}()
 }
 
-func (o *orbitDB) pubSubChanListener(ctx context.Context, sub pubsub.Subscription, addr address.Address) {
-	go sub.Subscribe(ctx, func(e events.Event) {
-		logger().Debug("Got pub sub message")
-		switch e.(type) {
-		case *pubsub.MessageEvent:
-			evt := e.(*pubsub.MessageEvent)
+func (o *orbitDB) pubSubChanListener(ctx context.Context, ps pubsub.Subscription, addr address.Address) {
+	go func() {
+		for e := range ps.Subscribe(ctx) {
+			logger().Debug("Got pub sub message")
+			switch evt := e.(type) {
+			case *pubsub.MessageEvent:
+				addr := evt.Topic
+				store, ok := o.getStore(addr)
 
-			addr := evt.Topic
-			store, ok := o.getStore(addr)
+				if !ok {
+					logger().Error(fmt.Sprintf("unable to find store for address %s", addr))
+					continue
+				}
 
-			if !ok {
-				logger().Error(fmt.Sprintf("unable to find store for address %s", addr))
-				return
+				headsEntriesBytes := evt.Content
+				var headsEntries []*entry.Entry
+
+				err := json.Unmarshal(headsEntriesBytes, &headsEntries)
+				if err != nil {
+					logger().Error("unable to unmarshal head entries")
+				}
+
+				if len(headsEntries) == 0 {
+					logger().Debug(fmt.Sprintf("Nothing to synchronize for %s:", addr))
+				}
+
+				logger().Debug(fmt.Sprintf("Received %d heads for %s:", len(headsEntries), addr))
+
+				entries := make([]ipfslog.Entry, len(headsEntries))
+				for i := range headsEntries {
+					entries[i] = headsEntries[i]
+				}
+
+				if err := store.Sync(ctx, entries); err != nil {
+					logger().Debug(fmt.Sprintf("Error while syncing heads for %s:", addr))
+				}
+			case *peermonitor.EventPeerJoin:
+				o.onNewPeerJoined(ctx, evt.Peer, addr)
+				logger().Debug(fmt.Sprintf("peer %s joined from %s self is %s", evt.Peer.String(), addr, o.PeerID()))
+
+			case *peermonitor.EventPeerLeave:
+				logger().Debug(fmt.Sprintf("peer %s left from %s self is %s", evt.Peer.String(), addr, o.PeerID()))
+
+			default:
+				logger().Debug("unhandled event, can't match type")
 			}
-
-			headsEntriesBytes := evt.Content
-			var headsEntries []*entry.Entry
-
-			err := json.Unmarshal(headsEntriesBytes, &headsEntries)
-			if err != nil {
-				logger().Error("unable to unmarshal head entries")
-			}
-
-			if len(headsEntries) == 0 {
-				logger().Debug(fmt.Sprintf("Nothing to synchronize for %s:", addr))
-			}
-
-			logger().Debug(fmt.Sprintf("Received %d heads for %s:", len(headsEntries), addr))
-
-			entries := make([]ipfslog.Entry, len(headsEntries))
-			for i := range headsEntries {
-				entries[i] = headsEntries[i]
-			}
-
-			if err := store.Sync(ctx, entries); err != nil {
-				logger().Debug(fmt.Sprintf("Error while syncing heads for %s:", addr))
-			}
-		case *peermonitor.EventPeerJoin:
-			evt := e.(*peermonitor.EventPeerJoin)
-			o.onNewPeerJoined(ctx, evt.Peer, addr)
-			logger().Debug(fmt.Sprintf("peer %s joined from %s self is %s", evt.Peer.String(), addr, o.PeerID()))
-
-		case *peermonitor.EventPeerLeave:
-			evt := e.(*peermonitor.EventPeerLeave)
-			logger().Debug(fmt.Sprintf("peer %s left from %s self is %s", evt.Peer.String(), addr, o.PeerID()))
-
-		default:
-			logger().Debug("unhandled event, can't match type")
 		}
-	})
+	}()
 }
 
 func (o *orbitDB) onNewPeerJoined(ctx context.Context, p p2pcore.PeerID, addr address.Address) {
@@ -888,7 +885,7 @@ func (o *orbitDB) onNewPeerJoined(ctx context.Context, p p2pcore.PeerID, addr ad
 		return
 	}
 
-	store.Emit(stores.NewEventNewPeer(p))
+	store.Emit(ctx, stores.NewEventNewPeer(p))
 }
 
 func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, addr address.Address) (oneonone.Channel, error) {
@@ -942,42 +939,42 @@ func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, addr addr
 }
 
 func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel oneonone.Channel) {
-	go channel.Subscribe(ctx, func(evt events.Event) {
-		logger().Debug("received one on one message")
+	go func() {
+		for evt := range channel.Subscribe(ctx) {
+			logger().Debug("received one on one message")
 
-		switch evt.(type) {
-		case *oneonone.EventMessage:
-			e := evt.(*oneonone.EventMessage)
-
-			heads := &exchangedHeads{}
-			err := json.Unmarshal(e.Payload, &heads)
-			if err != nil {
-				logger().Error("unable to unmarshal heads", zap.Error(err))
-			}
-
-			logger().Debug(fmt.Sprintf("%s: Received %d heads for '%s':", o.PeerID().String(), len(heads.Heads), heads.Address))
-			store, ok := o.getStore(heads.Address)
-
-			if !ok {
-				logger().Debug("Heads from unknown store, skipping")
-				return
-			}
-
-			if len(heads.Heads) > 0 {
-				untypedHeads := make([]ipfslog.Entry, len(heads.Heads))
-				for i := range heads.Heads {
-					untypedHeads[i] = heads.Heads[i]
+			switch e := evt.(type) {
+			case *oneonone.EventMessage:
+				heads := &exchangedHeads{}
+				err := json.Unmarshal(e.Payload, &heads)
+				if err != nil {
+					logger().Error("unable to unmarshal heads", zap.Error(err))
 				}
 
-				if err := store.Sync(ctx, untypedHeads); err != nil {
-					logger().Error("unable to sync heads", zap.Error(err))
-				}
-			}
+				logger().Debug(fmt.Sprintf("%s: Received %d heads for '%s':", o.PeerID().String(), len(heads.Heads), heads.Address))
+				store, ok := o.getStore(heads.Address)
 
-		default:
-			logger().Debug("unhandled event type")
+				if !ok {
+					logger().Debug("Heads from unknown store, skipping")
+					return
+				}
+
+				if len(heads.Heads) > 0 {
+					untypedHeads := make([]ipfslog.Entry, len(heads.Heads))
+					for i := range heads.Heads {
+						untypedHeads[i] = heads.Heads[i]
+					}
+
+					if err := store.Sync(ctx, untypedHeads); err != nil {
+						logger().Error("unable to sync heads", zap.Error(err))
+					}
+				}
+
+			default:
+				logger().Debug("unhandled event type")
+			}
 		}
-	})
+	}()
 }
 
 var _ BaseOrbitDB = &orbitDB{}

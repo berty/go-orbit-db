@@ -19,7 +19,7 @@ type orbitDBEventLogStore struct {
 
 func (o *orbitDBEventLogStore) List(ctx context.Context, options *iface.StreamOptions) ([]operation.Operation, error) {
 	var operations []operation.Operation
-	c := make(chan operation.Operation, 10)
+	c := make(chan operation.Operation)
 
 	go func() {
 		_ = o.Stream(ctx, c, options)
@@ -48,17 +48,29 @@ func (o *orbitDBEventLogStore) Add(ctx context.Context, value []byte) (operation
 }
 
 func (o *orbitDBEventLogStore) Get(ctx context.Context, cid cid.Cid) (operation.Operation, error) {
-	stream := make(chan operation.Operation, 1)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	errChan := make(chan error)
+
+	stream := make(chan operation.Operation)
 	one := 1
 
-	err := o.Stream(ctx, stream, &iface.StreamOptions{GTE: &cid, Amount: &one})
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to open stream")
-	}
+	go func() {
+		if err := o.Stream(ctx, stream, &iface.StreamOptions{GTE: &cid, Amount: &one}); err != nil {
+			errChan <- errors.Wrap(err, "unable to open stream")
+			cancel()
+			return
+		}
+	}()
 
 	select {
 	case value := <-stream:
+		cancel()
 		return value, nil
+
+	case err := <-errChan:
+		return nil, err
+
 	case <-ctx.Done():
 		return nil, errors.New("context deadline exceeded")
 	}

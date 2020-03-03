@@ -60,21 +60,23 @@ func (s *subscription) Close() error {
 
 func (s *subscription) topicMonitor(ctx context.Context, topic string) {
 	pm := peermonitor.NewPeerMonitor(ctx, s.ipfs, topic, nil)
-	go pm.Subscribe(ctx, func(evt events.Event) {
-		switch evt.(type) {
-		case *peermonitor.EventPeerJoin:
-			e := evt.(*peermonitor.EventPeerJoin)
-			logger().Debug(fmt.Sprintf("peer %s joined topic %s", e.Peer, topic))
-			break
 
-		case *peermonitor.EventPeerLeave:
-			e := evt.(*peermonitor.EventPeerLeave)
-			logger().Debug(fmt.Sprintf("peer %s left topic %s", e.Peer, topic))
-			break
+	go func() {
+		for evt := range pm.Subscribe(ctx) {
+			switch e := evt.(type) {
+			case *peermonitor.EventPeerJoin:
+				logger().Debug(fmt.Sprintf("peer %s joined topic %s", e.Peer, topic))
+				break
+
+			case *peermonitor.EventPeerLeave:
+				logger().Debug(fmt.Sprintf("peer %s left topic %s", e.Peer, topic))
+				break
+			}
+
+			s.Emit(ctx, evt)
 		}
+	}()
 
-		s.Emit(evt)
-	})
 	pm.Start(ctx)
 
 }
@@ -103,7 +105,7 @@ func (s *subscription) listener(ctx context.Context, subSubscription iface.PubSu
 
 		logger().Debug(fmt.Sprintf("got pub sub message from %s", s.id))
 
-		s.Emit(NewMessageEvent(topic, msg.Data()))
+		s.Emit(ctx, NewMessageEvent(topic, msg.Data()))
 	}
 }
 

@@ -174,42 +174,37 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 
 	b.options = options
 
-	go b.Replicator().Subscribe(ctx, func(e events.Event) {
-		switch e.(type) {
-		case *replicator.EventLoadAdded:
-			evt := e.(*replicator.EventLoadAdded)
-			b.replicationLoadAdded(evt.Hash)
-			b.ReplicationStatus().IncQueued()
+	go func() {
+		for e := range b.Replicator().Subscribe(ctx) {
+			switch evt := e.(type) {
+			case *replicator.EventLoadAdded:
+				b.ReplicationStatus().IncQueued()
+				b.recalculateReplicationMax(0)
+				b.Emit(ctx, stores.NewEventReplicate(b.Address(), evt.Hash))
 
-		case *replicator.EventLoadEnd:
-			evt := e.(*replicator.EventLoadEnd)
-			b.replicationLoadComplete(evt.Logs)
+			case *replicator.EventLoadEnd:
+				b.replicationLoadComplete(ctx, evt.Logs)
 
-		case *replicator.EventLoadProgress:
-			evt := e.(*replicator.EventLoadProgress)
+			case *replicator.EventLoadProgress:
+				if b.ReplicationStatus().GetBuffered() > evt.BufferLength {
+					b.recalculateReplicationProgress(b.ReplicationStatus().GetProgress() + evt.BufferLength)
+				} else {
+					if _, ok := b.OpLog().GetEntries().Get(evt.Hash.String()); ok {
+						continue
+					}
 
-			if b.ReplicationStatus().GetBuffered() > evt.BufferLength {
-				b.recalculateReplicationProgress(b.ReplicationStatus().GetProgress() + evt.BufferLength)
-			} else {
-				b.recalculateReplicationProgress(b.OpLog().GetEntries().Len() + evt.BufferLength)
+					b.recalculateReplicationProgress(b.OpLog().GetEntries().Len() + evt.BufferLength)
+				}
+
+				b.ReplicationStatus().SetBuffered(evt.BufferLength)
+				b.recalculateReplicationMax(b.ReplicationStatus().GetProgress())
+				// logger.debug(`<replicate.progress>`)
+				b.Emit(ctx, stores.NewEventReplicateProgress(b.Address(), evt.Hash, evt.Latest, b.ReplicationStatus()))
 			}
-
-			b.ReplicationStatus().SetBuffered(evt.BufferLength)
-			b.recalculateReplicationMax(b.ReplicationStatus().GetProgress())
-			// logger.debug(`<replicate.progress>`)
-			b.Emit(stores.NewEventReplicateProgress(b.Address(), evt.Hash, evt.Latest, b.ReplicationStatus()))
 		}
-	})
+	}()
 
 	return nil
-}
-
-func (b *BaseStore) replicationLoadAdded(e cid.Cid) {
-	// TODO
-	//b.ReplicationStatus().IncQueued()
-	//b.recalculateReplicationMax(e.Clock.Time)
-	//logger().Debug("<replicate>")
-	//b.Emit(stores.NewEventReplicate(b.address, e))
 }
 
 func (b *BaseStore) Close() error {
@@ -224,8 +219,6 @@ func (b *BaseStore) Close() error {
 	b.stats.snapshot.bytesLoaded = -1
 	b.stats.syncRequestsReceived = 0
 	b.muStats.Unlock()
-
-	b.Emit(stores.NewEventClosed(b.Address()))
 
 	b.UnsubscribeAll()
 
@@ -328,7 +321,7 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 			headsForEvent[i] = heads[i]
 		}
 
-		b.Emit(stores.NewEventLoad(b.Address(), headsForEvent))
+		b.Emit(ctx, stores.NewEventLoad(b.Address(), headsForEvent))
 	}
 
 	wg := sync.WaitGroup{}
@@ -378,7 +371,7 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 		}
 	}
 
-	b.Emit(stores.NewEventReady(b.Address(), b.OpLog().Heads().Slice()))
+	b.Emit(ctx, stores.NewEventReady(b.Address(), b.OpLog().Heads().Slice()))
 	return nil
 }
 
@@ -451,7 +444,7 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 	b.muJoining.Lock()
 	defer b.muJoining.Unlock()
 
-	b.Emit(stores.NewEventLoad(b.Address(), nil))
+	b.Emit(ctx, stores.NewEventLoad(b.Address(), nil))
 
 	queueJSON, err := b.Cache().Get(datastore.NewKey("queue"))
 	if err != nil && err != datastore.ErrNotFound {
@@ -609,7 +602,7 @@ func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, on
 		return nil, errors.Wrap(err, "unable to update index")
 	}
 
-	b.Emit(stores.NewEventWrite(b.Address(), e, oplog.Heads().Slice()))
+	b.Emit(ctx, stores.NewEventWrite(b.Address(), e, oplog.Heads().Slice()))
 
 	if onProgressCallback != nil {
 		onProgressCallback <- e
@@ -657,7 +650,7 @@ func (b *BaseStore) updateIndex() error {
 	return nil
 }
 
-func (b *BaseStore) replicationLoadComplete(logs []ipfslog.Log) {
+func (b *BaseStore) replicationLoadComplete(ctx context.Context, logs []ipfslog.Log) {
 	b.muJoining.Lock()
 	defer b.muJoining.Unlock()
 
@@ -697,7 +690,7 @@ func (b *BaseStore) replicationLoadComplete(logs []ipfslog.Log) {
 	logger().Debug(fmt.Sprintf("Saved heads %d", heads.Len()))
 
 	// logger.debug(`<replicated>`)
-	b.Emit(stores.NewEventReplicated(b.Address(), len(logs)))
+	b.Emit(ctx, stores.NewEventReplicated(b.Address(), len(logs)))
 }
 
 func (b *BaseStore) SortFn() ipfslog.SortFn {

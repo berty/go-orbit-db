@@ -190,12 +190,14 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 
 	o.kvStore = store
 
-	go o.kvStore.Subscribe(ctx, func(e events.Event) {
-		switch e.(type) {
-		case stores.EventReady, stores.EventWrite, stores.EventReplicated:
-			o.onUpdate()
+	go func() {
+		for e := range o.kvStore.Subscribe(ctx) {
+			switch e.(type) {
+			case stores.EventReady, stores.EventWrite, stores.EventReplicated:
+				o.onUpdate(ctx)
+			}
 		}
-	})
+	}()
 
 	err = o.kvStore.Load(ctx, -1)
 	if err != nil {
@@ -217,8 +219,8 @@ func (o *orbitDBAccessController) Close() error {
 	return nil
 }
 
-func (o *orbitDBAccessController) onUpdate() {
-	o.Emit(&EventUpdated{})
+func (o *orbitDBAccessController) onUpdate(ctx context.Context) {
+	o.Emit(ctx, &EventUpdated{})
 }
 
 // NewIPFSAccessController Returns a default access controller for OrbitDB database

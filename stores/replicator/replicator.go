@@ -134,24 +134,21 @@ func (r *replicator) tasksFinished() uint {
 }
 
 func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, error) {
-	r.lock.RLock()
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
 	_, isFetching := r.fetching[h.String()]
 	_, hasEntry := r.store.OpLog().Values().Get(h.String())
-	r.lock.RUnlock()
 
 	if hasEntry || isFetching {
 		return nil, nil
 	}
 
-	r.lock.Lock()
 	r.fetching[h.String()] = h
-	r.lock.Unlock()
 
-	r.Emit(NewEventLoadAdded(h))
+	r.Emit(ctx, NewEventLoadAdded(h))
 
-	r.lock.Lock()
 	r.statsTasksStarted++
-	r.lock.Unlock()
 
 	l, err := ipfslog.NewFromEntryHash(ctx, r.store.IPFS(), r.store.Identity(), h, &ipfslog.LogOptions{
 		ID:               r.store.OpLog().GetID(),
@@ -167,7 +164,6 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 
 	var logToAppend ipfslog.Log = l
 
-	r.lock.Lock()
 	r.buffer = append(r.buffer, logToAppend)
 
 	latest := l.Values().At(0)
@@ -176,12 +172,9 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 
 	// Mark this task as processed
 	r.statsTasksProcessed++
-	r.lock.Unlock()
 
 	// Notify subscribers that we made progress
-	r.lock.RLock()
-	r.Emit(NewEventLoadProgress("", h, latest, len(r.buffer))) // TODO JS: this._id should be undefined
-	r.lock.RUnlock()
+	r.Emit(ctx, NewEventLoadProgress("", h, latest, len(r.buffer))) // TODO JS: this._id should be undefined
 
 	var nextValues []cid.Cid
 
@@ -239,7 +232,7 @@ func (r *replicator) processQueue(ctx context.Context) {
 
 			logger().Debug(fmt.Sprintf("load end logs, logs found :%d", bLen))
 
-			r.Emit(NewEventLoadEnd(b))
+			r.Emit(ctx, NewEventLoadEnd(b))
 		}
 
 		if len(hashes) > 0 {

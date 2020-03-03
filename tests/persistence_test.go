@@ -10,7 +10,6 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 
 	orbitdb "berty.tech/go-orbit-db"
-	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/basestore"
 	"berty.tech/go-orbit-db/stores/operation"
@@ -118,7 +117,7 @@ func TestPersistence(t *testing.T) {
 				err = db.Close()
 				c.So(err, ShouldBeNil)
 
-				//TODO: assert.equal(db._cache.store, null)
+				// TODO: assert.equal(db._cache.store, null)
 			})
 
 			c.Convey("load, add one, close - several times", FailureHalts, func(c C) {
@@ -155,16 +154,18 @@ func TestPersistence(t *testing.T) {
 				ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 				defer cancel()
 
-				go db.Subscribe(ctx, func(evt events.Event) {
-					switch evt.(type) {
-					case *stores.EventReady:
-						l.Lock()
-						items, err = db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
-						l.Unlock()
-						cancel()
-						return
+				go func() {
+					for evt := range db.Subscribe(ctx) {
+						switch evt.(type) {
+						case *stores.EventReady:
+							l.Lock()
+							items, err = db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
+							l.Unlock()
+							cancel()
+							continue
+						}
 					}
-				})
+				}()
 
 				c.So(db.Load(ctx, infinity), ShouldBeNil)
 				<-ctx.Done()

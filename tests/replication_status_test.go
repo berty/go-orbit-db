@@ -6,13 +6,14 @@ import (
 	"time"
 
 	orbitdb "berty.tech/go-orbit-db"
+	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/basestore"
 
 	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestReplicationStatus(t *testing.T) {
-	Convey("orbit-db - Replication Status", t, FailureHalts, func(c C) {
+	Convey("orbit-db - Replication Status", t, FailureContinues, func(c C) {
 		var db, db2 orbitdb.EventLogStore
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -47,14 +48,14 @@ func TestReplicationStatus(t *testing.T) {
 
 		defer db.Close()
 
-		c.Convey("has correct initial state", FailureHalts, func(c C) {
+		c.Convey("has correct initial state", FailureContinues, func(c C) {
 			c.So(db.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
 			c.So(db.ReplicationStatus().GetQueued(), ShouldEqual, 0)
 			c.So(db.ReplicationStatus().GetProgress(), ShouldEqual, 0)
 			c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 0)
 		})
 
-		c.Convey("has correct replication info after load", FailureHalts, func(c C) {
+		c.Convey("has correct replication info after load", FailureContinues, func(c C) {
 			_, err = db.Add(ctx, []byte("hello"))
 			c.So(err, ShouldBeNil)
 
@@ -71,7 +72,7 @@ func TestReplicationStatus(t *testing.T) {
 			c.So(db.ReplicationStatus().GetProgress(), ShouldEqual, 1)
 			c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 1)
 
-			c.Convey("has correct replication info after close", FailureHalts, func(c C) {
+			c.Convey("has correct replication info after close", FailureContinues, func(c C) {
 				c.So(db.Close(), ShouldBeNil)
 				c.So(db.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
 				c.So(db.ReplicationStatus().GetQueued(), ShouldEqual, 0)
@@ -79,7 +80,7 @@ func TestReplicationStatus(t *testing.T) {
 				c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 0)
 			})
 
-			c.Convey("has correct replication info after sync", FailureHalts, func(c C) {
+			c.Convey("has correct replication info after sync", FailureContinues, func(c C) {
 				_, err = db.Add(ctx, []byte("hello2"))
 				c.So(err, ShouldBeNil)
 
@@ -91,10 +92,24 @@ func TestReplicationStatus(t *testing.T) {
 				db2, err = orbitdb2.Log(ctx, db.Address().String(), &orbitdb.CreateDBOptions{Create: &create})
 				c.So(err, ShouldBeNil)
 
+				subCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+				defer cancel()
+
+				go func() {
+					for evt := range db2.Subscribe(subCtx) {
+						if _, ok := evt.(*stores.EventReplicated); ok {
+							if db2.ReplicationStatus().GetBuffered() == 0 && db2.ReplicationStatus().GetQueued() == 0 && db2.ReplicationStatus().GetProgress() == 2 {
+								cancel()
+								return
+							}
+						}
+					}
+				}()
+
 				err = db2.Sync(ctx, db.OpLog().Heads().Slice())
 				c.So(err, ShouldBeNil)
 
-				<-time.After(100 * time.Millisecond)
+				<-subCtx.Done()
 
 				c.So(db2.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
 				c.So(db2.ReplicationStatus().GetQueued(), ShouldEqual, 0)
@@ -102,7 +117,7 @@ func TestReplicationStatus(t *testing.T) {
 				c.So(db2.ReplicationStatus().GetMax(), ShouldEqual, 2)
 			})
 
-			c.Convey("has correct replication info after loading from snapshot", FailureHalts, func(c C) {
+			c.Convey("has correct replication info after loading from snapshot", FailureContinues, func(c C) {
 				_, err = db.Add(ctx, []byte("hello2"))
 				c.So(err, ShouldBeNil)
 
