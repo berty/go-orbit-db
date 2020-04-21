@@ -328,7 +328,7 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 	wg.Add(len(heads))
 
 	for _, h := range heads {
-		go func() {
+		go func(h *entry.Entry) {
 			b.muJoining.Lock()
 			defer b.muJoining.Unlock()
 			defer wg.Done()
@@ -354,8 +354,9 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 			if _, inErr = oplog.Join(l, amount); inErr != nil {
 				// err = errors.Wrap(err, "unable to join log")
 				// TODO: log
+				_ = inErr
 			}
-		}()
+		}(h)
 	}
 
 	wg.Wait()

@@ -37,8 +37,6 @@ import (
 	"berty.tech/go-orbit-db/utils"
 )
 
-var defaultDirectory = "./orbitdb"
-
 // OrbitDB An alias of the type defined in the iface package
 type BaseOrbitDB = iface.BaseOrbitDB
 
@@ -783,7 +781,7 @@ func (o *orbitDB) storeListener(ctx context.Context, store Store) {
 			case *stores.EventWrite:
 				logger().Debug("received stores.write event")
 				if len(e.Heads) == 0 {
-					logger().Debug(fmt.Sprintf("'heads' are not defined"))
+					logger().Debug("'heads' are not defined")
 					continue
 				}
 
