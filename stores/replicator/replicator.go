@@ -179,9 +179,7 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 	var nextValues []cid.Cid
 
 	for _, e := range l.Values().Slice() {
-		for _, n := range e.GetNext() {
-			nextValues = append(nextValues, n)
-		}
+		nextValues = append(nextValues, e.GetNext()...)
 	}
 
 	// Return all next pointers

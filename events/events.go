@@ -129,7 +129,7 @@ func (e *EventEmitter) removeSub(s *eventSubscription) {
 
 func (e *EventEmitter) Subscribe(ctx context.Context) <-chan Event {
 	sub := &eventSubscription{
-		ch: make(chan Event, 0),
+		ch: make(chan Event),
 	}
 
 	sub.ctx, sub.cancel = context.WithCancel(ctx)

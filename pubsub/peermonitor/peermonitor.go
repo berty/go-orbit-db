@@ -179,7 +179,7 @@ func NewPeerMonitor(ctx context.Context, ipfs coreapi.CoreAPI, topic string, opt
 		pollInterval: *options.PollInterval,
 	}
 
-	if *options.Start == true {
+	if *options.Start {
 		monitor.Start(ctx)
 	}
 

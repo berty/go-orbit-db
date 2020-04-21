@@ -66,11 +66,9 @@ func (s *subscription) topicMonitor(ctx context.Context, topic string) {
 			switch e := evt.(type) {
 			case *peermonitor.EventPeerJoin:
 				logger().Debug(fmt.Sprintf("peer %s joined topic %s", e.Peer, topic))
-				break
 
 			case *peermonitor.EventPeerLeave:
 				logger().Debug(fmt.Sprintf("peer %s left topic %s", e.Peer, topic))
-				break
 			}
 
 			s.Emit(ctx, evt)
@@ -86,7 +84,7 @@ func (s *subscription) listener(ctx context.Context, subSubscription iface.PubSu
 		msg, err := subSubscription.Next(ctx)
 		if err != nil {
 			if ctx.Err() == nil {
-				logger().Error(fmt.Sprintf("unable to get pub sub message"), zap.Error(err))
+				logger().Error("unable to get pub sub message", zap.Error(err))
 			}
 
 			break
