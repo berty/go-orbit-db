@@ -63,6 +63,7 @@ type BaseStore struct {
 	muStats   sync.RWMutex
 	muJoining sync.Mutex
 	sortFn    ipfslog.SortFn
+	logger    *zap.Logger
 }
 
 func (b *BaseStore) DBName() string {
@@ -99,14 +100,27 @@ func (b *BaseStore) Cache() datastore.Datastore {
 	return b.cache
 }
 
+func (b *BaseStore) Logger() *zap.Logger {
+	return b.logger
+}
+
 // InitBaseStore Initializes the store base
 func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) error {
 	var err error
+
+	if options == nil {
+		options = &iface.NewStoreOptions{}
+	}
+
+	if options.Logger == nil {
+		options.Logger = zap.NewNop()
+	}
 
 	if identity == nil {
 		return errors.New("identity required")
 	}
 
+	b.logger = options.Logger
 	b.id = addr.String()
 	b.identity = identity
 	b.address = addr
@@ -153,7 +167,9 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 	b.stats.snapshot.bytesLoaded = -1
 	b.muStats.Unlock()
 
-	b.replicator = replicator.NewReplicator(ctx, b, options.ReplicationConcurrency)
+	b.replicator = replicator.NewReplicator(ctx, b, options.ReplicationConcurrency, &replicator.Options{
+		Logger: b.logger,
+	})
 
 	b.referenceCount = 64
 	if options.ReferenceCount != nil {
@@ -389,7 +405,7 @@ func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
 
 	for _, h := range heads {
 		if h == nil {
-			logger().Debug("warning: Given input entry was 'null'.")
+			b.Logger().Debug("warning: Given input entry was 'null'.")
 			continue
 		}
 
@@ -408,7 +424,7 @@ func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
 
 		canAppend := b.AccessController().CanAppend(h, identityProvider, &CanAppendContext{log: b.OpLog()})
 		if canAppend != nil {
-			logger().Debug("warning: Given input entry is not allowed in this log and was discarded (no write access)", zap.Error(canAppend))
+			b.Logger().Debug("warning: Given input entry is not allowed in this log and was discarded (no write access)", zap.Error(canAppend))
 			continue
 		}
 
@@ -479,7 +495,7 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 		return errors.Wrap(err, "unable to get value from cache")
 	}
 
-	logger().Debug("loading snapshot from path", zap.String("snapshot", string(snapshot)))
+	b.Logger().Debug("loading snapshot from path", zap.String("snapshot", string(snapshot)))
 
 	resNode, err := b.IPFS().Unixfs().Get(ctx, path.New(string(snapshot)))
 	if err != nil {
@@ -524,7 +540,7 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 			return errors.Wrap(err, "unable to read from stream")
 		}
 
-		logger().Debug(fmt.Sprintf("Entry raw: %s", string(entryRaw)))
+		b.Logger().Debug(fmt.Sprintf("Entry raw: %s", string(entryRaw)))
 
 		if err = json.Unmarshal(entryRaw, e); err != nil {
 			return errors.Wrap(err, "unable to unmarshal entry from ipfs data")
@@ -657,11 +673,11 @@ func (b *BaseStore) replicationLoadComplete(ctx context.Context, logs []ipfslog.
 
 	oplog := b.OpLog()
 
-	logger().Debug("replication load complete")
+	b.Logger().Debug("replication load complete")
 	for _, log := range logs {
 		_, err := oplog.Join(log, -1)
 		if err != nil {
-			logger().Error("unable to join logs", zap.Error(err))
+			b.Logger().Error("unable to join logs", zap.Error(err))
 			return
 		}
 	}
@@ -669,7 +685,7 @@ func (b *BaseStore) replicationLoadComplete(ctx context.Context, logs []ipfslog.
 	b.ReplicationStatus().SetBuffered(b.Replicator().GetBufferLen())
 	err := b.updateIndex()
 	if err != nil {
-		logger().Error("unable to update index", zap.Error(err))
+		b.Logger().Error("unable to update index", zap.Error(err))
 		return
 	}
 
@@ -678,17 +694,17 @@ func (b *BaseStore) replicationLoadComplete(ctx context.Context, logs []ipfslog.
 
 	headsBytes, err := json.Marshal(heads.Slice())
 	if err != nil {
-		logger().Error("unable to serialize heads cache", zap.Error(err))
+		b.Logger().Error("unable to serialize heads cache", zap.Error(err))
 		return
 	}
 
 	err = b.Cache().Put(datastore.NewKey("_remoteHeads"), headsBytes)
 	if err != nil {
-		logger().Error("unable to update heads cache", zap.Error(err))
+		b.Logger().Error("unable to update heads cache", zap.Error(err))
 		return
 	}
 
-	logger().Debug(fmt.Sprintf("Saved heads %d", heads.Len()))
+	b.Logger().Debug(fmt.Sprintf("Saved heads %d", heads.Len()))
 
 	// logger.debug(`<replicated>`)
 	b.Emit(ctx, stores.NewEventReplicated(b.Address(), len(logs)))

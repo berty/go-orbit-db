@@ -17,6 +17,7 @@ import (
 type NewPeerMonitorOptions struct {
 	Start        *bool
 	PollInterval *time.Duration
+	Logger       *zap.Logger
 }
 
 func durationPtr(duration time.Duration) *time.Duration {
@@ -43,6 +44,7 @@ type peerMonitor struct {
 
 	muPeers   sync.RWMutex
 	muStarted sync.RWMutex
+	logger    *zap.Logger
 }
 
 func (p *peerMonitor) Start(ctx context.Context) func() {
@@ -70,7 +72,7 @@ func (p *peerMonitor) Start(ctx context.Context) func() {
 			case <-time.After(p.pollInterval):
 				err := p.pollPeers(ctx)
 				if err != nil {
-					logger().Error("error while polling peers", zap.Error(err))
+					p.logger.Error("error while polling peers", zap.Error(err))
 				}
 
 				break
@@ -120,7 +122,7 @@ func (p *peerMonitor) pollPeers(ctx context.Context) error {
 	defer p.muPeers.Unlock()
 
 	peerIDs, err := p.ipfs.PubSub().Peers(ctx, options.PubSub.Topic(p.topic))
-	logger().Debug(fmt.Sprintf("polling peers for topic %s", p.topic))
+	p.logger.Debug(fmt.Sprintf("polling peers for topic %s", p.topic))
 
 	currentlyKnownPeers := map[peer.ID]struct{}{}
 	allPeers := map[peer.ID]struct{}{}
@@ -173,10 +175,16 @@ func NewPeerMonitor(ctx context.Context, ipfs coreapi.CoreAPI, topic string, opt
 		options.Start = defaultPeerMonitorOptions.Start
 	}
 
+	logger := options.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
 	monitor := &peerMonitor{
 		ipfs:         ipfs,
 		topic:        topic,
 		pollInterval: *options.PollInterval,
+		logger:       logger,
 	}
 
 	if *options.Start {

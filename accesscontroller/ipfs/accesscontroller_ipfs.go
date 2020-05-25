@@ -18,6 +18,7 @@ import (
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/pkg/errors"
 	"github.com/polydawn/refmt/obj/atlas"
+	"go.uber.org/zap"
 )
 
 type cborWriteAccess struct {
@@ -29,6 +30,7 @@ type ipfsAccessController struct {
 	ipfs          coreapi.CoreAPI
 	writeAccess   []string
 	muWriteAccess sync.RWMutex
+	logger        *zap.Logger
 }
 
 func (i *ipfsAccessController) Type() string {
@@ -73,7 +75,7 @@ func (i *ipfsAccessController) Revoke(ctx context.Context, capability string, ke
 }
 
 func (i *ipfsAccessController) Load(ctx context.Context, address string) error {
-	logger().Debug(fmt.Sprintf("reading IPFS access controller write access on hash %s", address))
+	i.logger.Debug(fmt.Sprintf("reading IPFS access controller write access on hash %s", address))
 
 	c, err := cid.Decode(address)
 	if err != nil {
@@ -128,7 +130,7 @@ func (i *ipfsAccessController) Save(ctx context.Context) (accesscontroller.Manif
 		return nil, errors.Wrap(err, "unable to save access controller")
 	}
 
-	logger().Debug(fmt.Sprintf("saved IPFS access controller write access on hash %s", c.String()))
+	i.logger.Debug(fmt.Sprintf("saved IPFS access controller write access on hash %s", c.String()))
 
 	return accesscontroller.NewManifestParams(c, false, i.Type()), nil
 }
@@ -153,9 +155,15 @@ func NewIPFSAccessController(_ context.Context, db iface.BaseOrbitDB, options ac
 
 	allowedIDs := options.GetAccess("write")
 
+	logger := options.GetLogger()
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
 	return &ipfsAccessController{
 		ipfs:        db.IPFS(),
 		writeAccess: allowedIDs,
+		logger:      logger,
 	}, nil
 }
 

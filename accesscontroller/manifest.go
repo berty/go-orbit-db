@@ -11,6 +11,7 @@ import (
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/pkg/errors"
 	"github.com/polydawn/refmt/obj/atlas"
+	"go.uber.org/zap"
 )
 
 // Manifest An access controller manifest
@@ -26,6 +27,7 @@ type CreateAccessControllerOptions struct {
 	Type         string
 	Name         string
 	Access       map[string][]string
+	Logger       *zap.Logger
 
 	muAccess sync.RWMutex
 }
@@ -123,6 +125,10 @@ func (m *CreateAccessControllerOptions) SetAddress(c cid.Cid) {
 	m.Address = c
 }
 
+func (m *CreateAccessControllerOptions) GetLogger() *zap.Logger {
+	return m.Logger
+}
+
 // ManifestParams List of getters for a manifest parameters
 type ManifestParams interface {
 	GetSkipManifest() bool
@@ -136,6 +142,8 @@ type ManifestParams interface {
 	SetAccess(string, []string)
 	GetAccess(string) []string
 	GetAllAccess() map[string][]string
+
+	GetLogger() *zap.Logger
 }
 
 // CreateManifest Creates a new manifest and returns its CID

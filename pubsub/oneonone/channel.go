@@ -28,6 +28,7 @@ type channel struct {
 	sub        iface.PubSubSubscription
 	done       bool
 	muDone     sync.RWMutex
+	logger     *zap.Logger
 }
 
 func (c *channel) ID() string {
@@ -65,7 +66,7 @@ func (c *channel) waitForPeers(ctx context.Context, peersToWait []p2pcore.PeerID
 
 		peers, err := ipfs.PubSub().Peers(ctx, options.PubSub.Topic(id))
 		if err != nil {
-			logger().Error("failed to get peers on pub sub")
+			c.logger.Error("failed to get peers on pub sub")
 			return err
 		}
 
@@ -89,7 +90,7 @@ func (c *channel) waitForPeers(ctx context.Context, peersToWait []p2pcore.PeerID
 			break
 		}
 
-		logger().Debug("Failed to get peer on pub sub retrying...")
+		c.logger.Debug("Failed to get peer on pub sub retrying...")
 		<-time.After(100 * time.Millisecond)
 	}
 
@@ -132,7 +133,15 @@ func (c *channel) SenderID() string {
 }
 
 // NewChannel Creates a new pubsub topic for communication between two peers
-func NewChannel(ctx context.Context, ipfs coreapi.CoreAPI, pid p2pcore.PeerID) (Channel, error) {
+func NewChannel(ctx context.Context, ipfs coreapi.CoreAPI, pid p2pcore.PeerID, opts *Options) (Channel, error) {
+	if opts == nil {
+		opts = &Options{}
+	}
+
+	if opts.Logger == nil {
+		opts.Logger = zap.NewNop()
+	}
+
 	selfKey, err := ipfs.Key().Self(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to get key for self")
@@ -144,7 +153,7 @@ func NewChannel(ctx context.Context, ipfs coreapi.CoreAPI, pid p2pcore.PeerID) (
 	// ID of the channel is "<peer1 id>/<peer 2 id>""
 	channelID := fmt.Sprintf("/%s/%s", PROTOCOL, strings.Join(channelIDPeers, "/"))
 
-	logger().Debug(fmt.Sprintf("subscribing to %s", channelID))
+	opts.Logger.Debug(fmt.Sprintf("subscribing to %s", channelID))
 
 	sub, err := ipfs.PubSub().Subscribe(ctx, channelID)
 
@@ -155,6 +164,7 @@ func NewChannel(ctx context.Context, ipfs coreapi.CoreAPI, pid p2pcore.PeerID) (
 		senderID:   selfKey.ID(),
 		peers:      []p2pcore.PeerID{pid, selfKey.ID()},
 		sub:        sub,
+		logger:     opts.Logger,
 	}
 
 	if err != nil {
@@ -173,7 +183,7 @@ func NewChannel(ctx context.Context, ipfs coreapi.CoreAPI, pid p2pcore.PeerID) (
 					return
 				}
 
-				logger().Error("unable to get pub sub message", zap.Error(err))
+				ch.logger.Error("unable to get pub sub message", zap.Error(err))
 				continue
 			}
 
@@ -188,6 +198,10 @@ func NewChannel(ctx context.Context, ipfs coreapi.CoreAPI, pid p2pcore.PeerID) (
 	}()
 
 	return ch, nil
+}
+
+type Options struct {
+	Logger *zap.Logger
 }
 
 var _ Channel = &channel{}

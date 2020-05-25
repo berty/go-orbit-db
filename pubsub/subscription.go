@@ -19,10 +19,23 @@ type subscription struct {
 	pubSubSub iface.PubSubSubscription
 	ipfs      coreapi.CoreAPI
 	id        p2pcore.PeerID
+	logger    *zap.Logger
+}
+
+type Options struct {
+	Logger *zap.Logger
 }
 
 // NewSubscription Creates a new pub sub subscription
-func NewSubscription(ctx context.Context, ipfs coreapi.CoreAPI, topic string, cancel context.CancelFunc) (Subscription, error) {
+func NewSubscription(ctx context.Context, ipfs coreapi.CoreAPI, topic string, cancel context.CancelFunc, opts *Options) (Subscription, error) {
+	if opts == nil {
+		opts = &Options{}
+	}
+
+	if opts.Logger == nil {
+		opts.Logger = zap.NewNop()
+	}
+
 	pubSubSub, err := ipfs.PubSub().Subscribe(ctx, topic)
 	if err != nil {
 		return nil, err
@@ -37,6 +50,7 @@ func NewSubscription(ctx context.Context, ipfs coreapi.CoreAPI, topic string, ca
 		ipfs:      ipfs,
 		pubSubSub: pubSubSub,
 		id:        id.ID(),
+		logger:    opts.Logger,
 	}
 
 	go s.listener(ctx, pubSubSub, topic)
@@ -48,7 +62,7 @@ func NewSubscription(ctx context.Context, ipfs coreapi.CoreAPI, topic string, ca
 func (s *subscription) Close() error {
 	err := s.pubSubSub.Close()
 	if err != nil {
-		logger().Error("error while closing subscription", zap.Error(err))
+		s.logger.Error("error while closing subscription", zap.Error(err))
 	}
 
 	if s.cancel != nil {
@@ -59,16 +73,16 @@ func (s *subscription) Close() error {
 }
 
 func (s *subscription) topicMonitor(ctx context.Context, topic string) {
-	pm := peermonitor.NewPeerMonitor(ctx, s.ipfs, topic, nil)
+	pm := peermonitor.NewPeerMonitor(ctx, s.ipfs, topic, &peermonitor.NewPeerMonitorOptions{Logger: s.logger})
 
 	go func() {
 		for evt := range pm.Subscribe(ctx) {
 			switch e := evt.(type) {
 			case *peermonitor.EventPeerJoin:
-				logger().Debug(fmt.Sprintf("peer %s joined topic %s", e.Peer, topic))
+				s.logger.Debug(fmt.Sprintf("peer %s joined topic %s", e.Peer, topic))
 
 			case *peermonitor.EventPeerLeave:
-				logger().Debug(fmt.Sprintf("peer %s left topic %s", e.Peer, topic))
+				s.logger.Debug(fmt.Sprintf("peer %s left topic %s", e.Peer, topic))
 			}
 
 			s.Emit(ctx, evt)
@@ -84,7 +98,7 @@ func (s *subscription) listener(ctx context.Context, subSubscription iface.PubSu
 		msg, err := subSubscription.Next(ctx)
 		if err != nil {
 			if ctx.Err() == nil {
-				logger().Error("unable to get pub sub message", zap.Error(err))
+				s.logger.Error("unable to get pub sub message", zap.Error(err))
 			}
 
 			break
@@ -97,11 +111,11 @@ func (s *subscription) listener(ctx context.Context, subSubscription iface.PubSu
 		msgTopic := msg.Topics()[0]
 
 		if topic != msgTopic {
-			logger().Debug("message is from another topic, ignoring")
+			s.logger.Debug("message is from another topic, ignoring")
 			continue
 		}
 
-		logger().Debug(fmt.Sprintf("got pub sub message from %s", s.id))
+		s.logger.Debug(fmt.Sprintf("got pub sub message from %s", s.id))
 
 		s.Emit(ctx, NewMessageEvent(topic, msg.Data()))
 	}

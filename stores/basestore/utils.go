@@ -4,15 +4,13 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
 
 	"berty.tech/go-ipfs-log/entry"
+	"berty.tech/go-orbit-db/iface"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	files "github.com/ipfs/go-ipfs-files"
 	"github.com/pkg/errors"
-
-	"berty.tech/go-orbit-db/iface"
 )
 
 func SaveSnapshot(ctx context.Context, b iface.Store) (cid.Cid, error) {
@@ -89,8 +87,6 @@ func SaveSnapshot(ctx context.Context, b iface.Store) (cid.Cid, error) {
 	if err != nil {
 		return cid.Cid{}, errors.Wrap(err, "unable to add unfinished data to cache")
 	}
-
-	logger().Debug(fmt.Sprintf(`Saved snapshot: %s, queue length: %d`, snapshotPath.String(), len(unfinished)))
 
 	return snapshotPath.Cid(), nil
 }

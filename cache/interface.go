@@ -3,6 +3,7 @@ package cache
 import (
 	"berty.tech/go-orbit-db/address"
 	"github.com/ipfs/go-datastore"
+	"go.uber.org/zap"
 )
 
 // Interface Cache interface
@@ -15,4 +16,8 @@ type Interface interface {
 
 	// Destroy Removes all the cached data for a database
 	Destroy(directory string, dbAddress address.Address) error
+}
+
+type Options struct {
+	Logger *zap.Logger
 }
