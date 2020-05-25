@@ -14,6 +14,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	"go.uber.org/zap"
 )
 
 // CreateDBOptions lists the arguments to create a store
@@ -244,6 +245,7 @@ type NewStoreOptions struct {
 	MaxHistory             *int
 	Directory              string
 	SortFn                 ipfslog.SortFn
+	Logger                 *zap.Logger
 }
 
 // StoreConstructor Defines the expected constructor for a custom store

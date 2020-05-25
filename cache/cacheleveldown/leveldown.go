@@ -16,11 +16,10 @@ import (
 
 var InMemoryDirectory = ":memory:"
 
-var singleton cache.Interface
-
 type levelDownCache struct {
 	muCaches sync.Mutex
 	caches   map[string]*wrappedCache
+	logger   *zap.Logger
 }
 
 type wrappedCache struct {
@@ -85,7 +84,7 @@ func (l *levelDownCache) Load(directory string, dbAddress address.Address) (ds d
 		return
 	}
 
-	logger().Debug("opening cache db", zap.String("path", keyPath))
+	l.logger.Debug("opening cache db", zap.String("path", keyPath))
 
 	if directory == InMemoryDirectory {
 		ds, err = leveldb.NewDatastore("", nil)
@@ -136,16 +135,20 @@ func (l *levelDownCache) Destroy(directory string, dbAddress address.Address) er
 }
 
 // New Creates a new leveldb data store
-func New() cache.Interface {
-	if singleton != nil {
-		return singleton
+func New(opts *cache.Options) cache.Interface {
+	if opts == nil {
+		opts = &cache.Options{}
 	}
 
-	singleton = &levelDownCache{
+	logger := opts.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
+	return &levelDownCache{
 		caches: map[string]*wrappedCache{},
+		logger: logger,
 	}
-
-	return singleton
 }
 
 var _ cache.Interface = &levelDownCache{}

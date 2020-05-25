@@ -8,6 +8,7 @@ import (
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 type pubSub struct {
@@ -15,10 +16,19 @@ type pubSub struct {
 	id              peer.ID
 	subscriptions   map[string]Subscription
 	muSubscriptions sync.RWMutex
+	logger          *zap.Logger
 }
 
 // NewPubSub Creates a new pubsub client
-func NewPubSub(is coreapi.CoreAPI, id peer.ID) (Interface, error) {
+func NewPubSub(is coreapi.CoreAPI, id peer.ID, opts *Options) (Interface, error) {
+	if opts == nil {
+		opts = &Options{}
+	}
+
+	if opts.Logger == nil {
+		opts.Logger = zap.NewNop()
+	}
+
 	if is == nil {
 		return nil, errors.New("ipfs is not defined")
 	}
@@ -33,6 +43,7 @@ func NewPubSub(is coreapi.CoreAPI, id peer.ID) (Interface, error) {
 		ipfs:          is,
 		id:            id,
 		subscriptions: map[string]Subscription{},
+		logger:        opts.Logger,
 	}, nil
 }
 
@@ -44,11 +55,13 @@ func (p *pubSub) Subscribe(ctx context.Context, topic string) (Subscription, err
 		return sub, nil
 	}
 
-	logger().Debug(fmt.Sprintf("starting pubsub listener for peer %s on topic %s", p.id, topic))
+	p.logger.Debug(fmt.Sprintf("starting pubsub listener for peer %s on topic %s", p.id, topic))
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 
-	s, err := NewSubscription(ctx, p.ipfs, topic, cancelFunc)
+	s, err := NewSubscription(ctx, p.ipfs, topic, cancelFunc, &Options{
+		Logger: p.logger,
+	})
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create new pubsub subscription")
 	}

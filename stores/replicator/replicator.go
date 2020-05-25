@@ -29,6 +29,7 @@ type replicator struct {
 	concurrency         uint
 	queue               map[string]cid.Cid
 	lock                sync.RWMutex
+	logger              *zap.Logger
 }
 
 func (r *replicator) GetBufferLen() int {
@@ -75,8 +76,20 @@ func (r *replicator) Load(ctx context.Context, cids []cid.Cid) {
 	r.processQueue(ctx)
 }
 
+type Options struct {
+	Logger *zap.Logger
+}
+
 // NewReplicator Creates a new Replicator instance
-func NewReplicator(ctx context.Context, store storeInterface, concurrency uint) Replicator {
+func NewReplicator(ctx context.Context, store storeInterface, concurrency uint, opts *Options) Replicator {
+	if opts == nil {
+		opts = &Options{}
+	}
+
+	if opts.Logger == nil {
+		opts.Logger = zap.NewNop()
+	}
+
 	ctx, cancelFunc := context.WithCancel(ctx)
 
 	if concurrency == 0 {
@@ -89,6 +102,7 @@ func NewReplicator(ctx context.Context, store storeInterface, concurrency uint) 
 		store:       store,
 		queue:       map[string]cid.Cid{},
 		fetching:    map[string]cid.Cid{},
+		logger:      opts.Logger,
 	}
 
 	go func() {
@@ -100,7 +114,7 @@ func NewReplicator(ctx context.Context, store storeInterface, concurrency uint) 
 				r.lock.RUnlock()
 
 				if r.tasksRunning() == 0 && qLen > 0 {
-					logger().Debug(fmt.Sprintf("Had to flush the queue! %d items in the queue, %d %d tasks requested/finished", qLen, r.tasksRequested(), r.tasksFinished()))
+					r.logger.Debug(fmt.Sprintf("Had to flush the queue! %d items in the queue, %d %d tasks requested/finished", qLen, r.tasksRequested(), r.tasksFinished()))
 					r.processQueue(ctx)
 				}
 			case <-ctx.Done():
@@ -210,7 +224,7 @@ func (r *replicator) processQueue(ctx context.Context) {
 
 		hashes, err := r.processOne(ctx, e)
 		if err != nil {
-			logger().Error("unable to get data to process %v", zap.Error(err))
+			r.logger.Error("unable to get data to process %v", zap.Error(err))
 			return
 		}
 
@@ -228,7 +242,7 @@ func (r *replicator) processQueue(ctx context.Context) {
 			r.buffer = []ipfslog.Log{}
 			r.lock.Unlock()
 
-			logger().Debug(fmt.Sprintf("load end logs, logs found :%d", bLen))
+			r.logger.Debug(fmt.Sprintf("load end logs, logs found :%d", bLen))
 
 			r.Emit(ctx, NewEventLoadEnd(b))
 		}

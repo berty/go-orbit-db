@@ -208,7 +208,7 @@ func TestPersistence(t *testing.T) {
 			})
 
 			c.Convey("load from snapshot", FailureHalts, func(c C) {
-				dbName := time.Now().String()
+				dbName := fmt.Sprintf("%d", time.Now().UnixNano())
 				var entryArr []operation.Operation
 
 				db, err := orbitdb1.Log(ctx, dbName, nil)
