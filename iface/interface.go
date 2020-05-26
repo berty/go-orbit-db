@@ -74,6 +74,9 @@ type BaseOrbitDB interface {
 
 	// GetAccessControllerType Retrieves an access controller type constructor if it exists
 	GetAccessControllerType(string) (AccessControllerConstructor, bool)
+
+	// Logger Returns the logger
+	Logger() *zap.Logger
 }
 
 // OrbitDBKVStore An OrbitDB instance providing a KeyValue store
@@ -174,6 +177,9 @@ type Store interface {
 
 	// AddOperation Adds an operation to this store
 	AddOperation(ctx context.Context, op operation.Operation, onProgressCallback chan<- ipfslog.Entry) (ipfslog.Entry, error)
+
+	// Logger Returns the logger
+	Logger() *zap.Logger
 }
 
 // EventLogStore A type of store that provides an append only log

@@ -118,6 +118,10 @@ type orbitDB struct {
 	muAccessControllerTypes sync.RWMutex
 }
 
+func (o *orbitDB) Logger() *zap.Logger {
+	return o.logger
+}
+
 func (o *orbitDB) IPFS() coreapi.CoreAPI {
 	o.muIPFS.RLock()
 	defer o.muIPFS.RUnlock()
