@@ -9,31 +9,31 @@ import (
 )
 
 // Create Creates a new access controller and returns the manifest CID
-func Create(ctx context.Context, db iface.BaseOrbitDB, controllerType string, options accesscontroller.ManifestParams) (cid.Cid, error) {
+func Create(ctx context.Context, db iface.BaseOrbitDB, controllerType string, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (cid.Cid, error) {
 	AccessController, ok := db.GetAccessControllerType(controllerType)
 	if !ok {
 		return cid.Cid{}, errors.New("unrecognized access controller on create")
 	}
 
-	if options.GetSkipManifest() {
-		return options.GetAddress(), nil
+	if params.GetSkipManifest() {
+		return params.GetAddress(), nil
 	}
 
-	ac, err := AccessController(ctx, db, options)
+	ac, err := AccessController(ctx, db, params, options...)
 	if err != nil {
 		return cid.Cid{}, errors.Wrap(err, "unable to init access controller")
 	}
 
-	params, err := ac.Save(ctx)
+	acParams, err := ac.Save(ctx)
 	if err != nil {
 		return cid.Cid{}, errors.Wrap(err, "unable to save access controller")
 	}
 
-	return accesscontroller.CreateManifest(ctx, db.IPFS(), controllerType, params)
+	return accesscontroller.CreateManifest(ctx, db.IPFS(), controllerType, acParams)
 }
 
 // Resolve Resolves an access controller using its manifest address
-func Resolve(ctx context.Context, db iface.BaseOrbitDB, manifestAddress string, params accesscontroller.ManifestParams) (accesscontroller.Interface, error) {
+func Resolve(ctx context.Context, db iface.BaseOrbitDB, manifestAddress string, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (accesscontroller.Interface, error) {
 	manifest, err := accesscontroller.ResolveManifest(ctx, db.IPFS(), manifestAddress, params)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to resolve manifest")
@@ -45,7 +45,7 @@ func Resolve(ctx context.Context, db iface.BaseOrbitDB, manifestAddress string, 
 	}
 
 	// TODO: options
-	accessController, err := accessControllerConstructor(ctx, db, manifest.Params)
+	accessController, err := accessControllerConstructor(ctx, db, manifest.Params, options...)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create access controller")
 	}
