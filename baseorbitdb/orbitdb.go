@@ -35,6 +35,7 @@ import (
 	"berty.tech/go-orbit-db/pubsub/peermonitor"
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/utils"
+	"go.opentelemetry.io/otel/api/trace"
 )
 
 // OrbitDB An alias of the type defined in the iface package
@@ -89,6 +90,7 @@ type NewOrbitDBOptions struct {
 	Identity      *idp.Identity
 	CloseKeystore func() error
 	Logger        *zap.Logger
+	Tracer        trace.Tracer
 }
 
 type orbitDB struct {
@@ -105,6 +107,7 @@ type orbitDB struct {
 	directory             string
 	cache                 cache.Interface
 	logger                *zap.Logger
+	tracer                trace.Tracer
 
 	muStoreTypes            sync.RWMutex
 	muStores                sync.RWMutex
@@ -120,6 +123,10 @@ type orbitDB struct {
 
 func (o *orbitDB) Logger() *zap.Logger {
 	return o.logger
+}
+
+func (o *orbitDB) Tracer() trace.Tracer {
+	return o.tracer
 }
 
 func (o *orbitDB) IPFS() coreapi.CoreAPI {
@@ -364,6 +371,10 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 		options.Logger = zap.NewNop()
 	}
 
+	if options.Tracer == nil {
+		options.Tracer = trace.NoopTracer{}
+	}
+
 	k, err := is.Key().Self(ctx)
 	if err != nil {
 		return nil, err
@@ -402,6 +413,7 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 		storeTypes:            map[string]iface.StoreConstructor{},
 		accessControllerTypes: map[string]iface.AccessControllerConstructor{},
 		logger:                options.Logger,
+		tracer:                options.Tracer,
 	}, nil
 }
 
@@ -634,7 +646,7 @@ func (o *orbitDB) DetermineAddress(ctx context.Context, name string, storeType s
 		options.AccessController.SetType("ipfs")
 	}
 
-	accessControllerAddress, err := acutils.Create(ctx, o, options.AccessController.GetType(), options.AccessController)
+	accessControllerAddress, err := acutils.Create(ctx, o, options.AccessController.GetType(), options.AccessController, accesscontroller.WithLogger(o.logger))
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create access controller")
 	}
@@ -716,7 +728,7 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 		}
 		ac.SetAddress(c)
 
-		accessController, err = acutils.Resolve(ctx, o, options.AccessControllerAddress, ac)
+		accessController, err = acutils.Resolve(ctx, o, options.AccessControllerAddress, ac, accesscontroller.WithLogger(o.logger))
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to acquire an access controller")
 		}
@@ -753,6 +765,8 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 		Directory:        *options.Directory,
 		SortFn:           options.SortFn,
 		CacheDestroy:     func() error { return o.cache.Destroy(o.directory, parsedDBAddress) },
+		Logger:           o.logger,
+		Tracer:           o.tracer,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to instantiate store")

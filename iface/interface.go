@@ -14,6 +14,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	"go.opentelemetry.io/otel/api/trace"
 	"go.uber.org/zap"
 )
 
@@ -77,6 +78,9 @@ type BaseOrbitDB interface {
 
 	// Logger Returns the logger
 	Logger() *zap.Logger
+
+	// Tracer Returns the tracer
+	Tracer() trace.Tracer
 }
 
 // OrbitDBKVStore An OrbitDB instance providing a KeyValue store
@@ -180,6 +184,9 @@ type Store interface {
 
 	// Logger Returns the logger
 	Logger() *zap.Logger
+
+	// Tracer Returns the tracer
+	Tracer() trace.Tracer
 }
 
 // EventLogStore A type of store that provides an append only log
@@ -252,6 +259,7 @@ type NewStoreOptions struct {
 	Directory              string
 	SortFn                 ipfslog.SortFn
 	Logger                 *zap.Logger
+	Tracer                 trace.Tracer
 }
 
 // StoreConstructor Defines the expected constructor for a custom store
@@ -264,4 +272,4 @@ type IndexConstructor func(publicKey []byte) StoreIndex
 type OnWritePrototype func(ctx context.Context, addr cid.Cid, entry ipfslog.Entry, heads []cid.Cid) error
 
 // AccessControllerConstructor Required prototype for custom controllers constructors
-type AccessControllerConstructor func(context.Context, BaseOrbitDB, accesscontroller.ManifestParams) (accesscontroller.Interface, error)
+type AccessControllerConstructor func(context.Context, BaseOrbitDB, accesscontroller.ManifestParams, ...accesscontroller.Option) (accesscontroller.Interface, error)

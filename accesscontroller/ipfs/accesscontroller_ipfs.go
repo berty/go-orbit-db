@@ -140,8 +140,8 @@ func (i *ipfsAccessController) Close() error {
 }
 
 // NewIPFSAccessController Returns an access controller for IPFS
-func NewIPFSAccessController(_ context.Context, db iface.BaseOrbitDB, options accesscontroller.ManifestParams) (accesscontroller.Interface, error) {
-	if options == nil {
+func NewIPFSAccessController(_ context.Context, db iface.BaseOrbitDB, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (accesscontroller.Interface, error) {
+	if params == nil {
 		return &ipfsAccessController{}, errors.New("an options object must be passed")
 	}
 
@@ -149,22 +149,36 @@ func NewIPFSAccessController(_ context.Context, db iface.BaseOrbitDB, options ac
 		return &ipfsAccessController{}, errors.New("an OrbitDB instance is required")
 	}
 
-	if len(options.GetAccess("write")) == 0 {
-		options.SetAccess("write", []string{db.Identity().ID})
+	if len(params.GetAccess("write")) == 0 {
+		params.SetAccess("write", []string{db.Identity().ID})
 	}
 
-	allowedIDs := options.GetAccess("write")
+	allowedIDs := params.GetAccess("write")
 
-	logger := options.GetLogger()
-	if logger == nil {
-		logger = zap.NewNop()
-	}
-
-	return &ipfsAccessController{
+	ac := &ipfsAccessController{
 		ipfs:        db.IPFS(),
 		writeAccess: allowedIDs,
-		logger:      logger,
-	}, nil
+	}
+
+	for _, o := range options {
+		o(ac)
+	}
+
+	return ac, nil
+}
+
+func (i *ipfsAccessController) SetLogger(logger *zap.Logger) {
+	i.muWriteAccess.Lock()
+	defer i.muWriteAccess.Unlock()
+
+	i.logger = logger
+}
+
+func (i *ipfsAccessController) Logger() *zap.Logger {
+	i.muWriteAccess.RLock()
+	defer i.muWriteAccess.RUnlock()
+
+	return i.logger
 }
 
 var _ accesscontroller.Interface = &ipfsAccessController{}

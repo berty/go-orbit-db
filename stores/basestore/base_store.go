@@ -29,6 +29,8 @@ import (
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/operation"
 	"berty.tech/go-orbit-db/stores/replicator"
+	otkv "go.opentelemetry.io/otel/api/kv"
+	"go.opentelemetry.io/otel/api/trace"
 )
 
 // BaseStore The base of other stores
@@ -64,6 +66,7 @@ type BaseStore struct {
 	muJoining sync.Mutex
 	sortFn    ipfslog.SortFn
 	logger    *zap.Logger
+	tracer    trace.Tracer
 }
 
 func (b *BaseStore) DBName() string {
@@ -104,6 +107,10 @@ func (b *BaseStore) Logger() *zap.Logger {
 	return b.logger
 }
 
+func (b *BaseStore) Tracer() trace.Tracer {
+	return b.tracer
+}
+
 // InitBaseStore Initializes the store base
 func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) error {
 	var err error
@@ -116,11 +123,16 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 		options.Logger = zap.NewNop()
 	}
 
+	if options.Tracer == nil {
+		options.Tracer = trace.NoopTracer{}
+	}
+
 	if identity == nil {
 		return errors.New("identity required")
 	}
 
 	b.logger = options.Logger
+	b.tracer = options.Tracer
 	b.id = addr.String()
 	b.identity = identity
 	b.address = addr
@@ -169,6 +181,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 
 	b.replicator = replicator.NewReplicator(ctx, b, options.ReplicationConcurrency, &replicator.Options{
 		Logger: b.logger,
+		Tracer: b.tracer,
 	})
 
 	b.referenceCount = 64
@@ -191,17 +204,23 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 	b.options = options
 
 	go func() {
+		ctx, span := b.tracer.Start(ctx, "base-store-main-loop", trace.WithAttributes(otkv.String("store-address", b.Address().String())))
+		defer span.End()
+
 		for e := range b.Replicator().Subscribe(ctx) {
 			switch evt := e.(type) {
 			case *replicator.EventLoadAdded:
+				span.AddEvent(ctx, "replicator-load-added", otkv.String("hash", evt.Hash.String()))
 				b.ReplicationStatus().IncQueued()
 				b.recalculateReplicationMax(0)
 				b.Emit(ctx, stores.NewEventReplicate(b.Address(), evt.Hash))
 
 			case *replicator.EventLoadEnd:
+				span.AddEvent(ctx, "replicator-load-end")
 				b.replicationLoadComplete(ctx, evt.Logs)
 
 			case *replicator.EventLoadProgress:
+				span.AddEvent(ctx, "replicator-load-progress")
 				if b.ReplicationStatus().GetBuffered() > evt.BufferLength {
 					b.recalculateReplicationProgress(b.ReplicationStatus().GetProgress() + evt.BufferLength)
 				} else {
@@ -300,6 +319,9 @@ func (b *BaseStore) Drop() error {
 }
 
 func (b *BaseStore) Load(ctx context.Context, amount int) error {
+	ctx, span := b.tracer.Start(ctx, "store-load")
+	defer span.End()
+
 	if amount <= 0 && b.options.MaxHistory != nil {
 		amount = *b.options.MaxHistory
 	}
@@ -307,26 +329,34 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 	var localHeads, remoteHeads []*entry.Entry
 	localHeadsBytes, err := b.Cache().Get(datastore.NewKey("_localHeads"))
 	if err != nil {
+		span.AddEvent(ctx, "local-heads-load-failed")
 		return errors.Wrap(err, "unable to get local heads from cache")
 	}
 
+	span.AddEvent(ctx, "local-heads-unmarshall")
 	err = json.Unmarshal(localHeadsBytes, &localHeads)
 	if err != nil {
+		span.AddEvent(ctx, "local-heads-unmarshall-failed")
 		return errors.Wrap(err, "unable to unmarshal cached local heads")
 	}
+	span.AddEvent(ctx, "local-heads-unmarshalled")
 
 	remoteHeadsBytes, err := b.Cache().Get(datastore.NewKey("_remoteHeads"))
 	if err != nil && err != datastore.ErrNotFound {
+		span.AddEvent(ctx, "remote-heads-load-failed")
 		return errors.Wrap(err, "unable to get data from cache")
 	}
 
 	err = nil
 
 	if remoteHeadsBytes != nil {
+		span.AddEvent(ctx, "remote-heads-unmarshall")
 		err = json.Unmarshal(remoteHeadsBytes, &remoteHeads)
 		if err != nil {
+			span.AddEvent(ctx, "remote-heads-unmarshall-failed")
 			return errors.Wrap(err, "unable to unmarshal cached remote heads")
 		}
+		span.AddEvent(ctx, "remote-heads-unmarshalled")
 	}
 
 	heads := append(localHeads, remoteHeads...)
@@ -345,6 +375,7 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 
 	for _, h := range heads {
 		go func(h *entry.Entry) {
+			ctx, span := b.tracer.Start(ctx, "store-handling-head", trace.WithAttributes(otkv.String("cid", h.GetHash().String())))
 			b.muJoining.Lock()
 			defer b.muJoining.Unlock()
 			defer wg.Done()
@@ -353,6 +384,7 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 
 			b.recalculateReplicationMax(h.GetClock().GetTime())
 
+			span.AddEvent(ctx, "store-head-loading")
 			l, inErr := ipfslog.NewFromEntryHash(ctx, b.IPFS(), b.Identity(), h.GetHash(), &ipfslog.LogOptions{
 				ID:               oplog.GetID(),
 				AccessController: b.AccessController(),
@@ -364,13 +396,20 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 			})
 
 			if inErr != nil {
+				span.AddEvent(ctx, "store-head-loading-error")
 				err = errors.Wrap(err, "unable to create log from entry hash")
+			} else {
+				span.AddEvent(ctx, "store-head-loaded")
 			}
 
+			span.AddEvent(ctx, "store-heads-joining")
 			if _, inErr = oplog.Join(l, amount); inErr != nil {
+				span.AddEvent(ctx, "store-heads-joining-failed")
 				// err = errors.Wrap(err, "unable to join log")
 				// TODO: log
 				_ = inErr
+			} else {
+				span.AddEvent(ctx, "store-heads-joined")
 			}
 		}(h)
 	}
@@ -378,14 +417,18 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 	wg.Wait()
 
 	if err != nil {
+		span.AddEvent(ctx, "store-handling-head-error", otkv.String("error", err.Error()))
 		return err
 	}
 
 	// Update the index
 	if len(heads) > 0 {
-		if err := b.updateIndex(); err != nil {
+		span.AddEvent(ctx, "store-index-updating")
+		if err := b.updateIndex(ctx); err != nil {
+			span.AddEvent(ctx, "store-index-updating-error", otkv.String("error", err.Error()))
 			return errors.Wrap(err, "unable to update index")
 		}
+		span.AddEvent(ctx, "store-index-updated")
 	}
 
 	b.Emit(ctx, stores.NewEventReady(b.Address(), b.OpLog().Heads().Slice()))
@@ -393,6 +436,9 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 }
 
 func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
+	ctx, span := b.tracer.Start(ctx, "store-sync")
+	defer span.End()
+
 	b.muStats.Lock()
 	b.stats.syncRequestsReceived++
 	b.muStats.Unlock()
@@ -424,20 +470,24 @@ func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
 
 		canAppend := b.AccessController().CanAppend(h, identityProvider, &CanAppendContext{log: b.OpLog()})
 		if canAppend != nil {
+			span.AddEvent(ctx, "store-sync-cant-append", otkv.String("error", canAppend.Error()))
 			b.Logger().Debug("warning: Given input entry is not allowed in this log and was discarded (no write access)", zap.Error(canAppend))
 			continue
 		}
 
 		hash, err := io.WriteCBOR(ctx, b.IPFS(), h.ToCborEntry(), nil)
 		if err != nil {
+			span.AddEvent(ctx, "store-sync-cant-write", otkv.String("error", err.Error()))
 			return errors.Wrap(err, "unable to write entry on dag")
 		}
 
 		if hash.String() != h.GetHash().String() {
+			span.AddEvent(ctx, "store-sync-cant-verify-hash")
 			return errors.New("WARNING! Head hash didn't match the contents")
 		}
 
 		savedEntriesCIDs = append(savedEntriesCIDs, hash)
+		span.AddEvent(ctx, "store-sync-head-verified")
 	}
 
 	b.Replicator().Load(ctx, savedEntriesCIDs)
@@ -458,6 +508,9 @@ type storeSnapshot struct {
 }
 
 func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
+	ctx, span := b.tracer.Start(ctx, "load-from-snapshot")
+	defer span.End()
+
 	b.muJoining.Lock()
 	defer b.muJoining.Unlock()
 
@@ -580,7 +633,7 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 		return errors.Wrap(err, "unable to join log")
 	}
 
-	if err := b.updateIndex(); err != nil {
+	if err := b.updateIndex(ctx); err != nil {
 		return errors.Wrap(err, "unable to update index")
 	}
 
@@ -592,6 +645,9 @@ func intPtr(i int) *int {
 }
 
 func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, onProgressCallback chan<- ipfslog.Entry) (ipfslog.Entry, error) {
+	ctx, span := b.tracer.Start(ctx, "add-operation")
+	defer span.End()
+
 	data, err := op.Marshal()
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to marshal operation")
@@ -615,7 +671,7 @@ func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, on
 		return nil, errors.Wrap(err, "unable to add data to cache")
 	}
 
-	if err := b.updateIndex(); err != nil {
+	if err := b.updateIndex(ctx); err != nil {
 		return nil, errors.Wrap(err, "unable to update index")
 	}
 
@@ -657,7 +713,10 @@ func (b *BaseStore) recalculateReplicationStatus(maxProgress, maxTotal int) {
 	b.recalculateReplicationMax(maxTotal)
 }
 
-func (b *BaseStore) updateIndex() error {
+func (b *BaseStore) updateIndex(ctx context.Context) error {
+	_, span := b.tracer.Start(ctx, "update-index")
+	defer span.End()
+
 	b.recalculateReplicationMax(0)
 	if err := b.Index().UpdateIndex(b.OpLog(), []ipfslog.Entry{}); err != nil {
 		return errors.Wrap(err, "unable to update index")
@@ -683,7 +742,7 @@ func (b *BaseStore) replicationLoadComplete(ctx context.Context, logs []ipfslog.
 	}
 	b.ReplicationStatus().DecreaseQueued(len(logs))
 	b.ReplicationStatus().SetBuffered(b.Replicator().GetBufferLen())
-	err := b.updateIndex()
+	err := b.updateIndex(ctx)
 	if err != nil {
 		b.Logger().Error("unable to update index", zap.Error(err))
 		return

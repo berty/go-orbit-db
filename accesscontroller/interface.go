@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"berty.tech/go-orbit-db/events"
+	"go.uber.org/zap"
 )
 
 type LogEntry = iface.IPFSLogEntry
@@ -37,4 +38,9 @@ type Interface interface {
 
 	// Close Closes the store
 	Close() error
+
+	SetLogger(logger *zap.Logger)
+	Logger() *zap.Logger
 }
+
+type Option func(ac Interface)

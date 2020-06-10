@@ -1,11 +1,11 @@
 package orbitdb
 
 import (
-	logac "berty.tech/go-ipfs-log/accesscontroller"
 	"context"
 	"encoding/json"
-	"github.com/ipfs/go-cid"
+	"sync"
 
+	logac "berty.tech/go-ipfs-log/accesscontroller"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/accesscontroller/utils"
@@ -13,7 +13,9 @@ import (
 	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores"
+	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 // CreateDBOptions An alias for iface.CreateDBOptions
@@ -27,6 +29,22 @@ type orbitDBAccessController struct {
 	orbitdb iface.OrbitDB
 	kvStore iface.KeyValueStore
 	options accesscontroller.ManifestParams
+	lock    sync.RWMutex
+	logger  *zap.Logger
+}
+
+func (o *orbitDBAccessController) SetLogger(logger *zap.Logger) {
+	o.lock.Lock()
+	defer o.lock.Unlock()
+
+	o.logger = logger
+}
+
+func (o *orbitDBAccessController) Logger() *zap.Logger {
+	o.lock.RLock()
+	defer o.lock.RUnlock()
+
+	return o.logger
 }
 
 func (o *orbitDBAccessController) Type() string {
@@ -224,7 +242,7 @@ func (o *orbitDBAccessController) onUpdate(ctx context.Context) {
 }
 
 // NewIPFSAccessController Returns a default access controller for OrbitDB database
-func NewOrbitDBAccessController(ctx context.Context, db iface.BaseOrbitDB, options accesscontroller.ManifestParams) (accesscontroller.Interface, error) {
+func NewOrbitDBAccessController(ctx context.Context, db iface.BaseOrbitDB, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (accesscontroller.Interface, error) {
 	if db == nil {
 		return &orbitDBAccessController{}, errors.New("an OrbitDB instance is required")
 	}
@@ -235,10 +253,10 @@ func NewOrbitDBAccessController(ctx context.Context, db iface.BaseOrbitDB, optio
 	}
 
 	addr := "default-access-controller"
-	if options.GetAddress().Defined() {
-		addr = options.GetAddress().String()
-	} else if options.GetName() != "" {
-		addr = options.GetName()
+	if params.GetAddress().Defined() {
+		addr = params.GetAddress().String()
+	} else if params.GetName() != "" {
+		addr = params.GetName()
 	}
 
 	kvStore, err := kvDB.KeyValue(ctx, addr, nil)
@@ -248,10 +266,14 @@ func NewOrbitDBAccessController(ctx context.Context, db iface.BaseOrbitDB, optio
 
 	controller := &orbitDBAccessController{
 		kvStore: kvStore,
-		options: options,
+		options: params,
 	}
 
-	for _, writeAccess := range options.GetAccess("write") {
+	for _, o := range options {
+		o(controller)
+	}
+
+	for _, writeAccess := range params.GetAccess("write") {
 		if err := controller.Grant(ctx, "write", writeAccess); err != nil {
 			return nil, errors.Wrap(err, "unable to grant write access")
 		}

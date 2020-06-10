@@ -4,6 +4,7 @@ package replicator
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,6 +12,8 @@ import (
 	"berty.tech/go-orbit-db/events"
 	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
+	otkv "go.opentelemetry.io/otel/api/kv"
+	"go.opentelemetry.io/otel/api/trace"
 	"go.uber.org/zap"
 )
 
@@ -30,6 +33,7 @@ type replicator struct {
 	queue               map[string]cid.Cid
 	lock                sync.RWMutex
 	logger              *zap.Logger
+	tracer              trace.Tracer
 }
 
 func (r *replicator) GetBufferLen() int {
@@ -59,6 +63,14 @@ func (r *replicator) GetQueue() []cid.Cid {
 }
 
 func (r *replicator) Load(ctx context.Context, cids []cid.Cid) {
+	cidsStrings := make([]string, len(cids))
+	for i, c := range cids {
+		cidsStrings[i] = c.String()
+	}
+
+	ctx, span := r.tracer.Start(ctx, "replicator-load", trace.WithAttributes(otkv.String("cids", strings.Join(cidsStrings, ","))))
+	defer span.End()
+
 	for _, h := range cids {
 		inLog := r.store.OpLog().GetEntries().UnsafeGet(h.String()) != nil
 		r.lock.RLock()
@@ -70,7 +82,7 @@ func (r *replicator) Load(ctx context.Context, cids []cid.Cid) {
 			continue
 		}
 
-		r.addToQueue(h)
+		r.addToQueue(ctx, span, h)
 	}
 
 	r.processQueue(ctx)
@@ -78,6 +90,7 @@ func (r *replicator) Load(ctx context.Context, cids []cid.Cid) {
 
 type Options struct {
 	Logger *zap.Logger
+	Tracer trace.Tracer
 }
 
 // NewReplicator Creates a new Replicator instance
@@ -88,6 +101,10 @@ func NewReplicator(ctx context.Context, store storeInterface, concurrency uint, 
 
 	if opts.Logger == nil {
 		opts.Logger = zap.NewNop()
+	}
+
+	if opts.Tracer == nil {
+		opts.Tracer = trace.NoopTracer{}
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -103,6 +120,7 @@ func NewReplicator(ctx context.Context, store storeInterface, concurrency uint, 
 		queue:       map[string]cid.Cid{},
 		fetching:    map[string]cid.Cid{},
 		logger:      opts.Logger,
+		tracer:      opts.Tracer,
 	}
 
 	go func() {
@@ -148,6 +166,9 @@ func (r *replicator) tasksFinished() uint {
 }
 
 func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, error) {
+	ctx, span := r.tracer.Start(ctx, "replicator-process-one")
+	defer span.End()
+
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -205,6 +226,9 @@ func (r *replicator) processQueue(ctx context.Context) {
 		return
 	}
 
+	ctx, span := r.tracer.Start(ctx, "replicator-process-queue")
+	defer span.End()
+
 	var hashesList [][]cid.Cid
 	capacity := r.concurrency - r.tasksRunning()
 	slicedQueue := r.GetQueue()
@@ -253,7 +277,9 @@ func (r *replicator) processQueue(ctx context.Context) {
 	}
 }
 
-func (r *replicator) addToQueue(h cid.Cid) {
+func (r *replicator) addToQueue(ctx context.Context, span trace.Span, h cid.Cid) {
+	span.AddEvent(ctx, "replicator-add-to-queue", otkv.String("cid", h.String()))
+
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
