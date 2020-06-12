@@ -382,6 +382,7 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 
 	ps, err := pubsub.NewPubSub(is, k.ID(), &pubsub.Options{
 		Logger: options.Logger,
+		Tracer: options.Tracer,
 	})
 	if err != nil {
 		return nil, err
