@@ -8,19 +8,22 @@ import (
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/api/kv"
+	"go.opentelemetry.io/otel/api/trace"
 	"go.uber.org/zap"
 )
 
 type pubSub struct {
-	ipfs            coreapi.CoreAPI
+	coreAPI         coreapi.CoreAPI
 	id              peer.ID
 	subscriptions   map[string]Subscription
 	muSubscriptions sync.RWMutex
 	logger          *zap.Logger
+	tracer          trace.Tracer
 }
 
 // NewPubSub Creates a new pubsub client
-func NewPubSub(is coreapi.CoreAPI, id peer.ID, opts *Options) (Interface, error) {
+func NewPubSub(coreAPI coreapi.CoreAPI, id peer.ID, opts *Options) (Interface, error) {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -29,46 +32,46 @@ func NewPubSub(is coreapi.CoreAPI, id peer.ID, opts *Options) (Interface, error)
 		opts.Logger = zap.NewNop()
 	}
 
-	if is == nil {
-		return nil, errors.New("ipfs is not defined")
+	if opts.Tracer == nil {
+		opts.Tracer = trace.NoopTracer{}
 	}
 
-	ps := is.PubSub()
+	if coreAPI == nil {
+		return nil, errors.New("coreAPI is not defined")
+	}
 
-	if ps == nil {
+	if ps := coreAPI.PubSub(); ps == nil {
 		return nil, errors.New("pubsub service is not provided by the current ipfs instance")
 	}
 
 	return &pubSub{
-		ipfs:          is,
+		coreAPI:       coreAPI,
 		id:            id,
 		subscriptions: map[string]Subscription{},
 		logger:        opts.Logger,
+		tracer:        opts.Tracer,
 	}, nil
 }
 
 func (p *pubSub) Subscribe(ctx context.Context, topic string) (Subscription, error) {
-	p.muSubscriptions.RLock()
-	sub, ok := p.subscriptions[topic]
-	p.muSubscriptions.RUnlock()
-	if ok {
+	p.muSubscriptions.Lock()
+	defer p.muSubscriptions.Unlock()
+
+	if sub, ok := p.subscriptions[topic]; ok {
 		return sub, nil
 	}
 
 	p.logger.Debug(fmt.Sprintf("starting pubsub listener for peer %s on topic %s", p.id, topic))
 
-	ctx, cancelFunc := context.WithCancel(ctx)
-
-	s, err := NewSubscription(ctx, p.ipfs, topic, cancelFunc, &Options{
+	s, err := NewSubscription(ctx, p.coreAPI, topic, &Options{
 		Logger: p.logger,
+		Tracer: p.tracer,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create new pubsub subscription")
 	}
 
-	p.muSubscriptions.Lock()
 	p.subscriptions[topic] = s
-	p.muSubscriptions.Unlock()
 
 	return s, nil
 }
@@ -80,7 +83,10 @@ func (p *pubSub) Publish(ctx context.Context, topic string, message []byte) erro
 	}
 	p.muSubscriptions.RUnlock()
 
-	return p.ipfs.PubSub().Publish(ctx, topic, message)
+	ctx, span := p.tracer.Start(ctx, "pubsub-publish", trace.WithAttributes(kv.String("topic", topic), kv.String("peerid", p.id.String())))
+	defer span.End()
+
+	return p.coreAPI.PubSub().Publish(ctx, topic, message)
 }
 
 func (p *pubSub) Close() error {
