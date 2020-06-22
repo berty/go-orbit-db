@@ -48,7 +48,6 @@ func testingIPFSNode(ctx context.Context, t *testing.T, m mocknet.Mocknet) (*ipf
 }
 
 func TestTestingIPFSNode(t *testing.T) {
-	defer goleak.VerifyNone(t)
 	ctx := context.Background()
 	mnet := testingMockNet(ctx)
 	node, clean := testingIPFSNode(context.Background(), t, mnet)
@@ -84,4 +83,15 @@ func testingTempDir(t *testing.T, name string) (string, cleanFunc) {
 	return path, func() {
 		os.RemoveAll(path)
 	}
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m,
+		goleak.IgnoreTopFunction("github.com/ipfs/go-log/writer.(*MirrorWriter).logRoutine"),
+		goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
+		goleak.IgnoreTopFunction("github.com/libp2p/go-libp2p-connmgr.(*BasicConnMgr).background"),
+		goleak.IgnoreTopFunction("github.com/ipfs/go-ipfs/core.NewNode.func2"),
+		goleak.IgnoreTopFunction("github.com/jbenet/goprocess/periodic.callOnTicker.func1"),
+		goleak.IgnoreTopFunction("github.com/syndtr/goleveldb/leveldb.(*DB).mpoolDrain"),
+	)
 }
