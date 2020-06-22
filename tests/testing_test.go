@@ -11,6 +11,7 @@ import (
 	mock "github.com/ipfs/go-ipfs/core/mock"
 	iface "github.com/ipfs/interface-go-ipfs-core"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
+	"go.uber.org/goleak"
 )
 
 func init() {
@@ -44,6 +45,17 @@ func testingIPFSNode(ctx context.Context, t *testing.T, m mocknet.Mocknet) (*ipf
 	return core, func() {
 		core.Close()
 	}
+}
+
+func TestTestingIPFSNode(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	ctx := context.Background()
+	mnet := testingMockNet(ctx)
+	node, clean := testingIPFSNode(context.Background(), t, mnet)
+	if node == nil {
+		t.Fatal("node should not be nil")
+	}
+	clean()
 }
 
 func testingCoreAPI(t *testing.T, core *ipfsCore.IpfsNode) (api iface.CoreAPI) {
