@@ -97,8 +97,8 @@ type OrbitDBDocumentStore interface {
 
 // OrbitDBDocumentStoreProvider Exposes a method providing a document store
 type OrbitDBDocumentStoreProvider interface {
-    // Docs Creates or opens an DocumentStore
-    Docs(ctx context.Context, address string, options *CreateDBOptions) (DocumentStore, error)
+	// Docs Creates or opens an DocumentStore
+	Docs(ctx context.Context, address string, options *CreateDBOptions) (DocumentStore, error)
 }
 
 // OrbitDBKVStore An OrbitDB instance providing a KeyValue store

@@ -29,7 +29,7 @@ func (i *documentIndex) Keys() []string {
 }
 
 func (i *documentIndex) Get(key string) interface{} {
-    i.muIndex.RLock()
+	i.muIndex.RLock()
 	defer i.muIndex.RUnlock()
 
 	if i.index == nil {
