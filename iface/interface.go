@@ -89,6 +89,18 @@ type BaseOrbitDB interface {
 	Tracer() trace.Tracer
 }
 
+// OrbitDBDocumentStore An OrbitDB instance providing a Document store
+type OrbitDBDocumentStore interface {
+	BaseOrbitDB
+	OrbitDBDocumentStoreProvider
+}
+
+// OrbitDBDocumentStoreProvider Exposes a method providing a document store
+type OrbitDBDocumentStoreProvider interface {
+    // Docs Creates or opens an DocumentStore
+    Docs(ctx context.Context, address string, options *CreateDBOptions) (DocumentStore, error)
+}
+
 // OrbitDBKVStore An OrbitDB instance providing a KeyValue store
 type OrbitDBKVStore interface {
 	BaseOrbitDB
@@ -119,6 +131,7 @@ type OrbitDB interface {
 
 	OrbitDBKVStoreProvider
 	OrbitDBLogStoreProvider
+	OrbitDBDocumentStoreProvider
 }
 
 // StreamOptions Defines the parameters that can be given to the Stream function of an EventLogStore
@@ -216,7 +229,7 @@ type EventLogStore interface {
 	List(ctx context.Context, options *StreamOptions) ([]operation.Operation, error)
 }
 
-// EventLogStore A type of store that provides a key value store
+// KeyValueStore A type of store that provides a key value store
 type KeyValueStore interface {
 	Store
 
@@ -231,6 +244,20 @@ type KeyValueStore interface {
 
 	// Get Retrieves the value for a key of the map
 	Get(ctx context.Context, key string) ([]byte, error)
+}
+
+// DocumentStore A type of store that provides a document store
+type DocumentStore interface {
+	Store
+
+	// Put Stores the document
+	Put(ctx context.Context, document map[string]interface{}) (operation.Operation, error)
+
+	// Delete Clears the document for a key
+	Delete(ctx context.Context, key string) (operation.Operation, error)
+
+	// Get Retrieves the document for a key
+	Get(ctx context.Context, key string, caseSensitive bool) ([]map[string]interface{}, error)
 }
 
 // StoreIndex Index contains the state of a datastore,
