@@ -14,6 +14,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	p2pcore "github.com/libp2p/go-libp2p-core"
 	"go.opentelemetry.io/otel/api/trace"
 	"go.uber.org/zap"
 )
@@ -261,6 +262,25 @@ type NewStoreOptions struct {
 	Logger                 *zap.Logger
 	Tracer                 trace.Tracer
 }
+
+type DirectChannelOptions struct {
+	Logger *zap.Logger
+}
+
+type DirectChannel interface {
+	events.EmitterInterface
+
+	// Connect Waits for the other peer to be connected
+	Connect(context.Context) error
+
+	// Sends Sends a message to the other peer
+	Send(context.Context, []byte) error
+
+	// Close Closes the connection
+	Close() error
+}
+
+type DirectChannelFactory func(ctx context.Context, receiver p2pcore.PeerID, opts *DirectChannelOptions) (DirectChannel, error)
 
 // StoreConstructor Defines the expected constructor for a custom store
 type StoreConstructor func(context.Context, coreapi.CoreAPI, *identityprovider.Identity, address.Address, *NewStoreOptions) (Store, error)
