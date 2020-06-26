@@ -15,3 +15,15 @@ func NewMessageEvent(topic string, content []byte) events.Event {
 		Content: content,
 	}
 }
+
+// EventPayload An event received on new messages
+type EventPayload struct {
+	Payload []byte
+}
+
+// NewEventPayload Creates a new Message event
+func NewEventPayload(payload []byte) *EventPayload {
+	return &EventPayload{
+		Payload: payload,
+	}
+}

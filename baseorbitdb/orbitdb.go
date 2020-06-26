@@ -71,6 +71,9 @@ type CreateDBOptions = iface.CreateDBOptions
 // DetermineAddressOptions An alias of the type defined in the iface package
 type DetermineAddressOptions = iface.DetermineAddressOptions
 
+// DirectChannelFactory An alias of the type defined in the iface package
+type DirectChannelFactory = iface.DirectChannelFactory
+
 type exchangedHeads struct {
 	Address string         `json:"address,omitempty"`
 	Heads   []*entry.Entry `json:"heads,omitempty"`
@@ -82,15 +85,16 @@ func boolPtr(val bool) *bool {
 
 // NewOrbitDBOptions Options for a new OrbitDB instance
 type NewOrbitDBOptions struct {
-	ID            *string
-	PeerID        *p2pcore.PeerID
-	Directory     *string
-	Keystore      keystore.Interface
-	Cache         cache.Interface
-	Identity      *idp.Identity
-	CloseKeystore func() error
-	Logger        *zap.Logger
-	Tracer        trace.Tracer
+	ID                   *string
+	PeerID               *p2pcore.PeerID
+	Directory            *string
+	Keystore             keystore.Interface
+	Cache                cache.Interface
+	Identity             *idp.Identity
+	CloseKeystore        func() error
+	Logger               *zap.Logger
+	Tracer               trace.Tracer
+	DirectChannelFactory iface.DirectChannelFactory
 }
 
 type orbitDB struct {
@@ -103,7 +107,8 @@ type orbitDB struct {
 	keystore              keystore.Interface
 	closeKeystore         func() error
 	stores                map[string]Store
-	directConnections     map[p2pcore.PeerID]oneonone.Channel
+	directConnections     map[p2pcore.PeerID]iface.DirectChannel
+	directConnFactory     iface.DirectChannelFactory
 	directory             string
 	cache                 cache.Interface
 	logger                *zap.Logger
@@ -241,7 +246,7 @@ func (o *orbitDB) closeDirectConnections() {
 		}
 	}
 
-	o.directConnections = map[p2pcore.PeerID]oneonone.Channel{}
+	o.directConnections = map[p2pcore.PeerID]iface.DirectChannel{}
 }
 
 func (o *orbitDB) closeKeyStore() {
@@ -294,7 +299,7 @@ func (o *orbitDB) RegisterAccessControllerType(constructor iface.AccessControlle
 
 }
 
-func (o *orbitDB) getDirectConnection(ctx context.Context, peerID p2pcore.PeerID) (oneonone.Channel, error) {
+func (o *orbitDB) getDirectConnection(ctx context.Context, peerID p2pcore.PeerID) (iface.DirectChannel, error) {
 	o.muDirectConnections.Lock()
 	defer o.muDirectConnections.Unlock()
 
@@ -302,7 +307,7 @@ func (o *orbitDB) getDirectConnection(ctx context.Context, peerID p2pcore.PeerID
 		return conn, nil
 	}
 
-	channel, err := oneonone.NewChannel(ctx, o.IPFS(), peerID, &oneonone.Options{
+	channel, err := o.directConnFactory(ctx, peerID, &iface.DirectChannelOptions{
 		Logger: o.logger,
 	})
 	if err != nil {
@@ -375,6 +380,10 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 		options.Tracer = trace.NoopTracer{}
 	}
 
+	if options.DirectChannelFactory == nil {
+		options.DirectChannelFactory = oneonone.NewChannelFactory(is)
+	}
+
 	k, err := is.Key().Self(ctx)
 	if err != nil {
 		return nil, err
@@ -409,12 +418,13 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 		cache:                 options.Cache,
 		directory:             *options.Directory,
 		stores:                map[string]Store{},
-		directConnections:     map[p2pcore.PeerID]oneonone.Channel{},
+		directConnections:     map[p2pcore.PeerID]iface.DirectChannel{},
 		closeKeystore:         options.CloseKeystore,
 		storeTypes:            map[string]iface.StoreConstructor{},
 		accessControllerTypes: map[string]iface.AccessControllerConstructor{},
 		logger:                options.Logger,
 		tracer:                options.Tracer,
+		directConnFactory:     options.DirectChannelFactory,
 	}, nil
 }
 
@@ -916,7 +926,7 @@ func (o *orbitDB) onNewPeerJoined(ctx context.Context, p p2pcore.PeerID, addr ad
 	store.Emit(ctx, stores.NewEventNewPeer(p))
 }
 
-func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, addr address.Address) (oneonone.Channel, error) {
+func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, addr address.Address) (iface.DirectChannel, error) {
 	store, ok := o.getStore(addr.String())
 
 	if !ok {
@@ -966,13 +976,13 @@ func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, addr addr
 	return channel, nil
 }
 
-func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel oneonone.Channel) {
+func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel iface.DirectChannel) {
 	go func() {
 		for evt := range channel.Subscribe(ctx) {
 			o.logger.Debug("received one on one message")
 
 			switch e := evt.(type) {
-			case *oneonone.EventMessage:
+			case *pubsub.EventPayload:
 				heads := &exchangedHeads{}
 				err := json.Unmarshal(e.Payload, &heads)
 				if err != nil {
