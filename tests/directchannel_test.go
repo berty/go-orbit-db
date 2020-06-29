@@ -18,7 +18,7 @@ func TestDirectChannel(t *testing.T) {
 	Convey("orbit-db - Replication using Direct Channel", t, FailureHalts, func(c C) {
 		var db1, db2 orbitdb.EventLogStore
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
 		defer cancel()
 
 		dbPath1, clean := testingTempDir(t, "db1")
