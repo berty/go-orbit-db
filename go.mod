@@ -18,6 +18,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/polydawn/refmt v0.0.0-20190408063855-01bf1e26dd14
 	github.com/smartystreets/goconvey v0.0.0-20190710185942-9d28bd7c0945
+	github.com/stretchr/testify v1.6.1
 	go.opentelemetry.io/otel v0.6.0
 	go.uber.org/zap v1.15.0
 )
