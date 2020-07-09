@@ -2,7 +2,6 @@ package peermonitor
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -122,7 +121,6 @@ func (p *peerMonitor) pollPeers(ctx context.Context) error {
 	defer p.muPeers.Unlock()
 
 	peerIDs, err := p.ipfs.PubSub().Peers(ctx, options.PubSub.Topic(p.topic))
-	p.logger.Debug(fmt.Sprintf("polling peers for topic %s", p.topic))
 
 	currentlyKnownPeers := map[peer.ID]struct{}{}
 	allPeers := map[peer.ID]struct{}{}
