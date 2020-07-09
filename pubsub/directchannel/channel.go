@@ -8,6 +8,7 @@ import (
 	"math"
 	"strings"
 	"sync"
+	"time"
 
 	p2pcore "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -30,15 +31,16 @@ type channel struct {
 	receiverID p2pcore.PeerID
 	logger     *zap.Logger
 	holder     *channelHolder
-	stream     network.Stream
+	stream     io.Writer
 	muStream   sync.Mutex
 }
 
 func (c *channel) Send(ctx context.Context, bytes []byte) error {
 	c.muStream.Lock()
-	defer c.muStream.Unlock()
+	stream := c.stream
+	c.muStream.Unlock()
 
-	if c.stream == nil {
+	if stream == nil {
 		return fmt.Errorf("stream is not opened")
 	}
 
@@ -49,19 +51,18 @@ func (c *channel) Send(ctx context.Context, bytes []byte) error {
 	b := make([]byte, 2)
 	binary.LittleEndian.PutUint16(b, uint16(len(bytes)))
 
-	if _, err := c.stream.Write(b); err != nil {
+	if _, err := stream.Write(b); err != nil {
 		return err
 	}
 
-	_, err := c.stream.Write(bytes)
+	_, err := stream.Write(bytes)
 	return err
 }
 
 func (c *channel) Close() error {
 	c.muStream.Lock()
-	defer c.muStream.Unlock()
-
 	c.stream = nil
+	c.muStream.Unlock()
 
 	return nil
 }
@@ -74,6 +75,7 @@ func (c *channel) Connect(ctx context.Context) error {
 	)
 
 	if strings.Compare(c.holder.host.ID().String(), c.receiverID.String()) < 0 {
+		ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 		id = c.holder.hostProtocolID(c.receiverID)
 		c.holder.muExpected.Lock()
 		streamChan := c.holder.expectedPID[id]
@@ -83,8 +85,11 @@ func (c *channel) Connect(ctx context.Context) error {
 		case stream = <-streamChan:
 			// nothing else to do, stream is acquired
 		case <-ctx.Done():
+			cancel()
 			return fmt.Errorf("unable to create stream, err: %w", ctx.Err())
 		}
+
+		cancel()
 	} else {
 		id = c.holder.hostProtocolID(c.holder.host.ID())
 		stream, err = c.holder.host.NewStream(ctx, c.receiverID, id)
@@ -169,9 +174,8 @@ func (h *channelHolder) NewChannel(ctx context.Context, receiver p2pcore.PeerID,
 		go func() {
 			<-ctx.Done()
 			h.muExpected.Lock()
-			defer h.muExpected.Unlock()
-
 			delete(h.expectedPID, id)
+			h.muExpected.Unlock()
 		}()
 	}
 
@@ -192,12 +196,13 @@ func (h *channelHolder) checkExpectedStream(s string) bool {
 
 func (h *channelHolder) incomingConnHandler(stream network.Stream) {
 	h.muExpected.Lock()
-	defer h.muExpected.Unlock()
 
 	ch, ok := h.expectedPID[stream.Protocol()]
 	if !ok {
 		return
 	}
+
+	h.muExpected.Unlock()
 
 	ch <- stream
 }

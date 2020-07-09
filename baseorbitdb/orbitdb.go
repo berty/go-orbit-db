@@ -888,8 +888,10 @@ func (o *orbitDB) pubSubChanListener(ctx context.Context, ps pubsub.Subscription
 					o.logger.Debug(fmt.Sprintf("Error while syncing heads for %s:", addr))
 				}
 			case *peermonitor.EventPeerJoin:
-				o.onNewPeerJoined(ctx, evt.Peer, addr)
-				o.logger.Debug(fmt.Sprintf("peer %s joined from %s self is %s", evt.Peer.String(), addr, o.PeerID()))
+				go func() {
+					o.onNewPeerJoined(ctx, evt.Peer, addr)
+					o.logger.Debug(fmt.Sprintf("peer %s joined from %s self is %s", evt.Peer.String(), addr, o.PeerID()))
+				}()
 
 			case *peermonitor.EventPeerLeave:
 				o.logger.Debug(fmt.Sprintf("peer %s left from %s self is %s", evt.Peer.String(), addr, o.PeerID()))
