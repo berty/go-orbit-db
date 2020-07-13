@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"berty.tech/go-orbit-db/iface"
-	"berty.tech/go-orbit-db/pubsub"
 )
 
 func TestInitDirectChannelFactory(t *testing.T) {
@@ -97,7 +96,7 @@ func TestInitDirectChannelFactory(t *testing.T) {
 					subWg.Done()
 
 					for evt := range sub {
-						if e, ok := evt.(*pubsub.EventPayload); ok {
+						if e, ok := evt.(*iface.EventPubSubPayload); ok {
 							if bytes.Equal(e.Payload, expectedMessage) {
 								count := atomic.AddUint32(&receivedMessages, 1)
 								t.Log(fmt.Sprintf("successfully received message from %d for %d (%d)", i, j, count))
