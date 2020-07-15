@@ -6,17 +6,19 @@ import (
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/keystore"
+	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	p2pcore "github.com/libp2p/go-libp2p-core"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"go.opentelemetry.io/otel/api/trace"
+	"go.uber.org/zap"
+
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/stores/operation"
 	"berty.tech/go-orbit-db/stores/replicator"
-	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	p2pcore "github.com/libp2p/go-libp2p-core"
-	"go.opentelemetry.io/otel/api/trace"
-	"go.uber.org/zap"
 )
 
 // CreateDBOptions lists the arguments to create a store
@@ -293,3 +295,51 @@ type OnWritePrototype func(ctx context.Context, addr cid.Cid, entry ipfslog.Entr
 
 // AccessControllerConstructor Required prototype for custom controllers constructors
 type AccessControllerConstructor func(context.Context, BaseOrbitDB, accesscontroller.ManifestParams, ...accesscontroller.Option) (accesscontroller.Interface, error)
+
+// PubSubTopic is a pub sub subscription to a topic
+type PubSubTopic interface {
+	// Publish Posts a new message on a topic
+	Publish(ctx context.Context, message []byte) error
+
+	// Peers Lists peers connected to the topic
+	Peers(ctx context.Context) ([]peer.ID, error)
+
+	// WatchPeers subscribes to peers joining or leaving the topic
+	WatchPeers(ctx context.Context) (<-chan events.Event, error)
+
+	// WatchMessages
+	WatchMessages(ctx context.Context) (<-chan *EventPubSubMessage, error)
+
+	// Returns the topic name
+	Topic() string
+}
+
+type PubSubInterface interface {
+	// Subscribe Subscribes to a topic
+	TopicSubscribe(ctx context.Context, topic string) (PubSubTopic, error)
+}
+
+type PubSubSubscriptionOptions struct {
+	Logger *zap.Logger
+	Tracer trace.Tracer
+}
+
+// EventPubSubMessage Indicates a new message posted on a pubsub topic
+type EventPubSubMessage struct {
+	Content []byte
+}
+
+// EventPubSubPayload An event received on new messages
+type EventPubSubPayload struct {
+	Payload []byte
+}
+
+// EventPubSubJoin Is an event triggered when a peer joins the channel
+type EventPubSubJoin struct {
+	Peer peer.ID
+}
+
+// EventPubSubLeave Is an event triggered when a peer leave the channel
+type EventPubSubLeave struct {
+	Peer peer.ID
+}

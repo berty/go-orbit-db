@@ -6,111 +6,188 @@ import (
 	"testing"
 	"time"
 
-	"berty.tech/go-orbit-db/accesscontroller"
+	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	orbitdb "berty.tech/go-orbit-db"
-	peerstore "github.com/libp2p/go-libp2p-peerstore"
-	. "github.com/smartystreets/goconvey/convey"
-	"go.uber.org/zap"
+	"berty.tech/go-orbit-db/accesscontroller"
+	"berty.tech/go-orbit-db/pubsub/directchannel"
+	"berty.tech/go-orbit-db/pubsub/pubsubraw"
 )
 
-func TestReplication(t *testing.T) {
-	Convey("orbit-db - Replication", t, FailureHalts, func(c C) {
-		var db1, db2 orbitdb.EventLogStore
+func testLogAppendReplicate(t *testing.T, amount int, nodeGen func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func())) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
 
-		ctx, cancel := context.WithCancel(context.Background())
+	dbs := make([]orbitdb.OrbitDB, 2)
+	dbPaths := make([]string, 2)
+	mn := testingMockNet(ctx)
+
+	for i := 0; i < 2; i++ {
+		dbs[i], dbPaths[i], cancel = nodeGen(t, mn, i)
 		defer cancel()
+	}
 
-		dbPath1, clean := testingTempDir(t, "db1")
-		defer clean()
+	err := mn.LinkAll()
+	require.NoError(t, err)
 
-		dbPath2, clean := testingTempDir(t, "db2")
-		defer clean()
+	err = mn.ConnectAllButSelf()
+	require.NoError(t, err)
 
-		mocknet := testingMockNet(ctx)
-
-		node1, clean := testingIPFSNode(ctx, t, mocknet)
-		defer clean()
-
-		node2, clean := testingIPFSNode(ctx, t, mocknet)
-		defer clean()
-
-		ipfs1 := testingCoreAPI(t, node1)
-		ipfs2 := testingCoreAPI(t, node2)
-
-		zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node1 is %s", node1.Identity.String()))
-		zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node2 is %s", node2.Identity.String()))
-
-		_, err := mocknet.LinkPeers(node1.Identity, node2.Identity)
-		c.So(err, ShouldBeNil)
-
-		peerInfo2 := peerstore.PeerInfo{ID: node2.Identity, Addrs: node2.PeerHost.Addrs()}
-		err = ipfs1.Swarm().Connect(ctx, peerInfo2)
-		c.So(err, ShouldBeNil)
-
-		peerInfo1 := peerstore.PeerInfo{ID: node1.Identity, Addrs: node1.PeerHost.Addrs()}
-		err = ipfs2.Swarm().Connect(ctx, peerInfo1)
-		c.So(err, ShouldBeNil)
-
-		orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{Directory: &dbPath1})
-		c.So(err, ShouldBeNil)
-
-		defer orbitdb1.Close()
-
-		orbitdb2, err := orbitdb.NewOrbitDB(ctx, ipfs2, &orbitdb.NewOrbitDBOptions{Directory: &dbPath2})
-		c.So(err, ShouldBeNil)
-
-		defer orbitdb2.Close()
-
-		access := &accesscontroller.CreateAccessControllerOptions{
-			Access: map[string][]string{
-				"write": {
-					orbitdb1.Identity().ID,
-					orbitdb2.Identity().ID,
-				},
+	access := &accesscontroller.CreateAccessControllerOptions{
+		Access: map[string][]string{
+			"write": {
+				dbs[0].Identity().ID,
+				dbs[1].Identity().ID,
 			},
+		},
+	}
+
+	store0, err := dbs[0].Log(ctx, "replication-tests", &orbitdb.CreateDBOptions{
+		Directory:        &dbPaths[0],
+		AccessController: access,
+	})
+	require.NoError(t, err)
+
+	defer func() { _ = store0.Close() }()
+
+	store1, err := dbs[1].Log(ctx, store0.Address().String(), &orbitdb.CreateDBOptions{
+		Directory:        &dbPaths[1],
+		AccessController: access,
+	})
+	require.NoError(t, err)
+
+	defer func() { _ = store1.Close() }()
+
+	infinity := -1
+
+	for i := 0; i < amount; i++ {
+		_, err = store0.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
+		require.NoError(t, err)
+	}
+
+	items, err := store0.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
+	require.NoError(t, err)
+	require.Equal(t, amount, len(items))
+
+	<-time.After(time.Millisecond * 2000)
+	items, err = store1.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
+	require.NoError(t, err)
+	require.Equal(t, amount, len(items))
+	require.Equal(t, "hello0", string(items[0].GetValue()))
+	require.Equal(t, fmt.Sprintf("hello%d", amount-1), string(items[len(items)-1].GetValue()))
+}
+
+func testDirectChannelNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func()) {
+	var closeOps []func()
+
+	performCloseOps := func() {
+		for i := len(closeOps) - 1; i >= 0; i-- {
+			closeOps[i]()
 		}
+	}
 
-		c.So(err, ShouldBeNil)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	closeOps = append(closeOps, cancel)
 
-		db1, err = orbitdb1.Log(ctx, "replication-tests", &orbitdb.CreateDBOptions{
-			Directory:        &dbPath1,
-			AccessController: access,
-		})
-		c.So(err, ShouldBeNil)
+	dbPath1, clean := testingTempDir(t, fmt.Sprintf("db%d", i))
+	closeOps = append(closeOps, clean)
 
-		defer db1.Close()
+	node1, clean := testingIPFSNode(ctx, t, mn)
+	closeOps = append(closeOps, clean)
 
-		for _, amount := range []int{1, 10} {
-			// TODO: find out why this tests fails for 100 entries on CircleCI while having  the `-race` flag on
+	ipfs1 := testingCoreAPI(t, node1)
+	zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node%d is %s", i, node1.Identity.String()))
 
-			c.Convey(fmt.Sprintf("replicates database of %d entries", amount), FailureContinues, func(c C) {
-				db2, err = orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
-					Directory:        &dbPath2,
-					AccessController: access,
-				})
-				c.So(err, ShouldBeNil)
+	orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{
+		Directory:            &dbPath1,
+		DirectChannelFactory: directchannel.InitDirectChannelFactory(node1.PeerHost),
+	})
+	require.NoError(t, err)
 
-				defer db2.Close()
+	closeOps = append(closeOps, func() { _ = orbitdb1.Close() })
 
-				infinity := -1
+	return orbitdb1, dbPath1, performCloseOps
+}
 
-				for i := 0; i < amount; i++ {
-					_, err = db1.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
-					c.So(err, ShouldBeNil)
-				}
+func testRawPubSubNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func()) {
+	var closeOps []func()
 
-				items, err := db1.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
-				c.So(err, ShouldBeNil)
-				c.So(len(items), ShouldEqual, amount)
+	performCloseOps := func() {
+		for i := len(closeOps) - 1; i >= 0; i-- {
+			closeOps[i]()
+		}
+	}
 
-				<-time.After(time.Millisecond * 2000)
-				items, err = db2.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
-				c.So(err, ShouldBeNil)
-				c.So(len(items), ShouldEqual, amount)
-				c.So(string(items[0].GetValue()), ShouldEqual, "hello0")
-				c.So(string(items[len(items)-1].GetValue()), ShouldEqual, fmt.Sprintf("hello%d", amount-1))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	closeOps = append(closeOps, cancel)
+
+	dbPath1, clean := testingTempDir(t, fmt.Sprintf("db%d", i))
+	closeOps = append(closeOps, clean)
+
+	node1, clean := testingIPFSNode(ctx, t, mn)
+	closeOps = append(closeOps, clean)
+
+	ipfs1 := testingCoreAPI(t, node1)
+	zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node%d is %s", i, node1.Identity.String()))
+
+	orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{
+		Directory: &dbPath1,
+		PubSub:    pubsubraw.NewPubSub(node1.PubSub, node1.Identity, nil, nil),
+	})
+	require.NoError(t, err)
+
+	closeOps = append(closeOps, func() { _ = orbitdb1.Close() })
+
+	return orbitdb1, dbPath1, performCloseOps
+}
+
+func testDefaultNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func()) {
+	var closeOps []func()
+
+	performCloseOps := func() {
+		for i := len(closeOps) - 1; i >= 0; i-- {
+			closeOps[i]()
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	closeOps = append(closeOps, cancel)
+
+	dbPath1, clean := testingTempDir(t, fmt.Sprintf("db%d", i))
+	closeOps = append(closeOps, clean)
+
+	node1, clean := testingIPFSNode(ctx, t, mn)
+	closeOps = append(closeOps, clean)
+
+	ipfs1 := testingCoreAPI(t, node1)
+	zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node%d is %s", i, node1.Identity.String()))
+
+	orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{
+		Directory: &dbPath1,
+	})
+	require.NoError(t, err)
+
+	closeOps = append(closeOps, func() { _ = orbitdb1.Close() })
+
+	return orbitdb1, dbPath1, performCloseOps
+}
+
+func TestReplication(t *testing.T) {
+	for _, amount := range []int{
+		1,
+		10,
+		// 100,
+	} {
+		for nodeType, nodeGen := range map[string]func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func()){
+			"default":        testDefaultNodeGenerator,
+			"direct-channel": testDirectChannelNodeGenerator,
+			"raw-pubsub":     testRawPubSubNodeGenerator,
+		} {
+			t.Run(fmt.Sprintf("replicates database of %d entries with node type %s", amount, nodeType), func(t *testing.T) {
+				testLogAppendReplicate(t, amount, nodeGen)
 			})
 		}
-	})
+	}
 }

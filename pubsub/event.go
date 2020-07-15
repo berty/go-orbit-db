@@ -1,29 +1,36 @@
 package pubsub
 
-import "berty.tech/go-orbit-db/events"
+import (
+	"github.com/libp2p/go-libp2p-core/peer"
 
-// MessageEvent Indicates a new message posted on a pubsub topic
-type MessageEvent struct {
-	Topic   string
-	Content []byte
-}
+	"berty.tech/go-orbit-db/events"
+	"berty.tech/go-orbit-db/iface"
+)
 
 // Creates a new Message event
-func NewMessageEvent(topic string, content []byte) events.Event {
-	return &MessageEvent{
-		Topic:   topic,
+func NewEventMessage(content []byte) *iface.EventPubSubMessage {
+	return &iface.EventPubSubMessage{
 		Content: content,
 	}
 }
 
-// EventPayload An event received on new messages
-type EventPayload struct {
-	Payload []byte
+// NewEventPayload Creates a new Message event
+func NewEventPayload(payload []byte) *iface.EventPubSubPayload {
+	return &iface.EventPubSubPayload{
+		Payload: payload,
+	}
 }
 
-// NewEventPayload Creates a new Message event
-func NewEventPayload(payload []byte) *EventPayload {
-	return &EventPayload{
-		Payload: payload,
+// NewEventPeerJoin creates a new EventPubSubJoin event
+func NewEventPeerJoin(p peer.ID) events.Event {
+	return &iface.EventPubSubJoin{
+		Peer: p,
+	}
+}
+
+// NewEventPeerLeave creates a new EventPubSubLeave event
+func NewEventPeerLeave(p peer.ID) events.Event {
+	return &iface.EventPubSubLeave{
+		Peer: p,
 	}
 }
