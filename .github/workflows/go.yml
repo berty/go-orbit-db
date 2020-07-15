@@ -1,0 +1,67 @@
+name: Go
+on:
+  push:
+    tags:
+      - v*
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  golangci-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v1
+        with:
+          version: v1.28
+          args: --timeout=2m
+          # only-new-issues: true
+  go-tests-on-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        golang:
+          - 1.13
+          - 1.14
+          #- tip
+    env:
+      OS: ubuntu-latest
+      GOLANG: ${{ matrix.golang }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@master
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.golang }}
+      - name: Cache Go modules
+        uses: actions/cache@v1
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Download modules
+        run: go mod download
+      - name: Check go.mod and go.sum
+        run: |
+          go mod tidy -v
+          git --no-pager diff go.mod go.sum
+          git --no-pager diff --quiet go.mod go.sum
+      - name: Build tests
+        run: go test -i ./...
+      - name: Run tests with race, without goleak
+        run: go test -race -covermode=atomic -coverpkg=all -coverprofile=coverage.txt -cover -v ./... -test.timeout=10m
+      # temporarily disabled, because not stable enough
+      #- name: Run tests without race, with goleak
+      #  run: go test -v -tags=goleak -test.timeout=10m ./...
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v1
+        with:
+          file: ./coverage.txt
+          flags: unittests
+          env_vars: OS,GOLANG
+          name: codecov-umbrella
+          fail_ci_if_error: false
