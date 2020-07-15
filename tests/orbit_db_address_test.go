@@ -1,70 +1,64 @@
 package tests
 
 import (
+	"strings"
 	"testing"
 
 	"berty.tech/go-orbit-db/address"
-	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/require"
 )
 
-func TestOrbitDbAddress(t *testing.T) {
-	//.createInstance(ipfs, { directory: path.join(dbPath, '1') })
-	Convey("orbit-db - OrbitDB Address", t, FailureHalts, func(c C) {
-		c.Convey("Parse Address", FailureHalts, func(c C) {
-			c.Convey("throws an error if address is empty", FailureHalts, func(c C) {
-				result, err := address.Parse("")
-				c.So(result, ShouldBeNil)
-				c.So(err, ShouldNotBeNil)
-				c.So(err.Error(), ShouldContainSubstring, "not a valid OrbitDB address")
-			})
-
-			c.Convey("parse address successfully", FailureHalts, func(c C) {
-				refAddr := "/orbitdb/bafyreieecvmpthaoyasxzhnew2d25uaebwldeokea2wigyq5wr4dwiaimi/first-database"
-				result, err := address.Parse(refAddr)
-				c.So(err, ShouldBeNil)
-				c.So(result, ShouldNotBeNil)
-
-				c.So(result.GetRoot().String(), ShouldEqual, "bafyreieecvmpthaoyasxzhnew2d25uaebwldeokea2wigyq5wr4dwiaimi")
-				c.So(result.GetPath(), ShouldEqual, "first-database")
-
-				c.So(result.String(), ShouldStartWith, "/orbitdb")
-				c.So(result.String(), ShouldContainSubstring, "bafy")
-			})
+func TestOrbitDBAddress(t *testing.T) {
+	t.Run("Parse Address", func(t *testing.T) {
+		t.Run("throws an error if address is empty", func(t *testing.T) {
+			result, err := address.Parse("")
+			require.Nil(t, result)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "not a valid OrbitDB address")
 		})
 
-		c.Convey("isValid Address", FailureHalts, func(c C) {
-			c.Convey("returns false for empty string", FailureHalts, func(c C) {
-				err := address.IsValid("")
-				c.So(err, ShouldNotBeNil)
-			})
+		t.Run("parse address successfully", func(t *testing.T) {
+			refAddr := "/orbitdb/bafyreieecvmpthaoyasxzhnew2d25uaebwldeokea2wigyq5wr4dwiaimi/first-database"
+			result, err := address.Parse(refAddr)
+			require.NoError(t, err)
+			require.NotNil(t, result)
 
-			c.Convey("validate address successfully", FailureHalts, func(c C) {
-				testAddr := "/orbitdb/bafyreieecvmpthaoyasxzhnew2d25uaebwldeokea2wigyq5wr4dwiaimi/first-database"
-				err := address.IsValid(testAddr)
+			require.Equal(t, result.GetRoot().String(), "bafyreieecvmpthaoyasxzhnew2d25uaebwldeokea2wigyq5wr4dwiaimi")
+			require.Equal(t, result.GetPath(), "first-database")
 
-				c.So(err, ShouldBeNil)
-			})
+			require.True(t, strings.HasPrefix(result.String(), "/orbitdb"))
+			require.Contains(t, result.String(), "bafy")
+		})
+	})
 
-			c.Convey("handle missing orbitdb prefix", FailureHalts, func(c C) {
-				testAddr := "bafyreieecvmpthaoyasxzhnew2d25uaebwldeokea2wigyq5wr4dwiaimi/first-database"
-				err := address.IsValid(testAddr)
+	t.Run("isValid Address", func(t *testing.T) {
+		t.Run("returns false for empty string", func(t *testing.T) {
+			err := address.IsValid("")
+			require.Error(t, err)
+		})
 
-				c.So(err, ShouldBeNil)
-			})
+		t.Run("validate address successfully", func(t *testing.T) {
+			testAddr := "/orbitdb/bafyreieecvmpthaoyasxzhnew2d25uaebwldeokea2wigyq5wr4dwiaimi/first-database"
+			err := address.IsValid(testAddr)
+			require.NoError(t, err)
+		})
 
-			c.Convey("handle missing db address name", FailureHalts, func(c C) {
-				testAddr := "bafyreieecvmpthaoyasxzhnew2d25uaebwldeokea2wigyq5wr4dwiaimi"
-				err := address.IsValid(testAddr)
+		t.Run("handle missing orbitdb prefix", func(t *testing.T) {
+			testAddr := "bafyreieecvmpthaoyasxzhnew2d25uaebwldeokea2wigyq5wr4dwiaimi/first-database"
+			err := address.IsValid(testAddr)
+			require.NoError(t, err)
+		})
 
-				c.So(err, ShouldBeNil)
-			})
+		t.Run("handle missing db address name", func(t *testing.T) {
+			testAddr := "bafyreieecvmpthaoyasxzhnew2d25uaebwldeokea2wigyq5wr4dwiaimi"
+			err := address.IsValid(testAddr)
+			require.NoError(t, err)
+		})
 
-			c.Convey("handle invalid multihash", FailureHalts, func(c C) {
-				testAddr := "/orbitdb/Qmdgwt7w4uBsw8LXduzCd18zfGXeTmBsiR8edQ1hSfzc/first-database"
-				err := address.IsValid(testAddr)
-
-				c.So(err, ShouldNotBeNil)
-			})
+		t.Run("handle invalid multihash", func(t *testing.T) {
+			testAddr := "/orbitdb/Qmdgwt7w4uBsw8LXduzCd18zfGXeTmBsiR8edQ1hSfzc/first-database"
+			err := address.IsValid(testAddr)
+			require.Error(t, err)
 		})
 	})
 }

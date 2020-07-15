@@ -10,12 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"berty.tech/go-orbit-db/iface"
 	"github.com/libp2p/go-libp2p-core/host"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"berty.tech/go-orbit-db/iface"
 )
 
 func TestInitDirectChannelFactory(t *testing.T) {

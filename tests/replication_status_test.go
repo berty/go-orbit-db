@@ -6,137 +6,167 @@ import (
 	"time"
 
 	orbitdb "berty.tech/go-orbit-db"
+	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/basestore"
-
-	. "github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/require"
 )
 
 func TestReplicationStatus(t *testing.T) {
-	Convey("orbit-db - Replication Status", t, FailureContinues, func(c C) {
-		var db, db2 orbitdb.EventLogStore
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+	// setup
+	var (
+		db, db2            orbitdb.EventLogStore
+		orbitdb1, orbitdb2 iface.OrbitDB
+	)
+	setup := func(t *testing.T) func() {
+		t.Helper()
 
-		infinity := -1
-		create := false
-		dbPath1, clean := testingTempDir(t, "db1")
-		defer clean()
+		dbPath1, dbPath1Clean := testingTempDir(t, "db1")
+		require.NotEmpty(t, dbPath1)
 
-		dbPath2, clean := testingTempDir(t, "db2")
-		defer clean()
+		dbPath2, dbPath2Clean := testingTempDir(t, "db2")
+		require.NotEmpty(t, dbPath2)
 
 		mocknet := testingMockNet(ctx)
-		node, clean := testingIPFSNode(ctx, t, mocknet)
-		defer clean()
+		require.NotNil(t, mocknet)
+
+		node, nodeClean := testingIPFSNode(ctx, t, mocknet)
+		require.NotNil(t, node)
 
 		ipfs := testingCoreAPI(t, node)
+		require.NotNil(t, ipfs)
 
-		orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs, &orbitdb.NewOrbitDBOptions{Directory: &dbPath1})
-		c.So(err, ShouldBeNil)
+		var err error
+		orbitdb1, err = orbitdb.NewOrbitDB(ctx, ipfs, &orbitdb.NewOrbitDBOptions{Directory: &dbPath1})
+		require.NoError(t, err)
+		require.NotNil(t, orbitdb1)
 
-		defer orbitdb1.Close()
-
-		orbitdb2, err := orbitdb.NewOrbitDB(ctx, ipfs, &orbitdb.NewOrbitDBOptions{Directory: &dbPath2})
-		c.So(err, ShouldBeNil)
-
-		defer orbitdb2.Close()
+		orbitdb2, err = orbitdb.NewOrbitDB(ctx, ipfs, &orbitdb.NewOrbitDBOptions{Directory: &dbPath2})
+		require.NoError(t, err)
+		require.NotNil(t, orbitdb2)
 
 		db, err = orbitdb1.Log(ctx, "replication status tests", nil)
-		c.So(err, ShouldBeNil)
+		require.NoError(t, err)
+		require.NotNil(t, db)
 
-		defer db.Close()
+		cleanup := func() {
+			dbPath1Clean()
+			dbPath2Clean()
+			nodeClean()
+			orbitdb1.Close()
+			orbitdb2.Close()
+			db.Close()
+		}
+		return cleanup
+	}
 
-		c.Convey("has correct initial state", FailureContinues, func(c C) {
-			c.So(db.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
-			c.So(db.ReplicationStatus().GetQueued(), ShouldEqual, 0)
-			c.So(db.ReplicationStatus().GetProgress(), ShouldEqual, 0)
-			c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 0)
-		})
+	t.Run("has correct initial state", func(t *testing.T) {
+		defer setup(t)()
+		require.Equal(t, db.ReplicationStatus().GetBuffered(), 0)
+		require.Equal(t, db.ReplicationStatus().GetQueued(), 0)
+		require.Equal(t, db.ReplicationStatus().GetProgress(), 0)
+		require.Equal(t, db.ReplicationStatus().GetMax(), 0)
+	})
 
-		c.Convey("has correct replication info after load", FailureContinues, func(c C) {
-			_, err = db.Add(ctx, []byte("hello"))
-			c.So(err, ShouldBeNil)
+	t.Run("has correct replication info after load", func(t *testing.T) {
 
-			c.So(db.Close(), ShouldBeNil)
+		subSetup := func(t *testing.T) func() {
+			mainSetupCleanup := setup(t)
+
+			_, err := db.Add(ctx, []byte("hello"))
+			require.NoError(t, err)
+
+			require.Nil(t, db.Close())
 
 			db, err = orbitdb1.Log(ctx, "replication status tests", nil)
-			c.So(err, ShouldBeNil)
+			require.NoError(t, err)
 
-			defer db.Close()
+			require.Nil(t, db.Load(ctx, -1)) // infinity
+			require.Equal(t, db.ReplicationStatus().GetBuffered(), 0)
+			require.Equal(t, db.ReplicationStatus().GetQueued(), 0)
+			require.Equal(t, db.ReplicationStatus().GetProgress(), 1)
+			require.Equal(t, db.ReplicationStatus().GetMax(), 1)
 
-			c.So(db.Load(ctx, infinity), ShouldBeNil)
-			c.So(db.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
-			c.So(db.ReplicationStatus().GetQueued(), ShouldEqual, 0)
-			c.So(db.ReplicationStatus().GetProgress(), ShouldEqual, 1)
-			c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 1)
+			cleanup := func() {
+				db.Close()
+				mainSetupCleanup()
+			}
+			return cleanup
+		}
 
-			c.Convey("has correct replication info after close", FailureContinues, func(c C) {
-				c.So(db.Close(), ShouldBeNil)
-				c.So(db.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
-				c.So(db.ReplicationStatus().GetQueued(), ShouldEqual, 0)
-				c.So(db.ReplicationStatus().GetProgress(), ShouldEqual, 0)
-				c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 0)
-			})
+		t.Run("has correct replication info after close", func(t *testing.T) {
+			defer subSetup(t)()
+			require.Nil(t, db.Close())
+			require.Equal(t, db.ReplicationStatus().GetBuffered(), 0)
+			require.Equal(t, db.ReplicationStatus().GetQueued(), 0)
+			require.Equal(t, db.ReplicationStatus().GetProgress(), 0)
+			require.Equal(t, db.ReplicationStatus().GetMax(), 0)
+		})
 
-			c.Convey("has correct replication info after sync", FailureContinues, func(c C) {
-				_, err = db.Add(ctx, []byte("hello2"))
-				c.So(err, ShouldBeNil)
+		t.Run("has correct replication info after sync", func(t *testing.T) {
+			defer subSetup(t)()
+			_, err := db.Add(ctx, []byte("hello2"))
+			require.NoError(t, err)
 
-				c.So(db.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
-				c.So(db.ReplicationStatus().GetQueued(), ShouldEqual, 0)
-				c.So(db.ReplicationStatus().GetProgress(), ShouldEqual, 2)
-				c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 2)
+			require.Equal(t, db.ReplicationStatus().GetBuffered(), 0)
+			require.Equal(t, db.ReplicationStatus().GetQueued(), 0)
+			require.Equal(t, db.ReplicationStatus().GetProgress(), 2)
+			require.Equal(t, db.ReplicationStatus().GetMax(), 2)
 
-				db2, err = orbitdb2.Log(ctx, db.Address().String(), &orbitdb.CreateDBOptions{Create: &create})
-				c.So(err, ShouldBeNil)
+			create := false
+			db2, err = orbitdb2.Log(ctx, db.Address().String(), &orbitdb.CreateDBOptions{Create: &create})
+			require.NoError(t, err)
 
-				subCtx, cancel := context.WithTimeout(ctx, time.Second*5)
-				defer cancel()
+			subCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+			defer cancel()
 
-				go func() {
-					for evt := range db2.Subscribe(subCtx) {
-						if _, ok := evt.(*stores.EventReplicated); ok {
-							if db2.ReplicationStatus().GetBuffered() == 0 && db2.ReplicationStatus().GetQueued() == 0 && db2.ReplicationStatus().GetProgress() == 2 {
-								cancel()
-								return
-							}
+			go func() {
+				for evt := range db2.Subscribe(subCtx) {
+					if _, ok := evt.(*stores.EventReplicated); ok {
+						if db2.ReplicationStatus().GetBuffered() == 0 &&
+							db2.ReplicationStatus().GetQueued() == 0 &&
+							db2.ReplicationStatus().GetProgress() == 2 {
+							cancel()
+							return
 						}
 					}
-				}()
+				}
+			}()
 
-				err = db2.Sync(ctx, db.OpLog().Heads().Slice())
-				c.So(err, ShouldBeNil)
+			err = db2.Sync(ctx, db.OpLog().Heads().Slice())
+			require.NoError(t, err)
 
-				<-subCtx.Done()
+			<-subCtx.Done()
 
-				c.So(db2.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
-				c.So(db2.ReplicationStatus().GetQueued(), ShouldEqual, 0)
-				c.So(db2.ReplicationStatus().GetProgress(), ShouldEqual, 2)
-				c.So(db2.ReplicationStatus().GetMax(), ShouldEqual, 2)
-			})
+			require.Equal(t, db2.ReplicationStatus().GetBuffered(), 0)
+			require.Equal(t, db2.ReplicationStatus().GetQueued(), 0)
+			require.Equal(t, db2.ReplicationStatus().GetProgress(), 2)
+			require.Equal(t, db2.ReplicationStatus().GetMax(), 2)
+		})
 
-			c.Convey("has correct replication info after loading from snapshot", FailureContinues, func(c C) {
-				_, err = db.Add(ctx, []byte("hello2"))
-				c.So(err, ShouldBeNil)
+		t.Run("has correct replication info after loading from snapshot", func(t *testing.T) {
+			defer subSetup(t)()
+			_, err := db.Add(ctx, []byte("hello2"))
+			require.NoError(t, err)
 
-				_, err = basestore.SaveSnapshot(ctx, db)
-				c.So(err, ShouldBeNil)
+			_, err = basestore.SaveSnapshot(ctx, db)
+			require.NoError(t, err)
 
-				db, err = orbitdb1.Log(ctx, "replication status tests", nil)
-				c.So(err, ShouldBeNil)
+			db, err = orbitdb1.Log(ctx, "replication status tests", nil)
+			require.NoError(t, err)
 
-				err = db.LoadFromSnapshot(ctx)
-				c.So(err, ShouldBeNil)
+			err = db.LoadFromSnapshot(ctx)
+			require.NoError(t, err)
 
-				<-time.After(100 * time.Millisecond)
+			<-time.After(100 * time.Millisecond)
 
-				c.So(db.ReplicationStatus().GetBuffered(), ShouldEqual, 0)
-				c.So(db.ReplicationStatus().GetQueued(), ShouldEqual, 0)
-				c.So(db.ReplicationStatus().GetProgress(), ShouldEqual, 2)
-				c.So(db.ReplicationStatus().GetMax(), ShouldEqual, 2)
-			})
+			require.Equal(t, db.ReplicationStatus().GetBuffered(), 0)
+			require.Equal(t, db.ReplicationStatus().GetQueued(), 0)
+			require.Equal(t, db.ReplicationStatus().GetProgress(), 2)
+			require.Equal(t, db.ReplicationStatus().GetMax(), 2)
 		})
 	})
 }

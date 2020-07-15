@@ -11,22 +11,10 @@ import (
 	mock "github.com/ipfs/go-ipfs/core/mock"
 	iface "github.com/ipfs/interface-go-ipfs-core"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
+	"github.com/stretchr/testify/require"
 )
 
-func init() {
-	// 	zaptest.Level(zapcore.DebugLevel)
-	// 	config := zap.NewDevelopmentConfig()
-	// 	config.OutputPaths = []string{"stdout"}
-	// 	logger, _ := config.Build()
-	// 	zap.ReplaceGlobals(logger)
-}
-
-type cleanFunc func()
-
-// TestNetwork is a pointer for the mocked network used in tests
-
-// MakeIPFS Creates a new IPFS node for testing purposes
-func testingIPFSNode(ctx context.Context, t *testing.T, m mocknet.Mocknet) (*ipfsCore.IpfsNode, cleanFunc) {
+func testingIPFSNode(ctx context.Context, t *testing.T, m mocknet.Mocknet) (*ipfsCore.IpfsNode, func()) {
 	t.Helper()
 
 	core, err := ipfsCore.NewNode(ctx, &ipfsCore.BuildCfg{
@@ -36,40 +24,30 @@ func testingIPFSNode(ctx context.Context, t *testing.T, m mocknet.Mocknet) (*ipf
 			"pubsub": true,
 		},
 	})
+	require.NoError(t, err)
 
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	return core, func() {
-		core.Close()
-	}
+	cleanup := func() { core.Close() }
+	return core, cleanup
 }
 
-func testingCoreAPI(t *testing.T, core *ipfsCore.IpfsNode) (api iface.CoreAPI) {
+func testingCoreAPI(t *testing.T, core *ipfsCore.IpfsNode) iface.CoreAPI {
 	t.Helper()
 
-	var err error
-	if api, err = coreapi.NewCoreAPI(core); err != nil {
-		t.Fatal(err)
-	}
-
-	return
+	api, err := coreapi.NewCoreAPI(core)
+	require.NoError(t, err)
+	return api
 }
 
 func testingMockNet(ctx context.Context) mocknet.Mocknet {
 	return mocknet.New(ctx)
 }
 
-func testingTempDir(t *testing.T, name string) (string, cleanFunc) {
+func testingTempDir(t *testing.T, name string) (string, func()) {
 	t.Helper()
 
 	path, err := ioutil.TempDir("", name)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	return path, func() {
-		os.RemoveAll(path)
-	}
+	cleanup := func() { os.RemoveAll(path) }
+	return path, cleanup
 }

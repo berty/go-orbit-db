@@ -56,11 +56,12 @@ jobs:
       - name: Build tests
         run: go test -i ./...
 
-      # temporarily disabling go tests on CI (see https://github.com/berty/go-orbit-db/issues/56)
-      #- name: Run tests without options
-      #  run: go test ./... -v -test.timeout=10m
-      #- name: Run tests with race and cover
-      #  run: go test ./... -race -covermode=atomic -coverpkg=all -coverprofile=coverage.txt -cover -v -test.timeout=10m
+      - name: Run tests without options
+        if: false # see https://github.com/berty/go-orbit-db/issues/56
+        run: go test ./... -v -test.timeout=10m
+      - name: Run tests with race and cover
+        if: false # see https://github.com/berty/go-orbit-db/issues/56
+        run: go test ./... -race -covermode=atomic -coverpkg=all -coverprofile=coverage.txt -cover -v -test.timeout=10m
 
       # temporarily disabled, because not stable enough
       #- name: Run tests with goleak
@@ -110,10 +111,12 @@ jobs:
         run: go list ./...
       - name: Build tests
         run: go test -i ./...
+
       - name: Run tests without options
         run: go test ./... -v -test.timeout=10m
       - name: Run tests with race and cover
         run: go test ./... -race -covermode=atomic -coverpkg=all -coverprofile=coverage.txt -cover -v -test.timeout=10m
+
       # temporarily disabled, because not stable enough
       #- name: Run tests with goleak
       #  run: go test -v -tags=goleak -test.timeout=10m ./...

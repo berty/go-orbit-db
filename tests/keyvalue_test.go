@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
-	orbitdb2 "berty.tech/go-orbit-db"
-	. "github.com/smartystreets/goconvey/convey"
+	orbitdb "berty.tech/go-orbit-db"
+	"berty.tech/go-orbit-db/iface"
+	"github.com/stretchr/testify/require"
 )
 
 func TestKeyValueStore(t *testing.T) {
@@ -24,128 +25,147 @@ func TestKeyValueStore(t *testing.T) {
 	}
 }
 
+func setupTestingKeyValueStore(ctx context.Context, t *testing.T, dir string) (iface.OrbitDB, iface.KeyValueStore, func()) {
+	t.Helper()
+
+	mocknet := testingMockNet(ctx)
+	node, nodeClean := testingIPFSNode(ctx, t, mocknet)
+
+	db1IPFS := testingCoreAPI(t, node)
+
+	odb, err := orbitdb.NewOrbitDB(ctx, db1IPFS, &orbitdb.NewOrbitDBOptions{
+		Directory: &dir,
+	})
+	require.NoError(t, err)
+
+	db, err := odb.KeyValue(ctx, "orbit-db-tests", nil)
+	require.NoError(t, err)
+
+	cleanup := func() {
+		nodeClean()
+		odb.Close()
+		db.Close()
+	}
+	return odb, db, cleanup
+}
+
 func testingKeyValueStore(t *testing.T, dir string) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	dbname := "orbit-db-tests"
-	Convey("orbit-db - Key-Value Database", t, FailureHalts, func(c C) {
-		mocknet := testingMockNet(ctx)
+	t.Run("creates and opens a database", func(t *testing.T) {
+		odb, db, cleanup := setupTestingKeyValueStore(ctx, t, dir)
+		defer cleanup()
 
-		node, clean := testingIPFSNode(ctx, t, mocknet)
-		defer clean()
-
-		db1IPFS := testingCoreAPI(t, node)
-
-		orbitdb1, err := orbitdb2.NewOrbitDB(ctx, db1IPFS, &orbitdb2.NewOrbitDBOptions{
-			Directory: &dir,
-		})
-		defer orbitdb1.Close()
-
-		c.So(err, ShouldBeNil)
-
-		db, err := orbitdb1.KeyValue(ctx, dbname, nil)
-		c.So(err, ShouldBeNil)
+		db, err := odb.KeyValue(ctx, "first kv database", nil)
+		require.NoError(t, err)
+		require.NotNil(t, db)
 
 		defer db.Close()
 
-		c.Convey("creates and opens a database", FailureHalts, func(c C) {
-			db, err := orbitdb1.KeyValue(ctx, "first kv database", nil)
-			c.So(err, ShouldBeNil)
+		require.Equal(t, db.Type(), "keyvalue")
+		require.Equal(t, db.DBName(), "first kv database")
+	})
 
-			if db == nil {
-				t.Fatalf("db should not be nil")
-			}
+	t.Run("put", func(t *testing.T) {
+		_, db, cleanup := setupTestingKeyValueStore(ctx, t, dir)
+		defer cleanup()
 
-			defer db.Close()
+		_, err := db.Put(ctx, "key1", []byte("hello1"))
+		require.NoError(t, err)
 
-			c.So(db.Type(), ShouldEqual, "keyvalue")
-			c.So(db.DBName(), ShouldEqual, "first kv database")
-		})
+		value, err := db.Get(ctx, "key1")
+		require.NoError(t, err)
+		require.Equal(t, string(value), "hello1")
+	})
 
-		c.Convey("put", FailureHalts, func(c C) {
-			_, err := db.Put(ctx, "key1", []byte("hello1"))
-			c.So(err, ShouldBeNil)
+	t.Run("get", func(t *testing.T) {
+		_, db, cleanup := setupTestingKeyValueStore(ctx, t, dir)
+		defer cleanup()
 
-			value, err := db.Get(ctx, "key1")
-			c.So(err, ShouldBeNil)
-			c.So(string(value), ShouldEqual, "hello1")
-		})
+		_, err := db.Put(ctx, "key1", []byte("hello2"))
+		require.NoError(t, err)
 
-		c.Convey("get", FailureHalts, func(c C) {
-			_, err := db.Put(ctx, "key1", []byte("hello2"))
-			c.So(err, ShouldBeNil)
+		value, err := db.Get(ctx, "key1")
+		require.NoError(t, err)
+		require.Equal(t, string(value), "hello2")
+	})
 
-			value, err := db.Get(ctx, "key1")
-			c.So(err, ShouldBeNil)
-			c.So(string(value), ShouldEqual, "hello2")
-		})
+	t.Run("put updates a value", func(t *testing.T) {
+		_, db, cleanup := setupTestingKeyValueStore(ctx, t, dir)
+		defer cleanup()
 
-		c.Convey("put updates a value", FailureHalts, func(c C) {
-			_, err := db.Put(ctx, "key1", []byte("hello3"))
-			c.So(err, ShouldBeNil)
+		_, err := db.Put(ctx, "key1", []byte("hello3"))
+		require.NoError(t, err)
 
-			_, err = db.Put(ctx, "key1", []byte("hello4"))
-			c.So(err, ShouldBeNil)
+		_, err = db.Put(ctx, "key1", []byte("hello4"))
+		require.NoError(t, err)
 
-			value, err := db.Get(ctx, "key1")
-			c.So(err, ShouldBeNil)
-			c.So(string(value), ShouldEqual, "hello4")
-		})
+		value, err := db.Get(ctx, "key1")
+		require.NoError(t, err)
+		require.Equal(t, string(value), "hello4")
+	})
 
-		c.Convey("put/get - multiple keys", FailureHalts, func(c C) {
-			_, err := db.Put(ctx, "key1", []byte("hello1"))
-			c.So(err, ShouldBeNil)
+	t.Run("put/get - multiple keys", func(t *testing.T) {
+		_, db, cleanup := setupTestingKeyValueStore(ctx, t, dir)
+		defer cleanup()
 
-			_, err = db.Put(ctx, "key2", []byte("hello2"))
-			c.So(err, ShouldBeNil)
+		_, err := db.Put(ctx, "key1", []byte("hello1"))
+		require.NoError(t, err)
 
-			_, err = db.Put(ctx, "key3", []byte("hello3"))
-			c.So(err, ShouldBeNil)
+		_, err = db.Put(ctx, "key2", []byte("hello2"))
+		require.NoError(t, err)
 
-			v1, err := db.Get(ctx, "key1")
-			c.So(err, ShouldBeNil)
+		_, err = db.Put(ctx, "key3", []byte("hello3"))
+		require.NoError(t, err)
 
-			v2, err := db.Get(ctx, "key2")
-			c.So(err, ShouldBeNil)
+		v1, err := db.Get(ctx, "key1")
+		require.NoError(t, err)
 
-			v3, err := db.Get(ctx, "key3")
-			c.So(err, ShouldBeNil)
+		v2, err := db.Get(ctx, "key2")
+		require.NoError(t, err)
 
-			c.So(string(v1), ShouldEqual, "hello1")
-			c.So(string(v2), ShouldEqual, "hello2")
-			c.So(string(v3), ShouldEqual, "hello3")
-		})
+		v3, err := db.Get(ctx, "key3")
+		require.NoError(t, err)
 
-		c.Convey("deletes a key", FailureHalts, func(c C) {
-			_, err := db.Put(ctx, "key1", []byte("hello!"))
-			c.So(err, ShouldBeNil)
+		require.Equal(t, string(v1), "hello1")
+		require.Equal(t, string(v2), "hello2")
+		require.Equal(t, string(v3), "hello3")
+	})
 
-			_, err = db.Delete(ctx, "key1")
-			c.So(err, ShouldBeNil)
+	t.Run("deletes a key", func(t *testing.T) {
+		_, db, cleanup := setupTestingKeyValueStore(ctx, t, dir)
+		defer cleanup()
 
-			value, err := db.Get(ctx, "key1")
-			c.So(err, ShouldBeNil)
-			c.So(value, ShouldEqual, nil)
-		})
+		_, err := db.Put(ctx, "key1", []byte("hello!"))
+		require.NoError(t, err)
 
-		c.Convey("deletes a key after multiple updates", FailureHalts, func(c C) {
-			_, err := db.Put(ctx, "key1", []byte("hello1"))
-			c.So(err, ShouldBeNil)
+		_, err = db.Delete(ctx, "key1")
+		require.NoError(t, err)
 
-			_, err = db.Put(ctx, "key1", []byte("hello2"))
-			c.So(err, ShouldBeNil)
+		value, err := db.Get(ctx, "key1")
+		require.NoError(t, err)
+		require.Nil(t, value)
+	})
 
-			_, err = db.Put(ctx, "key1", []byte("hello3"))
-			c.So(err, ShouldBeNil)
+	t.Run("deletes a key after multiple updates", func(t *testing.T) {
+		_, db, cleanup := setupTestingKeyValueStore(ctx, t, dir)
+		defer cleanup()
 
-			_, err = db.Delete(ctx, "key1")
-			c.So(err, ShouldBeNil)
+		_, err := db.Put(ctx, "key1", []byte("hello1"))
+		require.NoError(t, err)
 
-			value, err := db.Get(ctx, "key1")
-			c.So(err, ShouldBeNil)
-			c.So(value, ShouldEqual, nil)
-		})
+		_, err = db.Put(ctx, "key1", []byte("hello2"))
+		require.NoError(t, err)
 
+		_, err = db.Put(ctx, "key1", []byte("hello3"))
+		require.NoError(t, err)
+
+		_, err = db.Delete(ctx, "key1")
+		require.NoError(t, err)
+
+		value, err := db.Get(ctx, "key1")
+		require.NoError(t, err)
+		require.Nil(t, value)
 	})
 }
