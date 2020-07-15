@@ -7,10 +7,8 @@
 <h3 align="center">🤝 Go version of orbit-db.</h3>
 
 <p align="center">
-  <a href="https://circleci.com/gh/berty/go-orbit-db">
-    <img src="https://circleci.com/gh/berty/go-orbit-db.svg?style=svg"
-         alt="Build Status">
-  </a>
+  <a href="https://github.com/berty/go-orbit-db/actions?query=workflow%3AGo"><img src="https://github.com/berty/go-orbit-db/workflows/Go/badge.svg" /></a>
+  <a href="https://github.com/berty/go-orbit-db/actions?query=workflow%3ARelease"><img src="https://github.com/berty/go-orbit-db/workflows/Release/badge.svg" /></a>
   <a href="https://www.codefactor.io/repository/github/berty/go-orbit-db">
     <img src="https://www.codefactor.io/repository/github/berty/go-orbit-db/badge"
          alt="Code Factor">
