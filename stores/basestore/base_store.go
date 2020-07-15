@@ -13,8 +13,6 @@ import (
 	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/io"
-	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
 	files "github.com/ipfs/go-ipfs-files"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/path"

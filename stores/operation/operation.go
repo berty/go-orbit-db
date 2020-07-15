@@ -1,8 +1,9 @@
 package operation
 
 import (
-	ipfslog "berty.tech/go-ipfs-log"
 	"encoding/json"
+
+	ipfslog "berty.tech/go-ipfs-log"
 
 	"github.com/pkg/errors"
 )

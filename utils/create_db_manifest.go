@@ -5,7 +5,6 @@ import (
 	"path"
 
 	"berty.tech/go-ipfs-log/io"
-	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/pkg/errors"

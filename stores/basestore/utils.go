@@ -7,8 +7,6 @@ import (
 
 	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-orbit-db/iface"
-	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
 	files "github.com/ipfs/go-ipfs-files"
 	"github.com/pkg/errors"
 )

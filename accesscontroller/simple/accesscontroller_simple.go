@@ -10,7 +10,6 @@ import (
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/iface"
-	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )

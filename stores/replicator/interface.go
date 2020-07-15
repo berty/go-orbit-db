@@ -7,7 +7,6 @@ import (
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/events"
-	"github.com/ipfs/go-cid"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 )
 

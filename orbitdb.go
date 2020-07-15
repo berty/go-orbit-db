@@ -1,6 +1,8 @@
 package orbitdb
 
 import (
+	"context"
+
 	"berty.tech/go-orbit-db/accesscontroller/ipfs"
 	"berty.tech/go-orbit-db/accesscontroller/orbitdb"
 	"berty.tech/go-orbit-db/accesscontroller/simple"
@@ -8,7 +10,6 @@ import (
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores/eventlogstore"
 	"berty.tech/go-orbit-db/stores/kvstore"
-	"context"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/pkg/errors"
 )

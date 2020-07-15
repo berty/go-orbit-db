@@ -5,7 +5,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 )
 

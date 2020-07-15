@@ -2,7 +2,6 @@ package replicator
 
 import (
 	ipfslog "berty.tech/go-ipfs-log"
-	"github.com/ipfs/go-cid"
 )
 
 // EventLoadAdded An event triggered when entries have been added

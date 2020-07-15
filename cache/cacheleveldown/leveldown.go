@@ -7,7 +7,6 @@ import (
 
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/cache"
-	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"github.com/pkg/errors"
