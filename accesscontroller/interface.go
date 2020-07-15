@@ -1,9 +1,10 @@
 package accesscontroller
 
 import (
+	"context"
+
 	"berty.tech/go-ipfs-log/accesscontroller"
 	"berty.tech/go-ipfs-log/iface"
-	"context"
 
 	"berty.tech/go-orbit-db/events"
 	"go.uber.org/zap"

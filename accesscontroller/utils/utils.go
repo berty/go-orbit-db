@@ -1,10 +1,11 @@
 package utils
 
 import (
+	"context"
+
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/iface"
-	"context"
-	"github.com/ipfs/go-cid"
+	cid "github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
 )
 
