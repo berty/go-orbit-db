@@ -2,7 +2,6 @@ package pubsubraw
 
 import (
 	"context"
-	"io"
 	"sync"
 
 	p2pcore "github.com/libp2p/go-libp2p-core"
@@ -37,8 +36,8 @@ func (p *psTopic) WatchPeers(ctx context.Context) (<-chan events.Event, error) {
 	}
 
 	ch := make(chan events.Event)
-
 	go func() {
+		defer close(ch)
 		for {
 			evt, err := ph.NextPeerEvent(ctx)
 			if err != nil {
@@ -59,23 +58,29 @@ func (p *psTopic) WatchPeers(ctx context.Context) (<-chan events.Event, error) {
 }
 
 func (p *psTopic) WatchMessages(ctx context.Context) (<-chan *iface.EventPubSubMessage, error) {
-	ch := make(chan *iface.EventPubSubMessage)
-
 	sub, err := p.topic.Subscribe()
 	if err != nil {
 		return nil, err
 	}
 
+	ch := make(chan *iface.EventPubSubMessage)
 	go func() {
+		defer close(ch)
 		for {
 			msg, err := sub.Next(ctx)
 			if err != nil {
-				if err == io.EOF {
-					return
+				switch err {
+				case context.Canceled, context.DeadlineExceeded:
+					p.ps.logger.Debug("watch message ended",
+						zap.String("topic", p.Topic()),
+						zap.Error(err))
+				default:
+					p.ps.logger.Error("error while retrieving pubsub message",
+						zap.String("topic", p.Topic()),
+						zap.Error(err))
 				}
 
-				p.ps.logger.Error("error while retrieving pubsub message", zap.Error(err))
-				continue
+				return
 			}
 
 			if msg.ReceivedFrom == p.ps.id {
