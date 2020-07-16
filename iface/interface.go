@@ -6,19 +6,18 @@ import (
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/keystore"
-	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	p2pcore "github.com/libp2p/go-libp2p-core"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"go.opentelemetry.io/otel/api/trace"
-	"go.uber.org/zap"
-
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/stores/operation"
 	"berty.tech/go-orbit-db/stores/replicator"
+	cid "github.com/ipfs/go-cid"
+	datastore "github.com/ipfs/go-datastore"
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	p2pcore "github.com/libp2p/go-libp2p-core"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"go.opentelemetry.io/otel/api/trace"
+	"go.uber.org/zap"
 )
 
 // CreateDBOptions lists the arguments to create a store

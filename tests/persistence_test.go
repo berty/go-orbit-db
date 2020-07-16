@@ -7,12 +7,11 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/smartystreets/goconvey/convey"
-
 	orbitdb "berty.tech/go-orbit-db"
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/basestore"
 	"berty.tech/go-orbit-db/stores/operation"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestPersistence(t *testing.T) {

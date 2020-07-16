@@ -15,16 +15,6 @@ import (
 	idp "berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/io"
 	"berty.tech/go-ipfs-log/keystore"
-	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
-	leveldb "github.com/ipfs/go-ds-leveldb"
-	cbornode "github.com/ipfs/go-ipld-cbor"
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	p2pcore "github.com/libp2p/go-libp2p-core"
-	"github.com/pkg/errors"
-	"go.opentelemetry.io/otel/api/trace"
-	"go.uber.org/zap"
-
 	"berty.tech/go-orbit-db/accesscontroller"
 	acutils "berty.tech/go-orbit-db/accesscontroller/utils"
 	"berty.tech/go-orbit-db/address"
@@ -36,6 +26,15 @@ import (
 	"berty.tech/go-orbit-db/pubsub/pubsubcoreapi"
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/utils"
+	cid "github.com/ipfs/go-cid"
+	datastore "github.com/ipfs/go-datastore"
+	leveldb "github.com/ipfs/go-ds-leveldb"
+	cbornode "github.com/ipfs/go-ipld-cbor"
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	p2pcore "github.com/libp2p/go-libp2p-core"
+	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/api/trace"
+	"go.uber.org/zap"
 )
 
 // OrbitDB An alias of the type defined in the iface package

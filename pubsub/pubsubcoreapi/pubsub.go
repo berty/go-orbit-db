@@ -2,7 +2,6 @@ package pubsubcoreapi
 
 import (
 	"context"
-	"io"
 	"sync"
 	"time"
 
@@ -72,8 +71,8 @@ func (p *psTopic) peersDiff(ctx context.Context) (joining, leaving []p2pcore.Pee
 
 func (p *psTopic) WatchPeers(ctx context.Context) (<-chan events.Event, error) {
 	ch := make(chan events.Event)
-
 	go func() {
+		defer close(ch)
 		for {
 			joining, leaving, err := p.peersDiff(ctx)
 			if err != nil {
@@ -102,23 +101,29 @@ func (p *psTopic) WatchPeers(ctx context.Context) (<-chan events.Event, error) {
 }
 
 func (p *psTopic) WatchMessages(ctx context.Context) (<-chan *iface.EventPubSubMessage, error) {
-	ch := make(chan *iface.EventPubSubMessage)
-
 	sub, err := p.ps.api.PubSub().Subscribe(ctx, p.topic)
 	if err != nil {
 		return nil, err
 	}
 
+	ch := make(chan *iface.EventPubSubMessage)
 	go func() {
+		defer close(ch)
 		for {
 			msg, err := sub.Next(ctx)
 			if err != nil {
-				if err == io.EOF {
-					return
+				switch err {
+				case context.Canceled, context.DeadlineExceeded:
+					p.ps.logger.Debug("watch message ended",
+						zap.String("topic", p.topic),
+						zap.Error(err))
+				default:
+					p.ps.logger.Error("error while retrieving pubsub message",
+						zap.String("topic", p.topic),
+						zap.Error(err))
 				}
 
-				p.ps.logger.Error("error while retrieving pubsub message", zap.Error(err))
-				continue
+				return
 			}
 
 			if msg.From() == p.ps.id {

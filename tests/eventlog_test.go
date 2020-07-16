@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ipfs/go-cid"
-
 	orbitdb "berty.tech/go-orbit-db"
 	"berty.tech/go-orbit-db/stores/operation"
+	cid "github.com/ipfs/go-cid"
 	. "github.com/smartystreets/goconvey/convey"
 )
 

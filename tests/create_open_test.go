@@ -7,15 +7,14 @@ import (
 	"path"
 	"testing"
 
-	"berty.tech/go-orbit-db/accesscontroller"
-
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/io"
 	"berty.tech/go-ipfs-log/keystore"
 	orbitdb "berty.tech/go-orbit-db"
+	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/stores/operation"
 	"berty.tech/go-orbit-db/utils"
-	"github.com/ipfs/go-datastore"
+	datastore "github.com/ipfs/go-datastore"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"github.com/polydawn/refmt/cbor"
 	"github.com/polydawn/refmt/obj/atlas"

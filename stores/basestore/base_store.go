@@ -13,14 +13,6 @@ import (
 	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/io"
-	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
-	files "github.com/ipfs/go-ipfs-files"
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/ipfs/interface-go-ipfs-core/path"
-	"github.com/pkg/errors"
-	"go.uber.org/zap"
-
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/accesscontroller/simple"
 	"berty.tech/go-orbit-db/address"
@@ -29,8 +21,15 @@ import (
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/operation"
 	"berty.tech/go-orbit-db/stores/replicator"
+	cid "github.com/ipfs/go-cid"
+	datastore "github.com/ipfs/go-datastore"
+	files "github.com/ipfs/go-ipfs-files"
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	"github.com/ipfs/interface-go-ipfs-core/path"
+	"github.com/pkg/errors"
 	otkv "go.opentelemetry.io/otel/api/kv"
 	"go.opentelemetry.io/otel/api/trace"
+	"go.uber.org/zap"
 )
 
 // BaseStore The base of other stores
