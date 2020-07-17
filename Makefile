@@ -7,4 +7,4 @@ lint:
 
 .PHONY: test
 test:
-	go test -race -cover -coverprofile=coverage.txt -covermode=atomic -v ./... -timeout 599s
+	go test -race -cover -coverprofile=coverage.txt -covermode=atomic -v ./... -timeout 600s
