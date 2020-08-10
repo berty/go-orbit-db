@@ -21,7 +21,7 @@ import (
 	"berty.tech/go-orbit-db/pubsub"
 )
 
-const PROTOCOL = "ipfs-direct-channel/v1"
+const PROTOCOL = "/go-orbit-db/ipfs-direct-channel/1.0.0"
 
 // Channel Channel is a pubsub used for a direct communication between peers
 // new messages are received via events
