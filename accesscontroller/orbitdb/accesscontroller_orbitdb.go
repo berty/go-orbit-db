@@ -208,8 +208,9 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 
 	o.kvStore = store
 
+	sub := o.kvStore.Subscribe(ctx)
 	go func() {
-		for e := range o.kvStore.Subscribe(ctx) {
+		for e := range sub {
 			switch e.(type) {
 			case stores.EventReady, stores.EventWrite, stores.EventReplicated:
 				o.onUpdate(ctx)

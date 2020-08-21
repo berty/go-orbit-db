@@ -202,11 +202,12 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 
 	b.options = options
 
+	sub := b.Replicator().Subscribe(ctx)
 	go func() {
 		ctx, span := b.tracer.Start(ctx, "base-store-main-loop", trace.WithAttributes(otkv.String("store-address", b.Address().String())))
 		defer span.End()
 
-		for e := range b.Replicator().Subscribe(ctx) {
+		for e := range sub {
 			switch evt := e.(type) {
 			case *replicator.EventLoadAdded:
 				span.AddEvent(ctx, "replicator-load-added", otkv.String("hash", evt.Hash.String()))
