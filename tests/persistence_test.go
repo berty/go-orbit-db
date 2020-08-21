@@ -169,9 +169,9 @@ func TestPersistence(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 		defer cancel()
-
+		sub := db.Subscribe(ctx)
 		go func() {
-			for evt := range db.Subscribe(ctx) {
+			for evt := range sub {
 				switch evt.(type) {
 				case *stores.EventReady:
 					l.Lock()

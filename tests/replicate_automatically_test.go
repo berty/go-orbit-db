@@ -122,8 +122,10 @@ func TestReplicateAutomatically(t *testing.T) {
 		defer cancel()
 
 		hasAllResults := false
+
+		sub := db2.Subscribe(ctx)
 		go func() {
-			for evt := range db2.Subscribe(ctx) {
+			for evt := range sub {
 				switch evt.(type) {
 				case *stores.EventReplicated:
 					infinity := -1
@@ -185,8 +187,9 @@ func TestReplicateAutomatically(t *testing.T) {
 
 		infinity := -1
 
+		sub1 := db4.Subscribe(ctx)
 		go func() {
-			for event := range db4.Subscribe(ctx) {
+			for event := range sub1 {
 				switch event.(type) {
 				case *stores.EventReplicated:
 					require.Equal(t, "", "Should not happen")
@@ -200,8 +203,9 @@ func TestReplicateAutomatically(t *testing.T) {
 		subCtx, subCancel = context.WithTimeout(ctx, time.Second)
 		defer subCancel()
 
+		sub2 := db2.Subscribe(ctx)
 		go func() {
-			for event := range db2.Subscribe(ctx) {
+			for event := range sub2 {
 				switch event.(type) {
 				case *stores.EventReplicateProgress:
 					e := event.(*stores.EventReplicateProgress)

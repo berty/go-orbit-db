@@ -199,8 +199,9 @@ func TestWritePermissions(t *testing.T) {
 			subCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 			defer cancel()
 
+			sub := db1.Subscribe(ctx)
 			go func() {
-				for evt := range db1.Subscribe(ctx) {
+				for evt := range sub {
 					switch evt.(type) {
 					case *stores.EventReplicated:
 						require.Equal(t, "this", "should not occur")

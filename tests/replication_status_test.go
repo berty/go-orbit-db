@@ -123,8 +123,9 @@ func TestReplicationStatus(t *testing.T) {
 			subCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 			defer cancel()
 
+			sub := db2.Subscribe(subCtx)
 			go func() {
-				for evt := range db2.Subscribe(subCtx) {
+				for evt := range sub {
 					if _, ok := evt.(*stores.EventReplicated); ok {
 						if db2.ReplicationStatus().GetBuffered() == 0 &&
 							db2.ReplicationStatus().GetQueued() == 0 &&
