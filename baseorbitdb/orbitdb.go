@@ -784,8 +784,9 @@ func (o *orbitDB) onClose(addr cid.Cid) error {
 }
 
 func (o *orbitDB) storeListener(ctx context.Context, store Store, topic iface.PubSubTopic) {
+	sub := store.Subscribe(ctx)
 	go func() {
-		for evt := range store.Subscribe(ctx) {
+		for evt := range sub {
 			switch e := evt.(type) {
 			case *stores.EventWrite:
 				o.logger.Debug("received stores.write event")
@@ -957,8 +958,9 @@ func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, addr addr
 }
 
 func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel iface.DirectChannel) {
+	sub := channel.Subscribe(ctx)
 	go func() {
-		for evt := range channel.Subscribe(ctx) {
+		for evt := range sub {
 			o.logger.Debug("received one on one message")
 
 			switch e := evt.(type) {
