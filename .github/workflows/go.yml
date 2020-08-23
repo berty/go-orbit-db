@@ -24,8 +24,8 @@ jobs:
     strategy:
       matrix:
         golang:
-          #- 1.13
-          - 1.14
+          - 1.14.7
+          - 1.15.0
           #- tip
     env:
       OS: ubuntu-latest
@@ -80,8 +80,8 @@ jobs:
     strategy:
       matrix:
         golang:
-          #- 1.13
-          - 1.14
+          - 1.14.7
+          - 1.15.0
           #- tip
     env:
       OS: macos-latest
