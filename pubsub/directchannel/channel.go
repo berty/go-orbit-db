@@ -196,13 +196,12 @@ func (h *channelHolder) checkExpectedStream(s string) bool {
 
 func (h *channelHolder) incomingConnHandler(stream network.Stream) {
 	h.muExpected.Lock()
-
 	ch, ok := h.expectedPID[stream.Protocol()]
+	h.muExpected.Unlock()
+
 	if !ok {
 		return
 	}
-
-	h.muExpected.Unlock()
 
 	ch <- stream
 }

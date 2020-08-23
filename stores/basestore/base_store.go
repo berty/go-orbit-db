@@ -164,6 +164,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 	})
 
 	if err != nil {
+		b.muIndex.Unlock()
 		return errors.New("unable to instantiate an IPFS log")
 	}
 
@@ -397,7 +398,8 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 
 			if inErr != nil {
 				span.AddEvent(ctx, "store-head-loading-error")
-				err = errors.Wrap(err, "unable to create log from entry hash")
+				err = errors.Wrap(inErr, "unable to create log from entry hash")
+				return
 			} else {
 				span.AddEvent(ctx, "store-head-loaded")
 			}
