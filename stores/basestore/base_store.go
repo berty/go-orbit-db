@@ -400,9 +400,9 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 				span.AddEvent(ctx, "store-head-loading-error")
 				err = errors.Wrap(inErr, "unable to create log from entry hash")
 				return
-			} else {
-				span.AddEvent(ctx, "store-head-loaded")
 			}
+
+			span.AddEvent(ctx, "store-head-loaded")
 
 			span.AddEvent(ctx, "store-heads-joining")
 			if _, inErr = oplog.Join(l, amount); inErr != nil {
