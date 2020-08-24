@@ -50,7 +50,7 @@ See [GoDoc](https://godoc.org/github.com/berty/go-orbit-db).
 
 Constraints:
 
-* `go-orbit-db` currently only works with **go1.13** and later
+* `go-orbit-db` currently only works with **go1.14** and later
 * You need to use the canonical import: `berty.tech/go-orbit-db` instead of `github.com/berty/go-orbit-db`
 * If you have `410 gone` errors, make sure that you use a reliable `$GOPROXY` or disable it completely
 
