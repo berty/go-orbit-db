@@ -860,10 +860,12 @@ func (o *orbitDB) pubSubChanListener(ctx context.Context, store Store, topic ifa
 			err := json.Unmarshal(headsEntriesBytes, &headsEntries)
 			if err != nil {
 				o.logger.Error("unable to unmarshal head entries")
+				continue
 			}
 
 			if len(headsEntries) == 0 {
 				o.logger.Debug(fmt.Sprintf("Nothing to synchronize for %s:", addr))
+				continue
 			}
 
 			o.logger.Debug(fmt.Sprintf("Received %d heads for %s:", len(headsEntries), addr))
@@ -969,6 +971,7 @@ func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel iface.Direct
 				err := json.Unmarshal(e.Payload, &heads)
 				if err != nil {
 					o.logger.Error("unable to unmarshal heads", zap.Error(err))
+					continue
 				}
 
 				o.logger.Debug(fmt.Sprintf("%s: Received %d heads for '%s':", o.PeerID().String(), len(heads.Heads), heads.Address))
@@ -976,7 +979,7 @@ func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel iface.Direct
 
 				if !ok {
 					o.logger.Debug("Heads from unknown store, skipping")
-					return
+					continue
 				}
 
 				if len(heads.Heads) > 0 {

@@ -180,7 +180,7 @@ func TestReplicateAutomatically(t *testing.T) {
 		defer db4.Drop()
 		defer db4.Close()
 
-		subCtx, subCancel := context.WithTimeout(ctx, time.Second)
+		subCtx, subCancel := context.WithTimeout(ctx, 5*time.Second)
 		defer subCancel()
 
 		hasAllResults := false
@@ -200,7 +200,7 @@ func TestReplicateAutomatically(t *testing.T) {
 
 		<-subCtx.Done()
 
-		subCtx, subCancel = context.WithTimeout(ctx, time.Second)
+		subCtx, subCancel = context.WithTimeout(ctx, 5*time.Second)
 		defer subCancel()
 
 		sub2 := db2.Subscribe(ctx)
