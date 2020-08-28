@@ -30,6 +30,7 @@ type CreateDBOptions struct {
 	AccessControllerAddress string
 	AccessController        accesscontroller.ManifestParams
 	Replicate               *bool
+	ReadOnly                bool
 	Keystore                keystore.Interface
 	Cache                   datastore.Datastore
 	Identity                *identityprovider.Identity
@@ -262,6 +263,7 @@ type NewStoreOptions struct {
 	SortFn                 ipfslog.SortFn
 	Logger                 *zap.Logger
 	Tracer                 trace.Tracer
+	ReadOnly               bool // ReadOnly prevents any append operations on the store, but receives updates
 }
 
 type DirectChannelOptions struct {

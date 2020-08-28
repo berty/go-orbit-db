@@ -63,6 +63,7 @@ type BaseStore struct {
 	muIndex   sync.RWMutex
 	muStats   sync.RWMutex
 	muJoining sync.Mutex
+	readOnly  bool
 	sortFn    ipfslog.SortFn
 	logger    *zap.Logger
 	tracer    trace.Tracer
@@ -135,6 +136,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 	b.id = addr.String()
 	b.identity = identity
 	b.address = addr
+	b.readOnly = options.ReadOnly
 	if options.AccessController != nil {
 		b.access = options.AccessController
 	} else {
@@ -350,7 +352,7 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 
 	err = nil
 
-	if remoteHeadsBytes != nil {
+	if remoteHeadsBytes != nil && !b.readOnly {
 		span.AddEvent(ctx, "remote-heads-unmarshall")
 		err = json.Unmarshal(remoteHeadsBytes, &remoteHeads)
 		if err != nil {
@@ -631,8 +633,12 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 		return errors.Wrap(err, "unable to load log")
 	}
 
-	if _, err = b.OpLog().Join(log, -1); err != nil {
-		return errors.Wrap(err, "unable to join log")
+	if b.readOnly {
+		// TODO: find appropriate strategy here
+	} else {
+		if _, err = b.OpLog().Join(log, -1); err != nil {
+			return errors.Wrap(err, "unable to join log")
+		}
 	}
 
 	if err := b.updateIndex(ctx); err != nil {
@@ -647,6 +653,10 @@ func intPtr(i int) *int {
 }
 
 func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, onProgressCallback chan<- ipfslog.Entry) (ipfslog.Entry, error) {
+	if b.readOnly {
+		return nil, errors.Errorf("store is opened in read only mode")
+	}
+
 	ctx, span := b.tracer.Start(ctx, "add-operation")
 	defer span.End()
 
@@ -735,13 +745,55 @@ func (b *BaseStore) replicationLoadComplete(ctx context.Context, logs []ipfslog.
 	oplog := b.OpLog()
 
 	b.Logger().Debug("replication load complete")
-	for _, log := range logs {
-		_, err := oplog.Join(log, -1)
+	if !b.readOnly {
+		for _, log := range logs {
+			_, err := oplog.Join(log, -1)
+			if err != nil {
+				b.Logger().Error("unable to join logs", zap.Error(err))
+				return
+			}
+		}
+	} else {
+		bestLog := oplog
+
+		headsCIDs := make([]cid.Cid, oplog.Heads().Len())
+		for i, h := range oplog.RawHeads().Slice() {
+			headsCIDs[i] = h.GetHash()
+		}
+
+		for _, log := range logs {
+			entries := log.GetEntries()
+			if entries.Len() < oplog.Values().Len() {
+				continue
+			}
+
+			hasAllHeads := true
+
+			for _, c := range headsCIDs {
+				if !hasAllHeads {
+					break
+				}
+
+				if _, ok := entries.Get(c.String()); !ok {
+					hasAllHeads = false
+				}
+			}
+
+			if hasAllHeads {
+				if bestLog.Values().Len() < entries.Len() {
+					bestLog = log
+				}
+			}
+		}
+
+		_, err := oplog.Join(bestLog, -1)
 		if err != nil {
-			b.Logger().Error("unable to join logs", zap.Error(err))
+			b.Logger().Error("unable to sync head (readonly mode)", zap.Error(err))
 			return
 		}
+
 	}
+
 	b.ReplicationStatus().DecreaseQueued(len(logs))
 	b.ReplicationStatus().SetBuffered(b.Replicator().GetBufferLen())
 	err := b.updateIndex(ctx)

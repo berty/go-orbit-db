@@ -752,6 +752,7 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 		CacheDestroy:     func() error { return o.cache.Destroy(o.directory, parsedDBAddress) },
 		Logger:           o.logger,
 		Tracer:           o.tracer,
+		ReadOnly:         options.ReadOnly,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to instantiate store")
