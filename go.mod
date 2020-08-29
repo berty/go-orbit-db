@@ -3,7 +3,7 @@ module berty.tech/go-orbit-db
 go 1.13
 
 require (
-	berty.tech/go-ipfs-log v1.2.5
+	berty.tech/go-ipfs-log v1.2.6
 	github.com/golang-collections/go-datastructures v0.0.0-20150211160725-59788d5eb259
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/ipfs/go-cid v0.0.7
