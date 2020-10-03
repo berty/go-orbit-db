@@ -292,8 +292,7 @@ func testLogAppendReplicateMultipeer(t *testing.T, amount int, nodeGen func(t *t
 	ok := true
 	mu.Lock()
 	for i := 0; i < nitems; i++ {
-		if !assert.Equal(t, nitems-1, len(received[i])) {
-			fmt.Sprintf("mismatch for client %d", i)
+		if !assert.Equal(t, nitems-1, len(received[i]), fmt.Sprintf("mismatch for client %d", i)) {
 			ok = false
 		}
 	}
