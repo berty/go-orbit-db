@@ -4,21 +4,27 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
+	ipfslog "berty.tech/go-ipfs-log"
 	orbitdb "berty.tech/go-orbit-db"
 	"berty.tech/go-orbit-db/accesscontroller"
+	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/pubsub/directchannel"
 	"berty.tech/go-orbit-db/pubsub/pubsubraw"
+	orbitstores "berty.tech/go-orbit-db/stores"
+	"berty.tech/go-orbit-db/stores/operation"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/zap"
 )
 
 func testLogAppendReplicate(t *testing.T, amount int, nodeGen func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func())) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*50)
 	defer cancel()
 
 	dbs := make([]orbitdb.OrbitDB, 2)
@@ -133,9 +139,11 @@ func testRawPubSubNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (orbitd
 	ipfs1 := testingCoreAPI(t, node1)
 	zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node%d is %s", i, node1.Identity.String()))
 
+	//loggger, _ := zap.NewDevelopment()
 	orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{
 		Directory: &dbPath1,
 		PubSub:    pubsubraw.NewPubSub(node1.PubSub, node1.Identity, nil, nil),
+		//Logger:    loggger,
 	})
 	require.NoError(t, err)
 
@@ -175,6 +183,124 @@ func testDefaultNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.
 	return orbitdb1, dbPath1, performCloseOps
 }
 
+func testLogAppendReplicateMultipeer(t *testing.T, amount int, nodeGen func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func())) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*40)
+	defer cancel()
+	nitems := amount
+	dbs := make([]orbitdb.OrbitDB, nitems)
+	dbPaths := make([]string, nitems)
+	ids := make([]string, nitems)
+	mn := testingMockNet(ctx)
+
+	for i := 0; i < nitems; i++ {
+		dbs[i], dbPaths[i], cancel = nodeGen(t, mn, i)
+		ids[i] = dbs[i].Identity().ID
+		defer cancel()
+	}
+
+	err := mn.LinkAll()
+	require.NoError(t, err)
+
+	err = mn.ConnectAllButSelf()
+	require.NoError(t, err)
+
+	access := &accesscontroller.CreateAccessControllerOptions{
+		Access: map[string][]string{
+			"write": ids,
+		},
+	}
+
+	address := "replication-tests"
+	stores := make([]orbitdb.EventLogStore, nitems)
+	subChans := make([]<-chan events.Event, nitems)
+
+	for i := 0; i < nitems; i++ {
+		store, err := dbs[i].Log(ctx, address, &orbitdb.CreateDBOptions{
+			Directory:        &dbPaths[i],
+			AccessController: access,
+		})
+		require.NoError(t, err)
+
+		stores[i] = store
+		subChans[i] = store.Subscribe(ctx)
+		defer func() { _ = store.Close() }()
+	}
+
+	<-time.After(5 * time.Second)
+
+	//infinity := -1
+	wg := sync.WaitGroup{}
+	wg.Add(nitems)
+	for i := 0; i < nitems; i++ {
+		go func(i int) {
+			var err error
+			defer wg.Done()
+			_, err = stores[i].Add(ctx, []byte(fmt.Sprintf("PingPong")))
+			_, err = stores[i].Add(ctx, []byte(fmt.Sprintf("PingPong")))
+			_, err = stores[i].Add(ctx, []byte(fmt.Sprintf("PingPong")))
+			_, err = stores[i].Add(ctx, []byte(fmt.Sprintf("PingPong")))
+			_, err = stores[i].Add(ctx, []byte(fmt.Sprintf("PingPong")))
+			_, err = stores[i].Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
+			require.NoError(t, err)
+		}(i)
+	}
+
+	wg.Wait()
+
+	wg = sync.WaitGroup{}
+	wg.Add(nitems)
+	mu := sync.Mutex{}
+	received := make([]map[string]bool, nitems)
+
+	for i := 0; i < nitems; i++ {
+		go func(i int) {
+			defer wg.Done()
+			mu.Lock()
+			received[i] = make(map[string]bool)
+			mu.Unlock()
+			storeValue := fmt.Sprintf("hello%d", i)
+			for e := range subChans[i] {
+				entry := ipfslog.Entry(nil)
+
+				switch evt := e.(type) {
+				case *orbitstores.EventWrite:
+					entry = evt.Entry
+
+				case *orbitstores.EventReplicateProgress:
+					entry = evt.Entry
+				}
+
+				if entry == nil {
+					continue
+				}
+
+				op, _ := operation.ParseOperation(entry)
+				if string(op.GetValue()) != storeValue && string(op.GetValue()) != "PingPong" {
+					mu.Lock()
+					received[i][string(op.GetValue())] = true
+					if nitems-1 == len(received[i]) {
+						mu.Unlock()
+						return
+					}
+					mu.Unlock()
+				}
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	ok := true
+	mu.Lock()
+	for i := 0; i < nitems; i++ {
+		if !assert.Equal(t, nitems-1, len(received[i])) {
+			fmt.Sprintf("mismatch for client %d", i)
+			ok = false
+		}
+	}
+	mu.Unlock()
+	require.True(t, ok)
+}
+
 func TestReplication(t *testing.T) {
 	if os.Getenv("WITH_GOLEAK") == "1" {
 		defer goleak.VerifyNone(t,
@@ -200,6 +326,38 @@ func TestReplication(t *testing.T) {
 			t.Run(fmt.Sprintf("replicates database of %d entries with node type %s", amount, nodeType), func(t *testing.T) {
 				testLogAppendReplicate(t, amount, nodeGen)
 			})
+		}
+	}
+}
+
+func TestReplicationMultipeer(t *testing.T) {
+	if os.Getenv("WITH_GOLEAK") == "1" {
+		defer goleak.VerifyNone(t,
+			goleak.IgnoreTopFunction("github.com/syndtr/goleveldb/leveldb.(*DB).mpoolDrain"),           // inherited from one of the imports (init)
+			goleak.IgnoreTopFunction("github.com/ipfs/go-log/writer.(*MirrorWriter).logRoutine"),       // inherited from one of the imports (init)
+			goleak.IgnoreTopFunction("github.com/libp2p/go-libp2p-connmgr.(*BasicConnMgr).background"), // inherited from github.com/ipfs/go-ipfs/core.NewNode
+			goleak.IgnoreTopFunction("github.com/jbenet/goprocess/periodic.callOnTicker.func1"),        // inherited from github.com/ipfs/go-ipfs/core.NewNode
+			goleak.IgnoreTopFunction("github.com/libp2p/go-libp2p-connmgr.(*decayer).process"),         // inherited from github.com/ipfs/go-ipfs/core.NewNode)
+			goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),                    // inherited from github.com/ipfs/go-ipfs/core.NewNode)
+		)
+	}
+
+	for _, amount := range []int{
+		2,
+		5,
+		6,
+		//8,  //FIXME: need improve "github.com/libp2p/go-libp2p-pubsub to completely resolve problem
+		//10, //FIXME: need improve "github.com/libp2p/go-libp2p-pubsub to completely resolve problem
+	} {
+		for nodeType, nodeGen := range map[string]func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func()){
+			"default":        testDefaultNodeGenerator,
+			"direct-channel": testDirectChannelNodeGenerator,
+			"raw-pubsub":     testRawPubSubNodeGenerator,
+		} {
+			t.Run(fmt.Sprintf("replicates database of %d entries with node type %s", amount, nodeType), func(t *testing.T) {
+				testLogAppendReplicateMultipeer(t, amount, nodeGen)
+			})
+			time.Sleep(4 * time.Second) // wait some time to let CPU relax
 		}
 	}
 }

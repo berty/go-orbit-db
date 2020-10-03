@@ -70,7 +70,7 @@ func (p *psTopic) peersDiff(ctx context.Context) (joining, leaving []p2pcore.Pee
 }
 
 func (p *psTopic) WatchPeers(ctx context.Context) (<-chan events.Event, error) {
-	ch := make(chan events.Event)
+	ch := make(chan events.Event, 32)
 	go func() {
 		defer close(ch)
 		for {
@@ -106,7 +106,7 @@ func (p *psTopic) WatchMessages(ctx context.Context) (<-chan *iface.EventPubSubM
 		return nil, err
 	}
 
-	ch := make(chan *iface.EventPubSubMessage)
+	ch := make(chan *iface.EventPubSubMessage, 128)
 	go func() {
 		defer close(ch)
 		for {
