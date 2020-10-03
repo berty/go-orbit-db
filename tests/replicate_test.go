@@ -95,7 +95,7 @@ func testDirectChannelNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (or
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*70)
 	closeOps = append(closeOps, cancel)
 
 	dbPath1, clean := testingTempDir(t, fmt.Sprintf("db%d", i))
@@ -127,7 +127,7 @@ func testRawPubSubNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (orbitd
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*70)
 	closeOps = append(closeOps, cancel)
 
 	dbPath1, clean := testingTempDir(t, fmt.Sprintf("db%d", i))
@@ -161,7 +161,7 @@ func testDefaultNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*70)
 	closeOps = append(closeOps, cancel)
 
 	dbPath1, clean := testingTempDir(t, fmt.Sprintf("db%d", i))
@@ -184,7 +184,7 @@ func testDefaultNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.
 }
 
 func testLogAppendReplicateMultipeer(t *testing.T, amount int, nodeGen func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func())) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*40)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*70)
 	defer cancel()
 	nitems := amount
 	dbs := make([]orbitdb.OrbitDB, nitems)
@@ -345,8 +345,8 @@ func TestReplicationMultipeer(t *testing.T) {
 		2,
 		5,
 		6,
-		//8,  //FIXME: need improve "github.com/libp2p/go-libp2p-pubsub to completely resolve problem
-		//10, //FIXME: need improve "github.com/libp2p/go-libp2p-pubsub to completely resolve problem
+		//8,  //FIXME: need improve "github.com/libp2p/go-libp2p-pubsub to completely resolve problem + increase test timeout
+		//10, //FIXME: need improve "github.com/libp2p/go-libp2p-pubsub to completely resolve problem + increase test timeout
 	} {
 		for nodeType, nodeGen := range map[string]func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func()){
 			"default":        testDefaultNodeGenerator,
