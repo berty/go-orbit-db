@@ -65,9 +65,12 @@ func (o *orbitDBEventLogStore) Get(ctx context.Context, cid cid.Cid) (operation.
 	}()
 
 	select {
-	case value := <-stream:
+	case value, ok := <-stream:
 		cancel()
-		return value, nil
+		if ok {
+			return value, nil
+		}
+		return nil, errors.New("channel read failed")
 
 	case err := <-errChan:
 		return nil, err
@@ -78,6 +81,7 @@ func (o *orbitDBEventLogStore) Get(ctx context.Context, cid cid.Cid) (operation.
 }
 
 func (o *orbitDBEventLogStore) Stream(ctx context.Context, resultChan chan operation.Operation, options *iface.StreamOptions) error {
+	defer close(resultChan)
 	messages, err := o.query(options)
 	if err != nil {
 		return errors.Wrap(err, "unable to fetch query results")
@@ -91,8 +95,6 @@ func (o *orbitDBEventLogStore) Stream(ctx context.Context, resultChan chan opera
 
 		resultChan <- op
 	}
-
-	close(resultChan)
 
 	return nil
 }

@@ -1,21 +1,28 @@
 package basestore
 
 import (
+	"sync"
+
 	ipfslog "berty.tech/go-ipfs-log"
 
 	"berty.tech/go-orbit-db/iface"
 )
 
 type baseIndex struct {
+	mu    sync.Mutex
 	id    []byte
 	index []ipfslog.Entry
 }
 
 func (b *baseIndex) Get(_ string) interface{} {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	return b.index
 }
 
 func (b *baseIndex) UpdateIndex(log ipfslog.Log, entries []ipfslog.Entry) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.index = log.Values().Slice()
 	return nil
 }
