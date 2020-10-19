@@ -329,18 +329,22 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 
 	var localHeads, remoteHeads []*entry.Entry
 	localHeadsBytes, err := b.Cache().Get(datastore.NewKey("_localHeads"))
-	if err != nil {
+	if err != nil && err != datastore.ErrNotFound {
 		span.AddEvent(ctx, "local-heads-load-failed")
 		return errors.Wrap(err, "unable to get local heads from cache")
 	}
 
-	span.AddEvent(ctx, "local-heads-unmarshall")
-	err = json.Unmarshal(localHeadsBytes, &localHeads)
-	if err != nil {
-		span.AddEvent(ctx, "local-heads-unmarshall-failed")
-		return errors.Wrap(err, "unable to unmarshal cached local heads")
+	err = nil
+
+	if localHeadsBytes != nil {
+		span.AddEvent(ctx, "local-heads-unmarshall")
+		err = json.Unmarshal(localHeadsBytes, &localHeads)
+		if err != nil {
+			span.AddEvent(ctx, "local-heads-unmarshall-failed")
+			b.logger.Warn("unable to unmarshal cached local heads", zap.Error(err))
+		}
+		span.AddEvent(ctx, "local-heads-unmarshalled")
 	}
-	span.AddEvent(ctx, "local-heads-unmarshalled")
 
 	remoteHeadsBytes, err := b.Cache().Get(datastore.NewKey("_remoteHeads"))
 	if err != nil && err != datastore.ErrNotFound {
