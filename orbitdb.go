@@ -107,7 +107,6 @@ func (o *orbitDB) KeyValue(ctx context.Context, address string, options *CreateD
 		options = &CreateDBOptions{}
 	}
 
-	options.Create = boolPtr(true)
 	options.StoreType = stringPtr("keyvalue")
 
 	store, err := o.Open(ctx, address, options)
