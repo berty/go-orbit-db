@@ -18,6 +18,7 @@ type storeInterface interface {
 	Identity() *identityprovider.Identity
 	AccessController() accesscontroller.Interface
 	SortFn() ipfslog.SortFn
+	IO() ipfslog.IO
 }
 
 // Replicator Replicates stores information among peers

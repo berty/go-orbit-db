@@ -1,6 +1,8 @@
 package iface
 
 import (
+	"berty.tech/go-ipfs-log/enc"
+	"berty.tech/go-ipfs-log/iface"
 	"context"
 
 	ipfslog "berty.tech/go-ipfs-log"
@@ -34,6 +36,8 @@ type CreateDBOptions struct {
 	Cache                   datastore.Datastore
 	Identity                *identityprovider.Identity
 	SortFn                  ipfslog.SortFn
+	IO                      ipfslog.IO
+	SharedKey               enc.SharedKey
 }
 
 // DetermineAddressOptions Lists the arguments used to determine a store address
@@ -189,6 +193,10 @@ type Store interface {
 
 	// Tracer Returns the tracer
 	Tracer() trace.Tracer
+
+	IO() iface.IO
+
+	SharedKey() enc.SharedKey
 }
 
 // EventLogStore A type of store that provides an append only log
@@ -262,6 +270,8 @@ type NewStoreOptions struct {
 	SortFn                 ipfslog.SortFn
 	Logger                 *zap.Logger
 	Tracer                 trace.Tracer
+	IO                     ipfslog.IO
+	SharedKey              enc.SharedKey
 }
 
 type DirectChannelOptions struct {

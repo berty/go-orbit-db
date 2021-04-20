@@ -10,9 +10,9 @@ import (
 
 	ipfslog "berty.tech/go-ipfs-log"
 	logac "berty.tech/go-ipfs-log/accesscontroller"
+	"berty.tech/go-ipfs-log/enc"
 	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
-	"berty.tech/go-ipfs-log/io"
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/accesscontroller/simple"
 	"berty.tech/go-orbit-db/address"
@@ -110,6 +110,14 @@ func (b *BaseStore) Tracer() trace.Tracer {
 	return b.tracer
 }
 
+func (b *BaseStore) IO() ipfslog.IO {
+	return b.options.IO
+}
+
+func (b *BaseStore) SharedKey() enc.SharedKey {
+	return b.options.SharedKey
+}
+
 // InitBaseStore Initializes the store base
 func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) error {
 	var err error
@@ -161,6 +169,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 		ID:               addr.String(),
 		AccessController: b.AccessController(),
 		SortFn:           b.sortFn,
+		IO:               options.IO,
 	})
 
 	if err != nil {
@@ -305,6 +314,7 @@ func (b *BaseStore) Drop() error {
 		ID:               b.id,
 		AccessController: b.AccessController(),
 		SortFn:           b.SortFn(),
+		IO:               b.options.IO,
 	})
 	b.muIndex.Unlock()
 
@@ -394,6 +404,7 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 				ID:               oplog.GetID(),
 				AccessController: b.AccessController(),
 				SortFn:           b.SortFn(),
+				IO:               b.options.IO,
 			}, &ipfslog.FetchOptions{
 				Length:  &amount,
 				Exclude: oplog.GetEntries().Slice(),
@@ -481,7 +492,7 @@ func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
 			continue
 		}
 
-		hash, err := io.WriteCBOR(ctx, b.IPFS(), h.ToCborEntry(), nil)
+		hash, err := b.IO().Write(ctx, b.IPFS(), h, nil)
 		if err != nil {
 			span.AddEvent(ctx, "store-sync-cant-write", otkv.String("error", err.Error()))
 			return errors.Wrap(err, "unable to write entry on dag")
@@ -626,6 +637,7 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 		ID:               header.ID,
 		AccessController: b.AccessController(),
 		SortFn:           b.SortFn(),
+		IO:               b.options.IO,
 	}, &entry.FetchOptions{
 		Length:  intPtr(-1),
 		Timeout: time.Second,

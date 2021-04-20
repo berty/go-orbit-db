@@ -10,6 +10,7 @@ import (
 	"time"
 
 	ipfslog "berty.tech/go-ipfs-log"
+	"berty.tech/go-ipfs-log/enc"
 	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
 	idp "berty.tech/go-ipfs-log/identityprovider"
@@ -278,7 +279,7 @@ func (o *orbitDB) RegisterAccessControllerType(constructor iface.AccessControlle
 
 }
 
-func (o *orbitDB) getDirectConnection(ctx context.Context, peerID p2pcore.PeerID) (iface.DirectChannel, error) {
+func (o *orbitDB) getDirectConnection(ctx context.Context, peerID p2pcore.PeerID, sharedKey enc.SharedKey) (iface.DirectChannel, error) {
 	o.muDirectConnections.Lock()
 	defer o.muDirectConnections.Unlock()
 
@@ -294,7 +295,7 @@ func (o *orbitDB) getDirectConnection(ctx context.Context, peerID p2pcore.PeerID
 	}
 
 	o.directConnections[peerID] = channel
-	o.watchOneOnOneMessage(ctx, channel)
+	o.watchOneOnOneMessage(ctx, channel, sharedKey)
 
 	return channel, nil
 }
@@ -538,6 +539,15 @@ func (o *orbitDB) Open(ctx context.Context, dbAddress string, options *CreateDBO
 		options.Create = boolPtr(false)
 	}
 
+	if options.IO == nil {
+		cborIO := io.CBOR()
+		if options.SharedKey != nil {
+			cborIO.ApplyOptions(&io.CBOROptions{LinkKey: options.SharedKey})
+		}
+
+		options.IO = cborIO
+	}
+
 	o.logger.Debug("Open database ", zap.String("dbAddress", dbAddress))
 
 	directory := o.directory
@@ -752,6 +762,8 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 		CacheDestroy:     func() error { return o.cache.Destroy(o.directory, parsedDBAddress) },
 		Logger:           o.logger,
 		Tracer:           o.tracer,
+		IO:               options.IO,
+		SharedKey:        options.SharedKey,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to instantiate store")
@@ -802,6 +814,14 @@ func (o *orbitDB) storeListener(ctx context.Context, store Store, topic iface.Pu
 						continue
 					}
 
+					if key := store.SharedKey(); key != nil {
+						headsBytes, err = key.Seal(headsBytes)
+						if err != nil {
+							o.logger.Error(fmt.Sprintf("unable to encrypt heads %v", err))
+							continue
+						}
+					}
+
 					err = topic.Publish(ctx, headsBytes)
 					if err != nil {
 						o.logger.Debug(fmt.Sprintf("unable to publish message on pubsub %v", err))
@@ -837,7 +857,7 @@ func (o *orbitDB) pubSubChanListener(ctx context.Context, store Store, topic ifa
 			switch evt := e.(type) {
 			case *iface.EventPubSubJoin:
 				go func() {
-					o.onNewPeerJoined(ctx, evt.Peer, addr)
+					o.onNewPeerJoined(ctx, evt.Peer, store)
 					o.logger.Debug(fmt.Sprintf("peer %s joined from %s self is %s", evt.Peer.String(), addr, o.PeerID()))
 				}()
 
@@ -857,9 +877,17 @@ func (o *orbitDB) pubSubChanListener(ctx context.Context, store Store, topic ifa
 			headsEntriesBytes := evt.Content
 			var headsEntries []*entry.Entry
 
+			if key := store.SharedKey(); key != nil {
+				headsEntriesBytes, err = key.Open(headsEntriesBytes)
+				if err != nil {
+					o.logger.Error("unable to decrypt head entries", zap.Error(err))
+					continue
+				}
+			}
+
 			err := json.Unmarshal(headsEntriesBytes, &headsEntries)
 			if err != nil {
-				o.logger.Error("unable to unmarshal head entries")
+				o.logger.Error("unable to unmarshal head entries", zap.Error(err))
 				continue
 			}
 
@@ -884,39 +912,28 @@ func (o *orbitDB) pubSubChanListener(ctx context.Context, store Store, topic ifa
 	return nil
 }
 
-func (o *orbitDB) onNewPeerJoined(ctx context.Context, p p2pcore.PeerID, addr address.Address) {
+func (o *orbitDB) onNewPeerJoined(ctx context.Context, p p2pcore.PeerID, store Store) {
 	self, err := o.IPFS().Key().Self(ctx)
 	if err == nil {
-		o.logger.Debug(fmt.Sprintf("%s: New peer '%s' connected to %s", self.ID(), p, addr.String()))
+		o.logger.Debug(fmt.Sprintf("%s: New peer '%s' connected to %s", self.ID(), p, store.Address().String()))
 	} else {
-		o.logger.Debug(fmt.Sprintf("New peer '%s' connected to %s", p, addr.String()))
+		o.logger.Debug(fmt.Sprintf("New peer '%s' connected to %s", p, store.Address().String()))
 	}
 
-	_, err = o.exchangeHeads(ctx, p, addr)
+	_, err = o.exchangeHeads(ctx, p, store)
 
 	if err != nil {
 		o.logger.Error("unable to exchange heads", zap.Error(err))
 		return
 	}
 
-	store, ok := o.getStore(addr.String())
-
-	if !ok {
-		o.logger.Error(fmt.Sprintf("unable to get store for address %s", addr.String()))
-		return
-	}
-
 	store.Emit(ctx, stores.NewEventNewPeer(p))
 }
 
-func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, addr address.Address) (iface.DirectChannel, error) {
-	store, ok := o.getStore(addr.String())
+func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, store Store) (iface.DirectChannel, error) {
+	sharedKey := store.SharedKey()
 
-	if !ok {
-		return nil, errors.New(fmt.Sprintf("unable to get store for address %s", addr.String()))
-	}
-
-	channel, err := o.getDirectConnection(ctx, p)
+	channel, err := o.getDirectConnection(ctx, p, sharedKey)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to get a connection to peer")
 	}
@@ -942,13 +959,20 @@ func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, addr addr
 	}
 
 	exchangedHeads := &exchangedHeads{
-		Address: addr.String(),
+		Address: store.Address().String(),
 		Heads:   heads,
 	}
 
 	exchangedHeadsBytes, err := json.Marshal(exchangedHeads)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to serialize heads to exchange")
+	}
+
+	if sharedKey != nil {
+		exchangedHeadsBytes, err = sharedKey.Seal(exchangedHeadsBytes)
+		if err != nil {
+			return nil, errors.Wrap(err, "unable to encrypt payload")
+		}
 	}
 
 	err = channel.Send(ctx, exchangedHeadsBytes)
@@ -959,7 +983,7 @@ func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, addr addr
 	return channel, nil
 }
 
-func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel iface.DirectChannel) {
+func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel iface.DirectChannel, sharedKey enc.SharedKey) {
 	sub := channel.Subscribe(ctx)
 	go func() {
 		for evt := range sub {
@@ -968,7 +992,19 @@ func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel iface.Direct
 			switch e := evt.(type) {
 			case *iface.EventPubSubPayload:
 				heads := &exchangedHeads{}
-				err := json.Unmarshal(e.Payload, &heads)
+				payload := e.Payload
+
+				if sharedKey != nil {
+					var err error
+
+					payload, err = sharedKey.Open(payload)
+					if err != nil {
+						o.logger.Error("unable to decrypt payload", zap.Error(err))
+						continue
+					}
+				}
+
+				err := json.Unmarshal(payload, &heads)
 				if err != nil {
 					o.logger.Error("unable to unmarshal heads", zap.Error(err))
 					continue

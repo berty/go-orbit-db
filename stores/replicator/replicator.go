@@ -189,6 +189,7 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 		ID:               r.store.OpLog().GetID(),
 		AccessController: r.store.AccessController(),
 		SortFn:           r.store.SortFn(),
+		IO:               r.store.IO(),
 	}, &ipfslog.FetchOptions{
 		Length: &batchSize,
 	})

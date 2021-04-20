@@ -13,9 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v1
+        uses: golangci/golangci-lint-action@v2.5.2
         with:
-          version: v1.28
+          version: v1.31
           args: --timeout=2m
           # only-new-issues: true
 
@@ -24,8 +24,8 @@ jobs:
     strategy:
       matrix:
         golang:
-          - 1.14.7
-          - 1.15.0
+          - 1.15.x
+          - 1.16.x
           #- tip
     env:
       OS: ubuntu-latest
@@ -80,8 +80,8 @@ jobs:
     strategy:
       matrix:
         golang:
-          - 1.14.7
-          - 1.15.0
+          - 1.15.x
+          - 1.16.x
           #- tip
     env:
       OS: macos-latest
@@ -113,9 +113,9 @@ jobs:
         run: go test -i ./...
 
       - name: Run tests without options
-        run: go test ./... -v -test.timeout=10m
+        run: go test ./... -v -test.timeout=12m
       - name: Run tests with race and cover
-        run: go test ./... -race -covermode=atomic -coverpkg=all -coverprofile=coverage.txt -cover -v -test.timeout=10m
+        run: go test ./... -race -covermode=atomic -coverpkg=all -coverprofile=coverage.txt -cover -v -test.timeout=12m
 
       # temporarily disabled, because not stable enough
       #- name: Run tests with goleak
