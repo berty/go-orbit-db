@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	ipfslog "berty.tech/go-ipfs-log"
@@ -25,11 +26,11 @@ type replicator struct {
 	cancelFunc          context.CancelFunc
 	store               storeInterface
 	fetching            map[string]cid.Cid
-	statsTasksRequested uint
-	statsTasksStarted   uint
-	statsTasksProcessed uint
+	statsTasksRequested int64
+	statsTasksStarted   int64
+	statsTasksProcessed int64
 	buffer              []ipfslog.Log
-	concurrency         uint
+	concurrency         int64
 	queue               map[string]cid.Cid
 	lock                sync.RWMutex
 	logger              *zap.Logger
@@ -72,7 +73,7 @@ func (r *replicator) Load(ctx context.Context, cids []cid.Cid) {
 	defer span.End()
 
 	for _, h := range cids {
-		inLog := r.store.OpLog().GetEntries().UnsafeGet(h.String()) != nil
+		_, inLog := r.store.OpLog().Get(h)
 		r.lock.RLock()
 		_, fetching := r.fetching[h.String()]
 		_, queued := r.queue[h.String()]
@@ -115,7 +116,7 @@ func NewReplicator(ctx context.Context, store storeInterface, concurrency uint, 
 
 	r := replicator{
 		cancelFunc:  cancelFunc,
-		concurrency: concurrency,
+		concurrency: int64(concurrency),
 		store:       store,
 		queue:       map[string]cid.Cid{},
 		fetching:    map[string]cid.Cid{},
@@ -133,7 +134,7 @@ func NewReplicator(ctx context.Context, store storeInterface, concurrency uint, 
 
 				if r.tasksRunning() == 0 && qLen > 0 {
 					r.logger.Debug(fmt.Sprintf("Had to flush the queue! %d items in the queue, %d %d tasks requested/finished", qLen, r.tasksRequested(), r.tasksFinished()))
-					r.processQueue(ctx)
+					go r.processQueue(ctx)
 				}
 			case <-ctx.Done():
 				return
@@ -144,25 +145,16 @@ func NewReplicator(ctx context.Context, store storeInterface, concurrency uint, 
 	return &r
 }
 
-func (r *replicator) tasksRunning() uint {
-	r.lock.RLock()
-	defer r.lock.RUnlock()
-
-	return r.statsTasksStarted - r.statsTasksProcessed
+func (r *replicator) tasksRunning() int64 {
+	return atomic.LoadInt64(&r.statsTasksStarted) - atomic.LoadInt64(&r.statsTasksProcessed)
 }
 
-func (r *replicator) tasksRequested() uint {
-	r.lock.RLock()
-	defer r.lock.RUnlock()
-
-	return r.statsTasksRequested
+func (r *replicator) tasksRequested() int64 {
+	return atomic.LoadInt64(&r.statsTasksRequested)
 }
 
-func (r *replicator) tasksFinished() uint {
-	r.lock.RLock()
-	defer r.lock.RUnlock()
-
-	return r.statsTasksProcessed
+func (r *replicator) tasksFinished() int64 {
+	return atomic.LoadInt64(&r.statsTasksProcessed)
 }
 
 func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, error) {
@@ -173,7 +165,7 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 	defer r.lock.Unlock()
 
 	_, isFetching := r.fetching[h.String()]
-	_, hasEntry := r.store.OpLog().Values().Get(h.String())
+	_, hasEntry := r.store.OpLog().Get(h)
 
 	if hasEntry || isFetching {
 		return nil, nil
@@ -183,7 +175,7 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 
 	r.Emit(ctx, NewEventLoadAdded(h))
 
-	r.statsTasksStarted++
+	atomic.AddInt64(&r.statsTasksStarted, 1)
 
 	l, err := ipfslog.NewFromEntryHash(ctx, r.store.IPFS(), r.store.Identity(), h, &ipfslog.LogOptions{
 		ID:               r.store.OpLog().GetID(),
@@ -207,7 +199,7 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 	delete(r.queue, h.String())
 
 	// Mark this task as processed
-	r.statsTasksProcessed++
+	//r.statsTasksProcessed++
 
 	// Notify subscribers that we made progress
 	r.Emit(ctx, NewEventLoadProgress("", h, latest, len(r.buffer))) // TODO JS: this._id should be undefined
@@ -216,6 +208,7 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 
 	for _, e := range l.Values().Slice() {
 		nextValues = append(nextValues, e.GetNext()...)
+		nextValues = append(nextValues, e.GetRefs()...)
 	}
 
 	// Return all next pointers
@@ -230,11 +223,10 @@ func (r *replicator) processQueue(ctx context.Context) {
 	ctx, span := r.tracer.Start(ctx, "replicator-process-queue")
 	defer span.End()
 
-	var hashesList [][]cid.Cid
 	capacity := r.concurrency - r.tasksRunning()
 	slicedQueue := r.GetQueue()
-	if uint(len(slicedQueue)) < capacity {
-		capacity = uint(len(slicedQueue))
+	if int64(len(slicedQueue)) < capacity {
+		capacity = int64(len(slicedQueue))
 	}
 
 	items := map[string]cid.Cid{}
@@ -242,19 +234,35 @@ func (r *replicator) processQueue(ctx context.Context) {
 		items[h.String()] = h
 	}
 
+	var hashesList = make([][]cid.Cid, len(items))
+	hashesListIdx := 0
+	wg := sync.WaitGroup{}
+
+	r.lock.Lock()
 	for _, e := range items {
-		r.lock.Lock()
 		delete(r.queue, e.String())
-		r.lock.Unlock()
-
-		hashes, err := r.processOne(ctx, e)
-		if err != nil {
-			r.logger.Error("unable to get data to process %v", zap.Error(err))
-			return
-		}
-
-		hashesList = append(hashesList, hashes)
 	}
+	r.lock.Unlock()
+
+	for _, e := range items {
+		wg.Add(1)
+
+		go func(hashesListIdx int, e cid.Cid) {
+			defer wg.Done()
+
+			hashes, err := r.processOne(ctx, e)
+			if err != nil {
+				r.logger.Error("unable to get data to process %v", zap.Error(err))
+				return
+			}
+
+			hashesList[hashesListIdx] = hashes
+		}(hashesListIdx, e)
+
+		hashesListIdx++
+	}
+
+	wg.Wait()
 
 	for _, hashes := range hashesList {
 		r.lock.RLock()
@@ -262,7 +270,10 @@ func (r *replicator) processQueue(ctx context.Context) {
 		bLen := len(b)
 		r.lock.RUnlock()
 
-		if (len(items) > 0 && bLen > 0) || (r.tasksRunning() == 0 && bLen > 0) {
+		// Mark this task as processed
+		atomic.AddInt64(&r.statsTasksProcessed, 1)
+
+		if bLen > 0 && r.tasksRunning() == 0 {
 			r.lock.Lock()
 			r.buffer = []ipfslog.Log{}
 			r.lock.Unlock()
@@ -284,7 +295,7 @@ func (r *replicator) addToQueue(ctx context.Context, span trace.Span, h cid.Cid)
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	r.statsTasksRequested++
+	atomic.AddInt64(&r.statsTasksRequested, 1)
 	r.queue[h.String()] = h
 }
 

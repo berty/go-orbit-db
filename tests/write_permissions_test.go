@@ -117,7 +117,7 @@ func TestWritePermissions(t *testing.T) {
 			_, err = db2.Add(ctx, []byte("hello"))
 			require.NoError(t, err)
 
-			require.Equal(t, db1.OpLog().Values().Len(), 0)
+			require.Equal(t, db1.OpLog().Len(), 0)
 
 			err = db1.Sync(ctx, db2.OpLog().Heads().Slice())
 			require.NoError(t, err)
@@ -159,7 +159,7 @@ func TestWritePermissions(t *testing.T) {
 			_, err = db2.Add(ctx, []byte("hello"))
 			require.NoError(t, err)
 
-			require.Equal(t, db1.OpLog().Values().Len(), 0)
+			require.Equal(t, db1.OpLog().Len(), 0)
 
 			err = db1.Sync(ctx, db2.OpLog().Heads().Slice())
 			require.NoError(t, err)
@@ -220,8 +220,8 @@ func TestWritePermissions(t *testing.T) {
 
 			<-time.After(300 * time.Millisecond)
 
-			require.Equal(t, db1.OpLog().Values().Len(), 0)
-			require.Equal(t, db2.OpLog().Values().Len(), 0)
+			require.Equal(t, db1.OpLog().Len(), 0)
+			require.Equal(t, db2.OpLog().Len(), 0)
 
 			_, err = db1.Add(ctx, []byte("hello"))
 			require.NoError(t, err)
@@ -233,8 +233,8 @@ func TestWritePermissions(t *testing.T) {
 
 			<-time.After(300 * time.Millisecond)
 
-			require.Equal(t, db1.OpLog().Values().Len(), 1)
-			require.Equal(t, db2.OpLog().Values().Len(), 1)
+			require.Equal(t, db1.OpLog().Len(), 1)
+			require.Equal(t, db2.OpLog().Len(), 1)
 		})
 	})
 

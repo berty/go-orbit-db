@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	ipfslog "berty.tech/go-ipfs-log"
@@ -49,9 +50,9 @@ type BaseStore struct {
 	replicationStatus replicator.ReplicationInfo
 	stats             struct {
 		snapshot struct {
-			bytesLoaded int
+			bytesLoaded int64
 		}
-		syncRequestsReceived int
+		syncRequestsReceived int64
 	}
 	referenceCount int
 	replicate      bool
@@ -61,7 +62,6 @@ type BaseStore struct {
 
 	muCache   sync.RWMutex
 	muIndex   sync.RWMutex
-	muStats   sync.RWMutex
 	muJoining sync.Mutex
 	sortFn    ipfslog.SortFn
 	logger    *zap.Logger
@@ -184,9 +184,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 	b.index = options.Index(b.Identity().PublicKey)
 	b.muIndex.Unlock()
 
-	b.muStats.Lock()
-	b.stats.snapshot.bytesLoaded = -1
-	b.muStats.Unlock()
+	atomic.StoreInt64(&b.stats.snapshot.bytesLoaded, -1)
 
 	b.replicator = replicator.NewReplicator(ctx, b, options.ReplicationConcurrency, &replicator.Options{
 		Logger: b.logger,
@@ -234,11 +232,11 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 				if b.ReplicationStatus().GetBuffered() > evt.BufferLength {
 					b.recalculateReplicationProgress(b.ReplicationStatus().GetProgress() + evt.BufferLength)
 				} else {
-					if _, ok := b.OpLog().GetEntries().Get(evt.Hash.String()); ok {
+					if _, ok := b.OpLog().Get(evt.Hash); ok {
 						continue
 					}
 
-					b.recalculateReplicationProgress(b.OpLog().GetEntries().Len() + evt.BufferLength)
+					b.recalculateReplicationProgress(b.OpLog().Len() + evt.BufferLength)
 				}
 
 				b.ReplicationStatus().SetBuffered(evt.BufferLength)
@@ -259,11 +257,9 @@ func (b *BaseStore) Close() error {
 	// Reset replication statistics
 	b.ReplicationStatus().Reset()
 
-	b.muStats.Lock()
 	// Reset database statistics
-	b.stats.snapshot.bytesLoaded = -1
-	b.stats.syncRequestsReceived = 0
-	b.muStats.Unlock()
+	atomic.StoreInt64(&b.stats.snapshot.bytesLoaded, -1)
+	atomic.StoreInt64(&b.stats.syncRequestsReceived, 0)
 
 	b.UnsubscribeAll()
 
@@ -456,9 +452,7 @@ func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
 	ctx, span := b.tracer.Start(ctx, "store-sync")
 	defer span.End()
 
-	b.muStats.Lock()
-	b.stats.syncRequestsReceived++
-	b.muStats.Unlock()
+	atomic.AddInt64(&b.stats.syncRequestsReceived, 1)
 
 	if len(heads) == 0 {
 		return nil
@@ -703,7 +697,7 @@ func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, on
 }
 
 func (b *BaseStore) recalculateReplicationProgress(max int) {
-	if opLogLen := b.OpLog().GetEntries().Len(); opLogLen > max {
+	if opLogLen := b.OpLog().Len(); opLogLen > max {
 		max = opLogLen
 
 	} else if replMax := b.ReplicationStatus().GetMax(); replMax > max {
@@ -716,7 +710,7 @@ func (b *BaseStore) recalculateReplicationProgress(max int) {
 }
 
 func (b *BaseStore) recalculateReplicationMax(max int) {
-	if opLogLen := b.OpLog().GetEntries().Len(); opLogLen > max {
+	if opLogLen := b.OpLog().Len(); opLogLen > max {
 		max = opLogLen
 
 	} else if replMax := b.ReplicationStatus().GetMax(); replMax > max {
