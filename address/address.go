@@ -14,10 +14,10 @@ type Address interface {
 	// GetRoot Returns the root CID for the store
 	GetRoot() cid.Cid
 
-	// GetRoot Returns the path for the store
+	// GetPath Returns the path for the store
 	GetPath() string
 
-	// GetRoot Returns the whole address for the store as a string
+	// String Returns the whole address for the store as a string
 	String() string
 }
 
