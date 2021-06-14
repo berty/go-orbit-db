@@ -36,7 +36,7 @@ func SaveSnapshot(ctx context.Context, b iface.Store) (cid.Cid, error) {
 	header, err := json.Marshal(&storeSnapshot{
 		ID:    oplog.GetID(),
 		Heads: entries,
-		Size:  oplog.Values().Len(),
+		Size:  oplog.Len(),
 		Type:  b.Type(),
 	})
 
@@ -50,7 +50,7 @@ func SaveSnapshot(ctx context.Context, b iface.Store) (cid.Cid, error) {
 	binary.BigEndian.PutUint16(size, uint16(headerSize))
 	rs := append(size, header...)
 
-	for _, e := range oplog.Values().Slice() {
+	for _, e := range oplog.GetEntries().Slice() {
 		entryJSON, err := json.Marshal(e)
 
 		if err != nil {

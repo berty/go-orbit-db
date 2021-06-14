@@ -38,7 +38,7 @@ func NewEventReplicateProgress(addr address.Address, h cid.Cid, e ipfslog.Entry,
 	}
 }
 
-// EventNewPeer An event sent when data has been replicated
+// EventReplicated An event sent when data has been replicated
 type EventReplicated struct {
 	Address   address.Address
 	LogLength int
@@ -52,7 +52,7 @@ func NewEventReplicated(addr address.Address, logLength int) *EventReplicated {
 	}
 }
 
-// EventNewPeer An event sent when data has been loaded
+// EventLoad An event sent when data has been loaded
 type EventLoad struct {
 	Address address.Address
 	Heads   []ipfslog.Entry
@@ -82,7 +82,7 @@ func NewEventLoad(addr address.Address, heads []ipfslog.Entry) *EventLoad {
 //	}
 //}
 
-// EventNewPeer An event sent when the store is ready
+// EventReady An event sent when the store is ready
 type EventReady struct {
 	Address address.Address
 	Heads   []ipfslog.Entry
@@ -96,7 +96,7 @@ func NewEventReady(addr address.Address, heads []ipfslog.Entry) *EventReady {
 	}
 }
 
-// EventNewPeer An event sent when something has been written
+// EventWrite An event sent when something has been written
 type EventWrite struct {
 	Address address.Address
 	Entry   ipfslog.Entry
