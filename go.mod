@@ -3,7 +3,7 @@ module berty.tech/go-orbit-db
 go 1.15
 
 require (
-	berty.tech/go-ipfs-log v1.4.0
+	berty.tech/go-ipfs-log v1.4.1
 	github.com/davidlazar/go-crypto v0.0.0-20190912175916-7055855a373f // indirect
 	github.com/golang-collections/go-datastructures v0.0.0-20150211160725-59788d5eb259
 	github.com/golang/snappy v0.0.1 // indirect
