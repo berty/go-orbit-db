@@ -21,20 +21,23 @@ import (
 var batchSize = 1
 
 type replicator struct {
-	events.EventEmitter
-
-	cancelFunc          context.CancelFunc
-	store               storeInterface
-	fetching            map[string]cid.Cid
+	// These require 64 bit alignment for ARM and 32bit devices
 	statsTasksRequested int64
 	statsTasksStarted   int64
 	statsTasksProcessed int64
-	buffer              []ipfslog.Log
-	concurrency         int64
-	queue               map[string]cid.Cid
-	lock                sync.RWMutex
-	logger              *zap.Logger
-	tracer              trace.Tracer
+	// For more information see https://pkg.go.dev/sync/atomic#pkg-note-BUG
+
+	events.EventEmitter
+
+	cancelFunc  context.CancelFunc
+	store       storeInterface
+	fetching    map[string]cid.Cid
+	buffer      []ipfslog.Log
+	concurrency int64
+	queue       map[string]cid.Cid
+	lock        sync.RWMutex
+	logger      *zap.Logger
+	tracer      trace.Tracer
 }
 
 func (r *replicator) GetBufferLen() int {
