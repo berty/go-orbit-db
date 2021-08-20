@@ -11,96 +11,96 @@ import (
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores/basestore"
 	"berty.tech/go-orbit-db/stores/operation"
+
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/pkg/errors"
 )
 
 type orbitDBDocumentStore struct {
 	basestore.BaseStore
-
-	indexBy string
+	docOpts *iface.CreateDocumentDBOptions
 }
 
-func (o *orbitDBDocumentStore) Get(ctx context.Context, key string, caseSensitive bool) ([]map[string]interface{}, error) {
-	numTerms := len(strings.Split(key, " "))
-	if numTerms > 1 {
+func (o *orbitDBDocumentStore) Get(ctx context.Context, key string, opts *iface.DocumentStoreGetOptions) ([]interface{}, error) {
+	if opts == nil {
+		opts = &iface.DocumentStoreGetOptions{}
+	}
+
+	hasMultipleTerms := strings.Contains(key, " ")
+	if hasMultipleTerms {
 		key = strings.ReplaceAll(key, ".", " ")
-		key = strings.ToLower(key)
-	} else {
+	}
+	if opts.CaseInsensitive {
 		key = strings.ToLower(key)
 	}
 
 	docIndex, ok := o.Index().(*documentIndex)
 	if !ok {
-		return nil, errors.New("unable to cast index to documentIndex")
+		return nil, fmt.Errorf("unable to cast index to documentIndex")
 	}
 
-	documents := make([]map[string]interface{}, 0)
+	documents := []interface{}(nil)
 
 	for _, indexKey := range docIndex.Keys() {
-		if caseSensitive && strings.Contains(indexKey, key) {
-			op, ok := o.Index().Get(indexKey).(operation.Operation)
-			if !ok {
-				return nil, errors.New("unable to cast document to operation")
-			}
-			var valueJSON map[string]interface{}
-			err := json.Unmarshal(op.GetValue(), &valueJSON)
-			if err != nil {
-				return nil, errors.Wrap(err, "unable to unmarshal index content")
-			}
-			documents = append(documents, valueJSON)
-		}
-		if !caseSensitive {
-			if numTerms > 1 {
-				indexKey = strings.ReplaceAll(indexKey, ".", " ")
-			}
-			lower := strings.ToLower(indexKey)
+		indexKeyForSearch := indexKey
 
-			if strings.Contains(lower, key) {
-				op, ok := o.Index().Get(indexKey).(operation.Operation)
-				if !ok {
-					return nil, errors.New("unable to cast document to operation")
-				}
-				var valueJSON map[string]interface{}
-				err := json.Unmarshal(op.GetValue(), &valueJSON)
-				if err != nil {
-					return nil, errors.Wrap(err, "unable to unmarshal index content")
-				}
-				documents = append(documents, valueJSON)
+		if opts.CaseInsensitive {
+			indexKeyForSearch = strings.ToLower(indexKeyForSearch)
+			if hasMultipleTerms {
+				indexKeyForSearch = strings.ReplaceAll(indexKeyForSearch, ".", " ")
 			}
 		}
+
+		if !opts.PartialMatches {
+			if indexKeyForSearch != key {
+				continue
+			}
+		} else if opts.PartialMatches {
+			if !strings.Contains(indexKeyForSearch, key) {
+				continue
+			}
+		}
+
+		value := o.Index().Get(indexKey)
+		if value == nil {
+			return nil, fmt.Errorf("value not found for key %s", indexKey)
+		}
+
+		if _, ok := value.([]byte); !ok {
+			return nil, fmt.Errorf("invalid type for key %s", indexKey)
+		}
+
+		out := o.docOpts.ItemFactory()
+		if err := o.docOpts.Unmarshal(value.([]byte), &out); err != nil {
+			return nil, fmt.Errorf("unable to unmarshal value for key %s: %w", indexKey, err)
+		}
+
+		documents = append(documents, out)
 	}
 
 	return documents, nil
 }
 
-func (o *orbitDBDocumentStore) Put(ctx context.Context, document map[string]interface{}) (operation.Operation, error) {
-
-	index, ok := document[o.indexBy]
-	if !ok {
-		return nil, fmt.Errorf("index '%s' not present in value", index)
-	}
-
-	indexStr, ok := index.(string)
-	if !ok {
-		return nil, errors.New("unable to cast index to string")
-	}
-
-	documentJSON, err := json.Marshal(document)
+func (o *orbitDBDocumentStore) Put(ctx context.Context, document interface{}) (operation.Operation, error) {
+	key, err := o.docOpts.KeyExtractor(document)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed marshaling value to json")
+		return nil, fmt.Errorf("unable to extract key from value: %w", err)
 	}
 
-	op := operation.NewOperation(&indexStr, "PUT", documentJSON)
+	data, err := o.docOpts.Marshal(document)
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal value: %w", err)
+	}
+
+	op := operation.NewOperation(&key, "PUT", data)
 
 	e, err := o.AddOperation(ctx, op, nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "error while adding operation")
+		return nil, fmt.Errorf("error while adding operation: %w", err)
 	}
 
 	op, err = operation.ParseOperation(e)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to parse newly created entry")
+		return nil, fmt.Errorf("unable to parse newly created entry: %w", err)
 	}
 
 	return op, nil
@@ -115,12 +115,64 @@ func (o *orbitDBDocumentStore) Delete(ctx context.Context, key string) (operatio
 
 	e, err := o.AddOperation(ctx, op, nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "error while adding operation")
+		return nil, fmt.Errorf("error while adding operation: %w", err)
 	}
 
 	op, err = operation.ParseOperation(e)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to parse newly created entry")
+		return nil, fmt.Errorf("unable to parse newly created entry: %w", err)
+	}
+
+	return op, nil
+}
+
+// PutBatch Add values as multiple operations and returns the latest
+func (o *orbitDBDocumentStore) PutBatch(ctx context.Context, values []interface{}) (operation.Operation, error) {
+	if len(values) == 0 {
+		return nil, fmt.Errorf("nothing to add to the store")
+	}
+
+	op := operation.Operation(nil)
+	var err error
+	for _, val := range values {
+		op, err = o.Put(ctx, val)
+		if err != nil {
+			return nil, fmt.Errorf("unable to add data to the store: %w", err)
+		}
+	}
+
+	return op, nil
+}
+
+// PutAll Add values as a single operation and returns it
+func (o *orbitDBDocumentStore) PutAll(ctx context.Context, values []interface{}) (operation.Operation, error) {
+	toAdd := map[string][]byte{}
+
+	for _, val := range values {
+		key, err := o.docOpts.KeyExtractor(val)
+		if err != nil {
+			return nil, fmt.Errorf("one of the provided documents has no index key")
+		}
+
+		data, err := o.docOpts.Marshal(val)
+		if err != nil {
+			return nil, fmt.Errorf("unable to marshal one of the provided documents")
+		}
+
+		toAdd[key] = data
+	}
+
+	empty := ""
+	op := operation.NewOperationWithDocuments(&empty, "PUTALL", toAdd)
+
+	e, err := o.AddOperation(ctx, op, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error while adding operation: %w", err)
+	}
+
+	op, err = operation.ParseOperation(e)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse newly created entry: %w", err)
 	}
 
 	return op, nil
@@ -130,17 +182,69 @@ func (o *orbitDBDocumentStore) Type() string {
 	return "docstore"
 }
 
+func MapKeyExtractor(keyField string) func(obj interface{}) (string, error) {
+	return func(obj interface{}) (string, error) {
+		mapped, ok := obj.(map[string]interface{})
+		if !ok {
+			return "", fmt.Errorf("can't extract key from something else than a `map[string]interface{}` entry")
+		}
+
+		val, ok := mapped[keyField]
+		if !ok {
+			return "", fmt.Errorf("missing value for field `%s` in entry", keyField)
+		}
+
+		key, ok := val.(string)
+		if !ok {
+			return "", fmt.Errorf("value for field `%s` is not a string", keyField)
+		}
+
+		return key, nil
+	}
+}
+
+func DefaultStoreOptsForMap(keyField string) *iface.CreateDocumentDBOptions {
+	return &iface.CreateDocumentDBOptions{
+		Marshal:      json.Marshal,
+		Unmarshal:    json.Unmarshal,
+		KeyExtractor: MapKeyExtractor(keyField),
+		ItemFactory:  func() interface{} { return map[string]interface{}{} },
+	}
+}
+
 // NewOrbitDBDocumentStore Instantiates a new DocumentStore
 func NewOrbitDBDocumentStore(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) (iface.Store, error) {
-	store := &orbitDBDocumentStore{}
-	options.Index = NewDocumentIndex
+	if options.StoreSpecificOpts == nil {
+		options.StoreSpecificOpts = DefaultStoreOptsForMap("_id")
+	}
 
-	// TODO: How can we pass this via options?
-	store.indexBy = "_id"
+	docOpts, ok := options.StoreSpecificOpts.(*iface.CreateDocumentDBOptions)
+	if !ok {
+		return nil, fmt.Errorf("invalid type supplied for opts.StoreSpecificOpts")
+	}
+
+	if docOpts.Marshal == nil {
+		return nil, fmt.Errorf("missing value for option opts.StoreSpecificOpts.Marshal")
+	}
+
+	if docOpts.Unmarshal == nil {
+		return nil, fmt.Errorf("missing value for option opts.StoreSpecificOpts.Unmarshal")
+	}
+
+	if docOpts.ItemFactory == nil {
+		return nil, fmt.Errorf("missing value for option opts.StoreSpecificOpts.ItemFactory")
+	}
+
+	if docOpts.KeyExtractor == nil {
+		return nil, fmt.Errorf("missing value for option opts.StoreSpecificOpts.ExtractKey")
+	}
+
+	store := &orbitDBDocumentStore{docOpts: docOpts}
+	options.Index = func(_ []byte) iface.StoreIndex { return newDocumentIndex(docOpts) }
 
 	err := store.InitBaseStore(ctx, ipfs, identity, addr, options)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to initialize base store")
+		return nil, fmt.Errorf("unable to initialize document store: %w", err)
 	}
 
 	return store, nil

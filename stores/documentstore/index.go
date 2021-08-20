@@ -1,18 +1,19 @@
 package documentstore
 
 import (
+	"fmt"
 	"sync"
 
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores/operation"
-	"github.com/pkg/errors"
 )
 
 type documentIndex struct {
 	iface.StoreIndex
-	index   map[string]operation.Operation
+	index   map[string][]byte
 	muIndex sync.RWMutex
+	opts    *iface.CreateDocumentDBOptions
 }
 
 func (i *documentIndex) Keys() []string {
@@ -21,8 +22,10 @@ func (i *documentIndex) Keys() []string {
 
 	keys := make([]string, len(i.index))
 
+	idx := 0
 	for key := range i.index {
-		keys = append(keys, key)
+		keys[idx] = key
+		idx++
 	}
 
 	return keys
@@ -56,35 +59,51 @@ func (i *documentIndex) UpdateIndex(oplog ipfslog.Log, _ []ipfslog.Entry) error 
 	for idx := range entries {
 		item, err := operation.ParseOperation(entries[size-idx-1])
 		if err != nil {
-			return errors.Wrap(err, "unable to parse log documentstore operation")
+			return fmt.Errorf("unable to parse log documentstore operation: %w", err)
 		}
 
-		key := item.GetKey()
-		if key == nil {
-			// ignoring entries with nil keys
+		if item.GetOperation() == "PUTALL" {
+			for _, opDoc := range item.GetDocs() {
+				if _, ok := handled[opDoc.GetKey()]; ok {
+					continue
+				}
+
+				handled[*item.GetKey()] = struct{}{}
+				i.index[opDoc.GetKey()] = opDoc.GetValue()
+			}
+
 			continue
 		}
 
-		if _, ok := handled[*item.GetKey()]; !ok {
-			handled[*item.GetKey()] = struct{}{}
+		key := item.GetKey()
+		if key == nil || *key == "" {
+			// ignoring entries with nil or empty keys
+			continue
+		}
 
-			if item.GetOperation() == "PUT" {
-				i.index[*item.GetKey()] = item
-			} else if item.GetOperation() == "DEL" {
-				delete(i.index, *item.GetKey())
-			}
+		if _, ok := handled[*item.GetKey()]; ok {
+			continue
+		}
+
+		handled[*item.GetKey()] = struct{}{}
+		switch item.GetOperation() {
+		case "PUT":
+			i.index[*item.GetKey()] = item.GetValue()
+
+		case "DEL":
+			delete(i.index, *item.GetKey())
 		}
 	}
 
 	return nil
 }
 
-// NewDocumentIndex Creates a new index for a Document Store
-func NewDocumentIndex(_ []byte) iface.StoreIndex {
+// newDocumentIndex Creates a new index for a Document Store
+func newDocumentIndex(opts *iface.CreateDocumentDBOptions) iface.StoreIndex {
 	return &documentIndex{
-		index: make(map[string]operation.Operation),
+		index: map[string][]byte{},
+		opts:  opts,
 	}
 }
 
-var _ iface.IndexConstructor = NewDocumentIndex
 var _ iface.StoreIndex = &documentIndex{}

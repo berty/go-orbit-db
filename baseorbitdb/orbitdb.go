@@ -754,16 +754,17 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 	}
 
 	store, err := storeFunc(ctx, o.IPFS(), identity, parsedDBAddress, &iface.NewStoreOptions{
-		AccessController: accessController,
-		Cache:            options.Cache,
-		Replicate:        options.Replicate,
-		Directory:        *options.Directory,
-		SortFn:           options.SortFn,
-		CacheDestroy:     func() error { return o.cache.Destroy(o.directory, parsedDBAddress) },
-		Logger:           o.logger,
-		Tracer:           o.tracer,
-		IO:               options.IO,
-		SharedKey:        options.SharedKey,
+		AccessController:  accessController,
+		Cache:             options.Cache,
+		Replicate:         options.Replicate,
+		Directory:         *options.Directory,
+		SortFn:            options.SortFn,
+		CacheDestroy:      func() error { return o.cache.Destroy(o.directory, parsedDBAddress) },
+		Logger:            o.logger,
+		Tracer:            o.tracer,
+		IO:                options.IO,
+		SharedKey:         options.SharedKey,
+		StoreSpecificOpts: options.StoreSpecificOpts,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to instantiate store")

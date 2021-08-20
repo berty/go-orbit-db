@@ -3,6 +3,9 @@ package orbitdb
 import (
 	"context"
 
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	"github.com/pkg/errors"
+
 	"berty.tech/go-orbit-db/accesscontroller/ipfs"
 	"berty.tech/go-orbit-db/accesscontroller/orbitdb"
 	"berty.tech/go-orbit-db/accesscontroller/simple"
@@ -11,8 +14,6 @@ import (
 	"berty.tech/go-orbit-db/stores/documentstore"
 	"berty.tech/go-orbit-db/stores/eventlogstore"
 	"berty.tech/go-orbit-db/stores/kvstore"
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/pkg/errors"
 )
 
 type orbitDB struct {
@@ -51,6 +52,9 @@ type StreamOptions = iface.StreamOptions
 
 // CreateDBOptions An alias of the type defined in the iface package
 type CreateDBOptions = iface.CreateDBOptions
+
+// CreateDocumentDBOptions An alias of the type defined in the iface package
+type CreateDocumentDBOptions = iface.CreateDocumentDBOptions
 
 // DetermineAddressOptions An alias of the type defined in the iface package
 type DetermineAddressOptions = iface.DetermineAddressOptions

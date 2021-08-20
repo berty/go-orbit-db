@@ -4,8 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	orbitdb2 "berty.tech/go-orbit-db"
-	. "github.com/smartystreets/goconvey/convey"
+	"berty.tech/go-orbit-db/iface"
+	"berty.tech/go-orbit-db/stores/documentstore"
 )
 
 func TestDocumentsStore(t *testing.T) {
@@ -36,7 +39,8 @@ func testingDocsStore(t *testing.T, dir string) {
 	defer cancel()
 
 	dbname := "orbit-db-tests"
-	Convey("orbit-db - Documents Database", t, FailureHalts, func(c C) {
+
+	t.Run("orbit-db - Documents Database", func(t *testing.T) {
 		mocknet := testingMockNet(ctx)
 
 		node, clean := testingIPFSNode(ctx, t, mocknet)
@@ -47,150 +51,240 @@ func testingDocsStore(t *testing.T, dir string) {
 		orbitdb1, err := orbitdb2.NewOrbitDB(ctx, db1IPFS, &orbitdb2.NewOrbitDBOptions{
 			Directory: &dir,
 		})
-		defer orbitdb1.Close()
+		defer func() { _ = orbitdb1.Close() }()
 
-		c.So(err, ShouldBeNil)
+		require.NoError(t, err)
 
 		db, err := orbitdb1.Docs(ctx, dbname, nil)
-		c.So(err, ShouldBeNil)
+		require.NoError(t, err)
 
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 
-		c.Convey("creates and opens a database", FailureHalts, func(c C) {
+		t.Run("creates and opens a database", func(t *testing.T) {
 			db, err := orbitdb1.Docs(ctx, "first docs database", nil)
-			c.So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			if db == nil {
 				t.Fatalf("db should not be nil")
 			}
 
-			defer db.Close()
+			defer func() { _ = db.Close() }()
 
-			c.So(db.Type(), ShouldEqual, "docstore")
-			c.So(db.DBName(), ShouldEqual, "first docs database")
+			require.Equal(t, "docstore", db.Type())
+			require.Equal(t, "first docs database", db.DBName())
 		})
 
-		c.Convey("put", FailureHalts, func(c C) {
-			document := createDocument("doc1", "hello", "world")
+		document := createDocument("doc1", "hello", "world")
+		documentUpdate1 := createDocument("doc1", "hello", "galaxy")
+		documentUppercase := createDocument("DOCUPPER1", "hello", "world")
+
+		t.Run("put/get", func(t *testing.T) {
 			_, err := db.Put(ctx, document)
-			c.So(err, ShouldBeNil)
+			require.NoError(t, err)
 
-			docs, err := db.Get(ctx, "doc1", true)
-			c.So(err, ShouldBeNil)
-			c.So(len(docs), ShouldEqual, 1)
-			c.So(docs[0], ShouldResemble, document)
+			docs, err := db.Get(ctx, "doc1", &iface.DocumentStoreGetOptions{CaseInsensitive: false})
+			require.NoError(t, err)
+			require.Equal(t, 1, len(docs))
+			require.Equal(t, document, docs[0])
 		})
 
-		c.Convey("get", FailureHalts, func(c C) {
-			document := createDocument("doc1", "hello", "world")
-			_, err := db.Put(ctx, document)
-			c.So(err, ShouldBeNil)
+		_, err = db.Put(ctx, documentUppercase)
+		require.NoError(t, err)
 
-			docs, err := db.Get(ctx, "doc1", true)
-			c.So(err, ShouldBeNil)
-			c.So(len(docs), ShouldEqual, 1)
-			c.So(docs[0], ShouldResemble, document)
+		t.Run("get case insensitive", func(t *testing.T) {
+			docs, err := db.Get(ctx, "DOC1", &iface.DocumentStoreGetOptions{CaseInsensitive: true})
+			require.NoError(t, err)
+			require.Equal(t, 1, len(docs))
+			require.Equal(t, document, docs[0])
+
+			docs, err = db.Get(ctx, "docupper1", &iface.DocumentStoreGetOptions{CaseInsensitive: true})
+			require.NoError(t, err)
+			require.Equal(t, 1, len(docs))
+			require.Equal(t, documentUppercase, docs[0])
 		})
 
-		c.Convey("get case insensitive", FailureHalts, func(c C) {
-			document := createDocument("DOC1", "hello", "world")
-			_, err := db.Put(ctx, document)
-			c.So(err, ShouldBeNil)
+		t.Run("get case sensitive without match", func(t *testing.T) {
+			docs, err := db.Get(ctx, "DOC1", &iface.DocumentStoreGetOptions{CaseInsensitive: false})
+			require.NoError(t, err)
+			require.Equal(t, 0, len(docs))
 
-			docs, err := db.Get(ctx, "doc1", false)
-			c.So(err, ShouldBeNil)
-			c.So(len(docs), ShouldEqual, 1)
-			c.So(docs[0], ShouldResemble, document)
+			docs, err = db.Get(ctx, "docupper1", &iface.DocumentStoreGetOptions{CaseInsensitive: false})
+			require.NoError(t, err)
+			require.Equal(t, 0, len(docs))
 		})
 
-		c.Convey("get case sensitive without match", FailureHalts, func(c C) {
-			document := createDocument("DOC1", "hello", "world")
-			_, err := db.Put(ctx, document)
-			c.So(err, ShouldBeNil)
+		t.Run("put updates a value", func(t *testing.T) {
+			_, err = db.Put(ctx, documentUpdate1)
+			require.NoError(t, err)
 
-			docs, err := db.Get(ctx, "doc1", true)
-			c.So(err, ShouldBeNil)
-			c.So(len(docs), ShouldEqual, 0)
+			docs, err := db.Get(ctx, "doc1", &iface.DocumentStoreGetOptions{CaseInsensitive: false})
+			require.NoError(t, err)
+			require.Equal(t, 1, len(docs))
+			require.Equal(t, documentUpdate1, docs[0])
 		})
 
-		c.Convey("put updates a value", FailureHalts, func(c C) {
+		t.Run("put/get - multiple keys", func(t *testing.T) {
 			documentOne := createDocument("doc1", "hello", "world")
 			_, err := db.Put(ctx, documentOne)
-			c.So(err, ShouldBeNil)
-
-			documentTwo := createDocument("doc1", "hello", "galaxy")
-			_, err = db.Put(ctx, documentTwo)
-			c.So(err, ShouldBeNil)
-
-			docs, err := db.Get(ctx, "doc1", true)
-			c.So(err, ShouldBeNil)
-			c.So(len(docs), ShouldEqual, 1)
-			c.So(docs[0], ShouldResemble, documentTwo)
-		})
-
-		c.Convey("put/get - multiple keys", FailureHalts, func(c C) {
-			documentOne := createDocument("doc1", "hello", "world")
-			_, err := db.Put(ctx, documentOne)
-			c.So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			documentTwo := createDocument("doc2", "hello", "galaxy")
 			_, err = db.Put(ctx, documentTwo)
-			c.So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			documentThree := createDocument("doc3", "hello", "universe")
 			_, err = db.Put(ctx, documentThree)
-			c.So(err, ShouldBeNil)
+			require.NoError(t, err)
 
-			docsOne, err := db.Get(ctx, "doc1", true)
-			c.So(err, ShouldBeNil)
+			docsOne, err := db.Get(ctx, "doc1", &iface.DocumentStoreGetOptions{CaseInsensitive: false})
+			require.NoError(t, err)
 
-			docsTwo, err := db.Get(ctx, "doc2", true)
-			c.So(err, ShouldBeNil)
+			docsTwo, err := db.Get(ctx, "doc2", &iface.DocumentStoreGetOptions{CaseInsensitive: false})
+			require.NoError(t, err)
 
-			docsThree, err := db.Get(ctx, "doc3", true)
-			c.So(err, ShouldBeNil)
+			docsThree, err := db.Get(ctx, "doc3", &iface.DocumentStoreGetOptions{CaseInsensitive: false})
+			require.NoError(t, err)
 
-			c.So(len(docsOne), ShouldEqual, 1)
-			c.So(docsOne[0], ShouldResemble, documentOne)
-			c.So(len(docsTwo), ShouldEqual, 1)
-			c.So(docsTwo[0], ShouldResemble, documentTwo)
-			c.So(len(docsThree), ShouldEqual, 1)
-			c.So(docsThree[0], ShouldResemble, documentThree)
+			require.Equal(t, 1, len(docsOne))
+			require.Equal(t, documentOne, docsOne[0])
+			require.Equal(t, 1, len(docsTwo))
+			require.Equal(t, documentTwo, docsTwo[0])
+			require.Equal(t, 1, len(docsThree))
+			require.Equal(t, documentThree, docsThree[0])
 		})
 
-		c.Convey("deletes a key", FailureHalts, func(c C) {
+		t.Run("get - partial term match - PartialMatches: true", func(t *testing.T) {
+			doc1 := createDocument("hello world", "doc", "some things")
+			doc2 := createDocument("hello universe", "doc", "all the things")
+			doc3 := createDocument("sup world", "doc", "other things")
+
+			_, err := db.Put(ctx, doc1)
+			require.NoError(t, err)
+
+			_, err = db.Put(ctx, doc2)
+			require.NoError(t, err)
+
+			_, err = db.Put(ctx, doc3)
+			require.NoError(t, err)
+
+			fetchedDocs, err := db.Get(ctx, "hello", &iface.DocumentStoreGetOptions{PartialMatches: true})
+			require.Equal(t, 2, len(fetchedDocs))
+			require.Contains(t, fetchedDocs, doc1)
+			require.Contains(t, fetchedDocs, doc2)
+		})
+
+		t.Run("get - partial term match - PartialMatches: false", func(t *testing.T) {
+			doc1 := createDocument("hello world", "doc", "some things")
+			doc2 := createDocument("hello universe", "doc", "all the things")
+			doc3 := createDocument("sup world", "doc", "other things")
+
+			_, err := db.Put(ctx, doc1)
+			require.NoError(t, err)
+
+			_, err = db.Put(ctx, doc2)
+			require.NoError(t, err)
+
+			_, err = db.Put(ctx, doc3)
+			require.NoError(t, err)
+
+			fetchedDocs, err := db.Get(ctx, "hello", &iface.DocumentStoreGetOptions{PartialMatches: false})
+			require.Equal(t, 0, len(fetchedDocs))
+		})
+
+		t.Run("deletes a key", func(t *testing.T) {
 			document := createDocument("doc1", "hello", "world")
 			_, err := db.Put(ctx, document)
-			c.So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			_, err = db.Delete(ctx, "doc1")
-			c.So(err, ShouldBeNil)
+			require.NoError(t, err)
 
-			docs, err := db.Get(ctx, "doc1", true)
-			c.So(err, ShouldBeNil)
-			c.So(len(docs), ShouldEqual, 0)
+			docs, err := db.Get(ctx, "doc1", &iface.DocumentStoreGetOptions{CaseInsensitive: false})
+			require.NoError(t, err)
+			require.Equal(t, 0, len(docs))
 		})
 
-		c.Convey("deletes a key after multiple updates", FailureHalts, func(c C) {
+		t.Run("deletes a key after multiple updates", func(t *testing.T) {
 			documentOne := createDocument("doc1", "hello", "world")
 			_, err := db.Put(ctx, documentOne)
-			c.So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			documentTwo := createDocument("doc1", "hello", "galaxy")
 			_, err = db.Put(ctx, documentTwo)
-			c.So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			documentThree := createDocument("doc1", "hello", "universe")
 			_, err = db.Put(ctx, documentThree)
-			c.So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			_, err = db.Delete(ctx, "doc1")
-			c.So(err, ShouldBeNil)
+			require.NoError(t, err)
 
-			docs, err := db.Get(ctx, "doc1", true)
-			c.So(err, ShouldBeNil)
-			c.So(len(docs), ShouldEqual, 0)
+			docs, err := db.Get(ctx, "doc1", &iface.DocumentStoreGetOptions{CaseInsensitive: false})
+			require.NoError(t, err)
+			require.Equal(t, 0, len(docs))
 		})
 
+		t.Run("Specified index", func(t *testing.T) {
+			options := documentstore.DefaultStoreOptsForMap("doc")
+
+			db, err := orbitdb1.Docs(ctx, "orbit-db-tests-specified-index", &iface.CreateDBOptions{StoreSpecificOpts: options})
+			require.NoError(t, err)
+
+			defer func() { _ = db.Drop() }()
+
+			doc1 := createDocument("hello world", "doc", "all the things")
+			doc2 := createDocument("hello world", "doc", "some things")
+
+			t.Run("put", func(t *testing.T) {
+				_, err := db.Put(ctx, doc1)
+				require.NoError(t, err)
+
+				value, err := db.Get(ctx, "all", &iface.DocumentStoreGetOptions{PartialMatches: true})
+				require.NoError(t, err)
+
+				require.Equal(t, 1, len(value))
+				require.Equal(t, doc1, value[0])
+			})
+
+			t.Run("matches specified index", func(t *testing.T) {
+				_, err = db.Put(ctx, doc2)
+				require.NoError(t, err)
+
+				value1, err := db.Get(ctx, "all", &iface.DocumentStoreGetOptions{PartialMatches: true})
+				require.NoError(t, err)
+
+				require.Equal(t, 1, len(value1))
+				require.Equal(t, doc1, value1[0])
+
+				value2, err := db.Get(ctx, "some", &iface.DocumentStoreGetOptions{PartialMatches: true})
+				require.NoError(t, err)
+
+				require.Equal(t, 1, len(value2))
+				require.Equal(t, doc2, value2[0])
+			})
+		})
+
+		t.Run("putAll", func(t *testing.T) {
+			db, err := orbitdb1.Docs(ctx, "orbit-db-tests-putall", nil)
+			require.NoError(t, err)
+
+			defer func() { _ = db.Drop() }()
+
+			doc1 := createDocument("id1", "doc", "all the things")
+			doc2 := createDocument("id2", "doc", "some things")
+			doc3 := createDocument("id3", "doc", "more things")
+
+			_, err = db.PutAll(ctx, []interface{}{doc1, doc2, doc3})
+			require.NoError(t, err)
+
+			value, err := db.Get(ctx, "", &iface.DocumentStoreGetOptions{PartialMatches: true})
+			require.NoError(t, err)
+
+			require.Equal(t, 3, len(value))
+			require.Contains(t, value, doc1)
+			require.Contains(t, value, doc2)
+			require.Contains(t, value, doc3)
+		})
 	})
 }
