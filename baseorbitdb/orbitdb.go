@@ -924,7 +924,9 @@ func (o *orbitDB) onNewPeerJoined(ctx context.Context, p p2pcore.PeerID, store S
 	_, err = o.exchangeHeads(ctx, p, store)
 
 	if err != nil {
-		o.logger.Error("unable to exchange heads", zap.Error(err))
+		if !errors.Is(err, context.Canceled) {
+			o.logger.Error("unable to exchange heads", zap.Error(err))
+		}
 		return
 	}
 

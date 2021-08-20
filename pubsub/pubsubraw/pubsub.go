@@ -41,7 +41,12 @@ func (p *psTopic) WatchPeers(ctx context.Context) (<-chan events.Event, error) {
 		for {
 			evt, err := ph.NextPeerEvent(ctx)
 			if err != nil {
-				p.ps.logger.Error("", zap.Error(err))
+				switch err {
+				case context.Canceled:
+					p.ps.logger.Debug("watch peers ended", zap.Error(err))
+				default:
+					p.ps.logger.Error("watch next peer event failed", zap.Error(err))
+				}
 				return
 			}
 

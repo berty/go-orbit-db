@@ -2,13 +2,14 @@ package tests
 
 import (
 	"context"
+	"io/ioutil"
+	"os"
+	"testing"
+
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/peerstore"
-	"io/ioutil"
-	"os"
-	"testing"
 
 	ipfsCore "github.com/ipfs/go-ipfs/core"
 	"github.com/ipfs/go-ipfs/core/coreapi"
