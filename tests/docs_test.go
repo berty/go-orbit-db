@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -25,13 +26,6 @@ func TestDocumentsStore(t *testing.T) {
 			testingDocsStore(t, c.Directory)
 		})
 	}
-}
-
-func createDocument(id string, key string, value string) map[string]interface{} {
-	m := make(map[string]interface{})
-	m["_id"] = id
-	m[key] = value
-	return m
 }
 
 func testingDocsStore(t *testing.T, dir string) {
@@ -74,9 +68,9 @@ func testingDocsStore(t *testing.T, dir string) {
 			require.Equal(t, "first docs database", db.DBName())
 		})
 
-		document := createDocument("doc1", "hello", "world")
-		documentUpdate1 := createDocument("doc1", "hello", "galaxy")
-		documentUppercase := createDocument("DOCUPPER1", "hello", "world")
+		document := map[string]interface{}{"_id": "doc1", "hello": "world"}
+		documentUpdate1 := map[string]interface{}{"_id": "doc1", "hello": "galaxy"}
+		documentUppercase := map[string]interface{}{"_id": "DOCUPPER1", "hello": "world"}
 
 		t.Run("put/get", func(t *testing.T) {
 			_, err := db.Put(ctx, document)
@@ -124,15 +118,15 @@ func testingDocsStore(t *testing.T, dir string) {
 		})
 
 		t.Run("put/get - multiple keys", func(t *testing.T) {
-			documentOne := createDocument("doc1", "hello", "world")
+			documentOne := map[string]interface{}{"_id": "doc1", "hello": "world"}
 			_, err := db.Put(ctx, documentOne)
 			require.NoError(t, err)
 
-			documentTwo := createDocument("doc2", "hello", "galaxy")
+			documentTwo := map[string]interface{}{"_id": "doc2", "hello": "galaxy"}
 			_, err = db.Put(ctx, documentTwo)
 			require.NoError(t, err)
 
-			documentThree := createDocument("doc3", "hello", "universe")
+			documentThree := map[string]interface{}{"_id": "doc3", "hello": "universe"}
 			_, err = db.Put(ctx, documentThree)
 			require.NoError(t, err)
 
@@ -154,9 +148,9 @@ func testingDocsStore(t *testing.T, dir string) {
 		})
 
 		t.Run("get - partial term match - PartialMatches: true", func(t *testing.T) {
-			doc1 := createDocument("hello world", "doc", "some things")
-			doc2 := createDocument("hello universe", "doc", "all the things")
-			doc3 := createDocument("sup world", "doc", "other things")
+			doc1 := map[string]interface{}{"_id": "hello world", "doc": "some things"}
+			doc2 := map[string]interface{}{"_id": "hello universe", "doc": "all the things"}
+			doc3 := map[string]interface{}{"_id": "sup world", "doc": "other things"}
 
 			_, err := db.Put(ctx, doc1)
 			require.NoError(t, err)
@@ -174,9 +168,9 @@ func testingDocsStore(t *testing.T, dir string) {
 		})
 
 		t.Run("get - partial term match - PartialMatches: false", func(t *testing.T) {
-			doc1 := createDocument("hello world", "doc", "some things")
-			doc2 := createDocument("hello universe", "doc", "all the things")
-			doc3 := createDocument("sup world", "doc", "other things")
+			doc1 := map[string]interface{}{"_id": "hello world", "doc": "some things"}
+			doc2 := map[string]interface{}{"_id": "hello universe", "doc": "all the things"}
+			doc3 := map[string]interface{}{"_id": "sup world", "doc": "other things"}
 
 			_, err := db.Put(ctx, doc1)
 			require.NoError(t, err)
@@ -192,7 +186,7 @@ func testingDocsStore(t *testing.T, dir string) {
 		})
 
 		t.Run("deletes a key", func(t *testing.T) {
-			document := createDocument("doc1", "hello", "world")
+			document := map[string]interface{}{"_id": "doc1", "hello": "world"}
 			_, err := db.Put(ctx, document)
 			require.NoError(t, err)
 
@@ -205,15 +199,15 @@ func testingDocsStore(t *testing.T, dir string) {
 		})
 
 		t.Run("deletes a key after multiple updates", func(t *testing.T) {
-			documentOne := createDocument("doc1", "hello", "world")
+			documentOne := map[string]interface{}{"_id": "doc1", "hello": "world"}
 			_, err := db.Put(ctx, documentOne)
 			require.NoError(t, err)
 
-			documentTwo := createDocument("doc1", "hello", "galaxy")
+			documentTwo := map[string]interface{}{"_id": "doc1", "hello": "galaxy"}
 			_, err = db.Put(ctx, documentTwo)
 			require.NoError(t, err)
 
-			documentThree := createDocument("doc1", "hello", "universe")
+			documentThree := map[string]interface{}{"_id": "doc1", "hello": "universe"}
 			_, err = db.Put(ctx, documentThree)
 			require.NoError(t, err)
 
@@ -233,8 +227,8 @@ func testingDocsStore(t *testing.T, dir string) {
 
 			defer func() { _ = db.Drop() }()
 
-			doc1 := createDocument("hello world", "doc", "all the things")
-			doc2 := createDocument("hello world", "doc", "some things")
+			doc1 := map[string]interface{}{"_id": "hello world", "doc": "all the things"}
+			doc2 := map[string]interface{}{"_id": "hello world", "doc": "some things"}
 
 			t.Run("put", func(t *testing.T) {
 				_, err := db.Put(ctx, doc1)
@@ -271,9 +265,9 @@ func testingDocsStore(t *testing.T, dir string) {
 
 			defer func() { _ = db.Drop() }()
 
-			doc1 := createDocument("id1", "doc", "all the things")
-			doc2 := createDocument("id2", "doc", "some things")
-			doc3 := createDocument("id3", "doc", "more things")
+			doc1 := map[string]interface{}{"_id": "id1", "doc": "all the things"}
+			doc2 := map[string]interface{}{"_id": "id2", "doc": "some things"}
+			doc3 := map[string]interface{}{"_id": "id3", "doc": "more things"}
 
 			_, err = db.PutAll(ctx, []interface{}{doc1, doc2, doc3})
 			require.NoError(t, err)
@@ -285,6 +279,90 @@ func testingDocsStore(t *testing.T, dir string) {
 			require.Contains(t, value, doc1)
 			require.Contains(t, value, doc2)
 			require.Contains(t, value, doc3)
+		})
+
+		t.Run("query", func(t *testing.T) {
+			viewsFilter := func(expectedCount int) func(e interface{}) (bool, error) {
+				return func(e interface{}) (bool, error) {
+					entry, ok := e.(map[string]interface{})
+					if !ok {
+						return false, fmt.Errorf("unable to cast entry")
+					}
+
+					if _, ok := entry["views"]; !ok {
+						return false, nil
+					}
+
+					views, ok := entry["views"].(float64)
+					if !ok {
+						return false, fmt.Errorf("unable to cast value for field views")
+					}
+
+					return int(views) > expectedCount, nil
+				}
+			}
+
+			t.Run("query - simple", func(t *testing.T) {
+				db, err := orbitdb1.Docs(ctx, "orbit-db-tests-putall", nil)
+				require.NoError(t, err)
+
+				defer func() { _ = db.Drop() }()
+
+				doc1 := map[string]interface{}{"_id": "hello world", "doc": "all the things", "views": 17}
+				doc2 := map[string]interface{}{"_id": "sup world', doc: 'some of the things", "views": 10}
+				doc3 := map[string]interface{}{"_id": "hello other world", "doc": "none of the things", "views": 5}
+				doc4 := map[string]interface{}{"_id": "hey universe", "doc": ""}
+
+				for _, doc := range []map[string]interface{}{doc1, doc2, doc3, doc4} {
+					_, err := db.Put(ctx, doc)
+					require.NoError(t, err)
+				}
+
+				value, err := db.Query(ctx, viewsFilter(5))
+				require.NoError(t, err)
+				require.Len(t, value, 2)
+				require.Contains(t, fmt.Sprintf("%v", value), fmt.Sprintf("%v", doc1))
+				require.Contains(t, fmt.Sprintf("%v", value), fmt.Sprintf("%v", doc2))
+
+				value, err = db.Query(ctx, viewsFilter(10))
+				require.NoError(t, err)
+				require.Len(t, value, 1)
+				require.Contains(t, fmt.Sprintf("%v", value), fmt.Sprintf("%v", doc1))
+
+				value, err = db.Query(ctx, viewsFilter(17))
+				require.NoError(t, err)
+				require.Len(t, value, 0)
+			})
+
+			t.Run("query after delete", func(t *testing.T) {
+				db, err := orbitdb1.Docs(ctx, "orbit-db-tests-putall", nil)
+				require.NoError(t, err)
+
+				defer func() { _ = db.Drop() }()
+
+				doc1 := map[string]interface{}{"_id": "hello world", "doc": "all the things", "views": 17}
+				doc2 := map[string]interface{}{"_id": "sup world', doc: 'some of the things", "views": 10}
+				doc3 := map[string]interface{}{"_id": "hello other world", "doc": "none of the things", "views": 5}
+				doc4 := map[string]interface{}{"_id": "hey universe", "doc": ""}
+
+				for _, doc := range []map[string]interface{}{doc1, doc2, doc3, doc4} {
+					_, err := db.Put(ctx, doc)
+					require.NoError(t, err)
+				}
+				_, err = db.Delete(ctx, "hello world")
+				require.NoError(t, err)
+
+				value, err := db.Query(ctx, viewsFilter(4))
+				require.NoError(t, err)
+				require.Len(t, value, 2)
+				require.Contains(t, fmt.Sprintf("%v", value), fmt.Sprintf("%v", doc2))
+				require.Contains(t, fmt.Sprintf("%v", value), fmt.Sprintf("%v", doc3))
+
+				value, err = db.Query(ctx, viewsFilter(9))
+				require.NoError(t, err)
+				require.Len(t, value, 1)
+				require.Contains(t, fmt.Sprintf("%v", value), fmt.Sprintf("%v", doc2))
+			})
 		})
 	})
 }

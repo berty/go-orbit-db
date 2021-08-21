@@ -277,6 +277,9 @@ type DocumentStore interface {
 
 	// Get Retrieves the document for a key
 	Get(ctx context.Context, key string, opts *DocumentStoreGetOptions) ([]interface{}, error)
+
+	// Query Finds documents using a filter function
+	Query(ctx context.Context, filter func(doc interface{}) (bool, error)) ([]interface{}, error)
 }
 
 // StoreIndex Index contains the state of a datastore,

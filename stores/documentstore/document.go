@@ -178,6 +178,35 @@ func (o *orbitDBDocumentStore) PutAll(ctx context.Context, values []interface{})
 	return op, nil
 }
 
+// Query Finds documents using a filter function
+func (o *orbitDBDocumentStore) Query(ctx context.Context, filter func(doc interface{}) (bool, error)) ([]interface{}, error) {
+	docIndex, ok := o.Index().(*documentIndex)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast index to documentIndex")
+	}
+
+	documents := []interface{}(nil)
+	for _, indexKey := range docIndex.Keys() {
+		doc := docIndex.Get(indexKey)
+		if doc == nil {
+			continue
+		}
+
+		value := o.docOpts.ItemFactory()
+		if err := o.docOpts.Unmarshal(doc.([]byte), &value); err != nil {
+			return nil, fmt.Errorf("unable to unmarshal document: %w", err)
+		}
+
+		if ok, err := filter(value); err != nil {
+			return nil, fmt.Errorf("error while filtering value: %w", err)
+		} else if ok {
+			documents = append(documents, value)
+		}
+	}
+
+	return documents, nil
+}
+
 func (o *orbitDBDocumentStore) Type() string {
 	return "docstore"
 }
