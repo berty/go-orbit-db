@@ -3,15 +3,17 @@ package orbitdb
 import (
 	"context"
 
+	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	"github.com/pkg/errors"
+
 	"berty.tech/go-orbit-db/accesscontroller/ipfs"
 	"berty.tech/go-orbit-db/accesscontroller/orbitdb"
 	"berty.tech/go-orbit-db/accesscontroller/simple"
 	"berty.tech/go-orbit-db/baseorbitdb"
 	"berty.tech/go-orbit-db/iface"
+	"berty.tech/go-orbit-db/stores/documentstore"
 	"berty.tech/go-orbit-db/stores/eventlogstore"
 	"berty.tech/go-orbit-db/stores/kvstore"
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/pkg/errors"
 )
 
 type orbitDB struct {
@@ -29,6 +31,9 @@ type EventLogStore = iface.EventLogStore
 
 // KeyValueStore An alias of the type defined in the iface package
 type KeyValueStore = iface.KeyValueStore
+
+// DocumentStore An alias of the type defined in the iface package
+type DocumentStore = iface.DocumentStore
 
 // StoreIndex An alias of the type defined in the iface package
 type StoreIndex = iface.StoreIndex
@@ -48,6 +53,9 @@ type StreamOptions = iface.StreamOptions
 // CreateDBOptions An alias of the type defined in the iface package
 type CreateDBOptions = iface.CreateDBOptions
 
+// CreateDocumentDBOptions An alias of the type defined in the iface package
+type CreateDocumentDBOptions = iface.CreateDocumentDBOptions
+
 // DetermineAddressOptions An alias of the type defined in the iface package
 type DetermineAddressOptions = iface.DetermineAddressOptions
 
@@ -64,6 +72,7 @@ func NewOrbitDB(ctx context.Context, i coreapi.CoreAPI, options *NewOrbitDBOptio
 
 	odb.RegisterStoreType("eventlog", eventlogstore.NewOrbitDBEventLogStore)
 	odb.RegisterStoreType("keyvalue", kvstore.NewOrbitDBKeyValue)
+	odb.RegisterStoreType("docstore", documentstore.NewOrbitDBDocumentStore)
 
 	_ = odb.RegisterAccessControllerType(ipfs.NewIPFSAccessController)
 	_ = odb.RegisterAccessControllerType(orbitdb.NewOrbitDBAccessController)
@@ -121,6 +130,27 @@ func (o *orbitDB) KeyValue(ctx context.Context, address string, options *CreateD
 	}
 
 	return kvStore, nil
+}
+
+func (o *orbitDB) Docs(ctx context.Context, address string, options *CreateDBOptions) (DocumentStore, error) {
+	if options == nil {
+		options = &CreateDBOptions{}
+	}
+
+	options.Create = boolPtr(true)
+	options.StoreType = stringPtr("docstore")
+
+	store, err := o.Open(ctx, address, options)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to open database")
+	}
+
+	documentStore, ok := store.(DocumentStore)
+	if !ok {
+		return nil, errors.New("unable to cast store to document")
+	}
+
+	return documentStore, nil
 }
 
 var _ OrbitDB = (*orbitDB)(nil)

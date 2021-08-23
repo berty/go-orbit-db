@@ -38,6 +38,14 @@ type CreateDBOptions struct {
 	SortFn                  ipfslog.SortFn
 	IO                      ipfslog.IO
 	SharedKey               enc.SharedKey
+	StoreSpecificOpts       interface{}
+}
+
+type CreateDocumentDBOptions struct {
+	KeyExtractor func(interface{}) (string, error)
+	Marshal      func(interface{}) ([]byte, error)
+	Unmarshal    func(data []byte, v interface{}) error
+	ItemFactory  func() interface{}
 }
 
 // DetermineAddressOptions Lists the arguments used to determine a store address
@@ -70,7 +78,7 @@ type BaseOrbitDB interface {
 	// RegisterStoreType Registers a new store type
 	RegisterStoreType(storeType string, constructor StoreConstructor)
 
-	// RegisterStoreType Removes a store type
+	// UnregisterStoreType Removes a store type
 	UnregisterStoreType(storeType string)
 
 	// RegisterAccessControllerType Registers a new access controller type
@@ -89,13 +97,25 @@ type BaseOrbitDB interface {
 	Tracer() trace.Tracer
 }
 
+// OrbitDBDocumentStore An OrbitDB instance providing a Document store
+type OrbitDBDocumentStore interface {
+	BaseOrbitDB
+	OrbitDBDocumentStoreProvider
+}
+
+// OrbitDBDocumentStoreProvider Exposes a method providing a document store
+type OrbitDBDocumentStoreProvider interface {
+	// Docs Creates or opens an DocumentStore
+	Docs(ctx context.Context, address string, options *CreateDBOptions) (DocumentStore, error)
+}
+
 // OrbitDBKVStore An OrbitDB instance providing a KeyValue store
 type OrbitDBKVStore interface {
 	BaseOrbitDB
 	OrbitDBKVStoreProvider
 }
 
-// OrbitDBLogStoreProvider Exposes a method providing a key value store
+// OrbitDBKVStoreProvider Exposes a method providing a key value store
 type OrbitDBKVStoreProvider interface {
 	// KeyValue Creates or opens an KeyValueStore
 	KeyValue(ctx context.Context, address string, options *CreateDBOptions) (KeyValueStore, error)
@@ -119,6 +139,7 @@ type OrbitDB interface {
 
 	OrbitDBKVStoreProvider
 	OrbitDBLogStoreProvider
+	OrbitDBDocumentStoreProvider
 }
 
 // StreamOptions Defines the parameters that can be given to the Stream function of an EventLogStore
@@ -152,7 +173,7 @@ type Store interface {
 	// Replicator Returns the Replicator object
 	Replicator() replicator.Replicator
 
-	// Replicator Returns the Cache object
+	// Cache Returns the Cache object
 	Cache() datastore.Datastore
 
 	// Drop Removes all the local store content
@@ -216,7 +237,7 @@ type EventLogStore interface {
 	List(ctx context.Context, options *StreamOptions) ([]operation.Operation, error)
 }
 
-// EventLogStore A type of store that provides a key value store
+// KeyValueStore A type of store that provides a key value store
 type KeyValueStore interface {
 	Store
 
@@ -231,6 +252,34 @@ type KeyValueStore interface {
 
 	// Get Retrieves the value for a key of the map
 	Get(ctx context.Context, key string) ([]byte, error)
+}
+
+type DocumentStoreGetOptions struct {
+	CaseInsensitive bool
+	PartialMatches  bool
+}
+
+// DocumentStore A type of store that provides a document store
+type DocumentStore interface {
+	Store
+
+	// Put Stores the document
+	Put(ctx context.Context, document interface{}) (operation.Operation, error)
+
+	// Delete Clears the document for a key
+	Delete(ctx context.Context, key string) (operation.Operation, error)
+
+	// PutBatch Add values as multiple operations and returns the latest
+	PutBatch(ctx context.Context, values []interface{}) (operation.Operation, error)
+
+	// PutAll Add values as a single operation and returns it
+	PutAll(ctx context.Context, values []interface{}) (operation.Operation, error)
+
+	// Get Retrieves the document for a key
+	Get(ctx context.Context, key string, opts *DocumentStoreGetOptions) ([]interface{}, error)
+
+	// Query Finds documents using a filter function
+	Query(ctx context.Context, filter func(doc interface{}) (bool, error)) ([]interface{}, error)
 }
 
 // StoreIndex Index contains the state of a datastore,
@@ -272,6 +321,7 @@ type NewStoreOptions struct {
 	Tracer                 trace.Tracer
 	IO                     ipfslog.IO
 	SharedKey              enc.SharedKey
+	StoreSpecificOpts      interface{}
 }
 
 type DirectChannelOptions struct {
@@ -284,7 +334,7 @@ type DirectChannel interface {
 	// Connect Waits for the other peer to be connected
 	Connect(context.Context) error
 
-	// Sends Sends a message to the other peer
+	// Send Sends a message to the other peer
 	Send(context.Context, []byte) error
 
 	// Close Closes the connection
@@ -316,15 +366,15 @@ type PubSubTopic interface {
 	// WatchPeers subscribes to peers joining or leaving the topic
 	WatchPeers(ctx context.Context) (<-chan events.Event, error)
 
-	// WatchMessages
+	// WatchMessages Subscribes to new messages
 	WatchMessages(ctx context.Context) (<-chan *EventPubSubMessage, error)
 
-	// Returns the topic name
+	// Topic Returns the topic name
 	Topic() string
 }
 
 type PubSubInterface interface {
-	// Subscribe Subscribes to a topic
+	// TopicSubscribe Subscribes to a topic
 	TopicSubscribe(ctx context.Context, topic string) (PubSubTopic, error)
 }
 
