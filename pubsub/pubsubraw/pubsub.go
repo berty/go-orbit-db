@@ -7,7 +7,7 @@ import (
 	p2pcore "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/peer"
 	p2ppubsub "github.com/libp2p/go-libp2p-pubsub"
-	"go.opentelemetry.io/otel/api/trace"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"berty.tech/go-orbit-db/events"
@@ -135,7 +135,7 @@ func NewPubSub(ps *p2ppubsub.PubSub, id peer.ID, logger *zap.Logger, tracer trac
 	}
 
 	if tracer == nil {
-		tracer = trace.NoopTracer{}
+		tracer = trace.NewNoopTracerProvider().Tracer("")
 	}
 
 	return &rawPubSub{

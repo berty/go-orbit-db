@@ -34,7 +34,7 @@ import (
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	p2pcore "github.com/libp2p/go-libp2p-core"
 	"github.com/pkg/errors"
-	"go.opentelemetry.io/otel/api/trace"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -357,7 +357,7 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 	}
 
 	if options.Tracer == nil {
-		options.Tracer = trace.NoopTracer{}
+		options.Tracer = trace.NewNoopTracerProvider().Tracer("")
 	}
 
 	if options.DirectChannelFactory == nil {

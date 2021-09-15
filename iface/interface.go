@@ -18,7 +18,7 @@ import (
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	p2pcore "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"go.opentelemetry.io/otel/api/trace"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 

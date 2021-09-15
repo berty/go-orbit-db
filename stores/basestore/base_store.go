@@ -28,8 +28,8 @@ import (
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/pkg/errors"
-	otkv "go.opentelemetry.io/otel/api/kv"
-	"go.opentelemetry.io/otel/api/trace"
+	otkv "go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -131,7 +131,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 	}
 
 	if options.Tracer == nil {
-		options.Tracer = trace.NoopTracer{}
+		options.Tracer = trace.NewNoopTracerProvider().Tracer("")
 	}
 
 	if identity == nil {
@@ -218,17 +218,17 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 		for e := range sub {
 			switch evt := e.(type) {
 			case *replicator.EventLoadAdded:
-				span.AddEvent(ctx, "replicator-load-added", otkv.String("hash", evt.Hash.String()))
+				span.AddEvent("replicator-load-added", trace.WithAttributes(otkv.String("hash", evt.Hash.String())))
 				b.ReplicationStatus().IncQueued()
 				b.recalculateReplicationMax(0)
 				b.Emit(ctx, stores.NewEventReplicate(b.Address(), evt.Hash))
 
 			case *replicator.EventLoadEnd:
-				span.AddEvent(ctx, "replicator-load-end")
+				span.AddEvent("replicator-load-end")
 				b.replicationLoadComplete(ctx, evt.Logs)
 
 			case *replicator.EventLoadProgress:
-				span.AddEvent(ctx, "replicator-load-progress")
+				span.AddEvent("replicator-load-progress")
 				if b.ReplicationStatus().GetBuffered() > evt.BufferLength {
 					b.recalculateReplicationProgress(b.ReplicationStatus().GetProgress() + evt.BufferLength)
 				} else {
@@ -336,38 +336,38 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 	var localHeads, remoteHeads []*entry.Entry
 	localHeadsBytes, err := b.Cache().Get(datastore.NewKey("_localHeads"))
 	if err != nil && err != datastore.ErrNotFound {
-		span.AddEvent(ctx, "local-heads-load-failed")
+		span.AddEvent("local-heads-load-failed")
 		return errors.Wrap(err, "unable to get local heads from cache")
 	}
 
 	err = nil
 
 	if localHeadsBytes != nil {
-		span.AddEvent(ctx, "local-heads-unmarshall")
+		span.AddEvent("local-heads-unmarshall")
 		err = json.Unmarshal(localHeadsBytes, &localHeads)
 		if err != nil {
-			span.AddEvent(ctx, "local-heads-unmarshall-failed")
+			span.AddEvent("local-heads-unmarshall-failed")
 			b.logger.Warn("unable to unmarshal cached local heads", zap.Error(err))
 		}
-		span.AddEvent(ctx, "local-heads-unmarshalled")
+		span.AddEvent("local-heads-unmarshalled")
 	}
 
 	remoteHeadsBytes, err := b.Cache().Get(datastore.NewKey("_remoteHeads"))
 	if err != nil && err != datastore.ErrNotFound {
-		span.AddEvent(ctx, "remote-heads-load-failed")
+		span.AddEvent("remote-heads-load-failed")
 		return errors.Wrap(err, "unable to get data from cache")
 	}
 
 	err = nil
 
 	if remoteHeadsBytes != nil {
-		span.AddEvent(ctx, "remote-heads-unmarshall")
+		span.AddEvent("remote-heads-unmarshall")
 		err = json.Unmarshal(remoteHeadsBytes, &remoteHeads)
 		if err != nil {
-			span.AddEvent(ctx, "remote-heads-unmarshall-failed")
+			span.AddEvent("remote-heads-unmarshall-failed")
 			return errors.Wrap(err, "unable to unmarshal cached remote heads")
 		}
-		span.AddEvent(ctx, "remote-heads-unmarshalled")
+		span.AddEvent("remote-heads-unmarshalled")
 	}
 
 	heads := append(localHeads, remoteHeads...)
@@ -395,7 +395,7 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 
 			b.recalculateReplicationMax(h.GetClock().GetTime())
 
-			span.AddEvent(ctx, "store-head-loading")
+			span.AddEvent("store-head-loading")
 			l, inErr := ipfslog.NewFromEntryHash(ctx, b.IPFS(), b.Identity(), h.GetHash(), &ipfslog.LogOptions{
 				ID:               oplog.GetID(),
 				AccessController: b.AccessController(),
@@ -408,21 +408,21 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 			})
 
 			if inErr != nil {
-				span.AddEvent(ctx, "store-head-loading-error")
+				span.AddEvent("store-head-loading-error")
 				err = errors.Wrap(inErr, "unable to create log from entry hash")
 				return
 			}
 
-			span.AddEvent(ctx, "store-head-loaded")
+			span.AddEvent("store-head-loaded")
 
-			span.AddEvent(ctx, "store-heads-joining")
+			span.AddEvent("store-heads-joining")
 			if _, inErr = oplog.Join(l, amount); inErr != nil {
-				span.AddEvent(ctx, "store-heads-joining-failed")
+				span.AddEvent("store-heads-joining-failed")
 				// err = errors.Wrap(err, "unable to join log")
 				// TODO: log
 				_ = inErr
 			} else {
-				span.AddEvent(ctx, "store-heads-joined")
+				span.AddEvent("store-heads-joined")
 			}
 		}(h)
 	}
@@ -430,18 +430,18 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 	wg.Wait()
 
 	if err != nil {
-		span.AddEvent(ctx, "store-handling-head-error", otkv.String("error", err.Error()))
+		span.AddEvent("store-handling-head-error", trace.WithAttributes(otkv.String("error", err.Error())))
 		return err
 	}
 
 	// Update the index
 	if len(heads) > 0 {
-		span.AddEvent(ctx, "store-index-updating")
+		span.AddEvent("store-index-updating")
 		if err := b.updateIndex(ctx); err != nil {
-			span.AddEvent(ctx, "store-index-updating-error", otkv.String("error", err.Error()))
+			span.AddEvent("store-index-updating-error", trace.WithAttributes(otkv.String("error", err.Error())))
 			return errors.Wrap(err, "unable to update index")
 		}
-		span.AddEvent(ctx, "store-index-updated")
+		span.AddEvent("store-index-updated")
 	}
 
 	b.Emit(ctx, stores.NewEventReady(b.Address(), b.OpLog().Heads().Slice()))
@@ -481,24 +481,24 @@ func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
 
 		canAppend := b.AccessController().CanAppend(h, identityProvider, &CanAppendContext{log: b.OpLog()})
 		if canAppend != nil {
-			span.AddEvent(ctx, "store-sync-cant-append", otkv.String("error", canAppend.Error()))
+			span.AddEvent("store-sync-cant-append", trace.WithAttributes(otkv.String("error", canAppend.Error())))
 			b.Logger().Debug("warning: Given input entry is not allowed in this log and was discarded (no write access)", zap.Error(canAppend))
 			continue
 		}
 
 		hash, err := b.IO().Write(ctx, b.IPFS(), h, nil)
 		if err != nil {
-			span.AddEvent(ctx, "store-sync-cant-write", otkv.String("error", err.Error()))
+			span.AddEvent("store-sync-cant-write", trace.WithAttributes(otkv.String("error", err.Error())))
 			return errors.Wrap(err, "unable to write entry on dag")
 		}
 
 		if hash.String() != h.GetHash().String() {
-			span.AddEvent(ctx, "store-sync-cant-verify-hash")
+			span.AddEvent("store-sync-cant-verify-hash")
 			return errors.New("WARNING! Head hash didn't match the contents")
 		}
 
 		savedEntriesCIDs = append(savedEntriesCIDs, hash)
-		span.AddEvent(ctx, "store-sync-head-verified")
+		span.AddEvent("store-sync-head-verified")
 	}
 
 	b.Replicator().Load(ctx, savedEntriesCIDs)

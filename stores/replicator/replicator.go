@@ -13,8 +13,8 @@ import (
 	"berty.tech/go-orbit-db/events"
 	cid "github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
-	otkv "go.opentelemetry.io/otel/api/kv"
-	"go.opentelemetry.io/otel/api/trace"
+	otkv "go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -108,7 +108,7 @@ func NewReplicator(ctx context.Context, store storeInterface, concurrency uint, 
 	}
 
 	if opts.Tracer == nil {
-		opts.Tracer = trace.NoopTracer{}
+		opts.Tracer = trace.NewNoopTracerProvider().Tracer("")
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -293,7 +293,7 @@ func (r *replicator) processQueue(ctx context.Context) {
 }
 
 func (r *replicator) addToQueue(ctx context.Context, span trace.Span, h cid.Cid) {
-	span.AddEvent(ctx, "replicator-add-to-queue", otkv.String("cid", h.String()))
+	span.AddEvent("replicator-add-to-queue", trace.WithAttributes(otkv.String("cid", h.String())))
 
 	r.lock.Lock()
 	defer r.lock.Unlock()
