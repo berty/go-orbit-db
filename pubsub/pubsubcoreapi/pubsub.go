@@ -9,7 +9,7 @@ import (
 	options "github.com/ipfs/interface-go-ipfs-core/options"
 	p2pcore "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"go.opentelemetry.io/otel/api/trace"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"berty.tech/go-orbit-db/events"
@@ -173,7 +173,7 @@ func NewPubSub(api coreapi.CoreAPI, id peer.ID, pollInterval time.Duration, logg
 	}
 
 	if tracer == nil {
-		tracer = trace.NoopTracer{}
+		tracer = trace.NewNoopTracerProvider().Tracer("")
 	}
 
 	return &coreAPIPubSub{
