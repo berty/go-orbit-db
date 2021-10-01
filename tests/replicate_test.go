@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"berty.tech/go-ipfs-log/enc"
 	"context"
 	"fmt"
 	"os"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	ipfslog "berty.tech/go-ipfs-log"
+	"berty.tech/go-ipfs-log/enc"
 	orbitdb "berty.tech/go-orbit-db"
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/events"

@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"berty.tech/go-orbit-db/events"
 	"context"
 	"fmt"
 	"strings"
@@ -10,6 +9,7 @@ import (
 
 	orbitdb "berty.tech/go-orbit-db"
 	"berty.tech/go-orbit-db/accesscontroller"
+	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/operation"

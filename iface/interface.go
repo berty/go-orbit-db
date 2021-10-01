@@ -1,12 +1,12 @@
 package iface
 
 import (
-	"berty.tech/go-ipfs-log/enc"
-	"berty.tech/go-ipfs-log/iface"
 	"context"
 
 	ipfslog "berty.tech/go-ipfs-log"
+	"berty.tech/go-ipfs-log/enc"
 	"berty.tech/go-ipfs-log/identityprovider"
+	"berty.tech/go-ipfs-log/iface"
 	"berty.tech/go-ipfs-log/keystore"
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/address"
