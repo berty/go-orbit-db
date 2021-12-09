@@ -15,6 +15,7 @@ import (
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestInitDirectChannelFactory(t *testing.T) {
@@ -32,7 +33,7 @@ func TestInitDirectChannelFactory(t *testing.T) {
 		hosts[i], err = mn.GenPeer()
 		require.NoError(t, err)
 
-		directChannelsFactories[i] = InitDirectChannelFactory(hosts[i])
+		directChannelsFactories[i] = InitDirectChannelFactory(zap.NewNop(), hosts[i])
 	}
 
 	err = mn.LinkAll()
