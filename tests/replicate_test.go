@@ -110,7 +110,7 @@ func testDirectChannelNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (or
 
 	orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{
 		Directory:            &dbPath1,
-		DirectChannelFactory: directchannel.InitDirectChannelFactory(node1.PeerHost),
+		DirectChannelFactory: directchannel.InitDirectChannelFactory(zap.NewNop(), node1.PeerHost),
 	})
 	require.NoError(t, err)
 
