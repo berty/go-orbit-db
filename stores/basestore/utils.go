@@ -73,7 +73,7 @@ func SaveSnapshot(ctx context.Context, b iface.Store) (cid.Cid, error) {
 		return cid.Cid{}, errors.Wrap(err, "unable to save log data on store")
 	}
 
-	err = b.Cache().Put(datastore.NewKey("snapshot"), []byte(snapshotPath.Cid().String()))
+	err = b.Cache().Put(ctx, datastore.NewKey("snapshot"), []byte(snapshotPath.Cid().String()))
 	if err != nil {
 		return cid.Cid{}, errors.Wrap(err, "unable to add snapshot data to cache")
 	}
@@ -83,7 +83,7 @@ func SaveSnapshot(ctx context.Context, b iface.Store) (cid.Cid, error) {
 		return cid.Cid{}, errors.Wrap(err, "unable to marshal unfinished cids")
 	}
 
-	err = b.Cache().Put(datastore.NewKey("queue"), unfinishedJSON)
+	err = b.Cache().Put(ctx, datastore.NewKey("queue"), unfinishedJSON)
 	if err != nil {
 		return cid.Cid{}, errors.Wrap(err, "unable to add unfinished data to cache")
 	}

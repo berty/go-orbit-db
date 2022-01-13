@@ -455,7 +455,7 @@ func NewOrbitDB(ctx context.Context, ipfs coreapi.CoreAPI, options *NewOrbitDBOp
 	}
 
 	if options.Identity == nil {
-		identity, err := idp.CreateIdentity(&idp.CreateIdentityOptions{
+		identity, err := idp.CreateIdentity(ctx, &idp.CreateIdentityOptions{
 			Keystore: options.Keystore,
 			Type:     "orbitdb",
 			ID:       *options.ID,
@@ -507,14 +507,14 @@ func (o *orbitDB) Create(ctx context.Context, name string, storeType string, opt
 	}
 
 	// Check if we have the database locally
-	haveDB := o.haveLocalData(c, dbAddress)
+	haveDB := o.haveLocalData(ctx, c, dbAddress)
 
 	if haveDB && (options.Overwrite == nil || !*options.Overwrite) {
 		return nil, errors.New(fmt.Sprintf("database %s already exists", dbAddress))
 	}
 
 	// Save the database locally
-	if err := o.addManifestToCache(o.directory, dbAddress); err != nil {
+	if err := o.addManifestToCache(ctx, o.directory, dbAddress); err != nil {
 		return nil, errors.Wrap(err, "unable to add manifest to cache")
 	}
 
@@ -582,7 +582,7 @@ func (o *orbitDB) Open(ctx context.Context, dbAddress string, options *CreateDBO
 		return nil, errors.Wrap(err, "unable to acquire cache")
 	}
 
-	haveDB := o.haveLocalData(dbCache, parsedDBAddress)
+	haveDB := o.haveLocalData(ctx, dbCache, parsedDBAddress)
 	if *options.LocalOnly && !haveDB {
 		return nil, errors.New(fmt.Sprintf("database %s doesn't exist!", dbAddress))
 	}
@@ -665,7 +665,7 @@ func (o *orbitDB) loadCache(directory string, dbAddress address.Address) (datast
 	return db, nil
 }
 
-func (o *orbitDB) haveLocalData(c datastore.Datastore, dbAddress address.Address) bool {
+func (o *orbitDB) haveLocalData(ctx context.Context, c datastore.Datastore, dbAddress address.Address) bool {
 	if c == nil {
 		o.logger.Debug("haveLocalData: no cache provided")
 		return false
@@ -673,7 +673,7 @@ func (o *orbitDB) haveLocalData(c datastore.Datastore, dbAddress address.Address
 
 	cacheKey := datastore.NewKey(path.Join(dbAddress.String(), "_manifest"))
 
-	data, err := c.Get(cacheKey)
+	data, err := c.Get(ctx, cacheKey)
 	if err != nil {
 		if err != datastore.ErrNotFound {
 			o.logger.Error("haveLocalData: error while getting value from cache", zap.Error(err))
@@ -685,7 +685,7 @@ func (o *orbitDB) haveLocalData(c datastore.Datastore, dbAddress address.Address
 	return data != nil
 }
 
-func (o *orbitDB) addManifestToCache(directory string, dbAddress address.Address) error {
+func (o *orbitDB) addManifestToCache(ctx context.Context, directory string, dbAddress address.Address) error {
 	c, err := o.loadCache(directory, dbAddress)
 	if err != nil {
 		return errors.Wrap(err, "unable to load existing cache")
@@ -693,7 +693,7 @@ func (o *orbitDB) addManifestToCache(directory string, dbAddress address.Address
 
 	cacheKey := datastore.NewKey(path.Join(dbAddress.String(), "_manifest"))
 
-	if err := c.Put(cacheKey, []byte(dbAddress.GetRoot().String())); err != nil {
+	if err := c.Put(ctx, cacheKey, []byte(dbAddress.GetRoot().String())); err != nil {
 		return errors.Wrap(err, "unable to set cache")
 	}
 

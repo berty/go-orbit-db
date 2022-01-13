@@ -334,7 +334,7 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 	}
 
 	var localHeads, remoteHeads []*entry.Entry
-	localHeadsBytes, err := b.Cache().Get(datastore.NewKey("_localHeads"))
+	localHeadsBytes, err := b.Cache().Get(ctx, datastore.NewKey("_localHeads"))
 	if err != nil && err != datastore.ErrNotFound {
 		span.AddEvent("local-heads-load-failed")
 		return errors.Wrap(err, "unable to get local heads from cache")
@@ -352,7 +352,7 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 		span.AddEvent("local-heads-unmarshalled")
 	}
 
-	remoteHeadsBytes, err := b.Cache().Get(datastore.NewKey("_remoteHeads"))
+	remoteHeadsBytes, err := b.Cache().Get(ctx, datastore.NewKey("_remoteHeads"))
 	if err != nil && err != datastore.ErrNotFound {
 		span.AddEvent("remote-heads-load-failed")
 		return errors.Wrap(err, "unable to get data from cache")
@@ -527,7 +527,7 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 
 	b.Emit(ctx, stores.NewEventLoad(b.Address(), nil))
 
-	queueJSON, err := b.Cache().Get(datastore.NewKey("queue"))
+	queueJSON, err := b.Cache().Get(ctx, datastore.NewKey("queue"))
 	if err != nil && err != datastore.ErrNotFound {
 		return errors.Wrap(err, "unable to get value from cache")
 	}
@@ -550,7 +550,7 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 		}
 	}
 
-	snapshot, err := b.Cache().Get(datastore.NewKey("snapshot"))
+	snapshot, err := b.Cache().Get(ctx, datastore.NewKey("snapshot"))
 	if err == datastore.ErrNotFound {
 		return errors.Wrap(err, "not found")
 	}
@@ -678,7 +678,7 @@ func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, on
 		return nil, errors.Wrap(err, "unable to marshal entry")
 	}
 
-	err = b.Cache().Put(datastore.NewKey("_localHeads"), marshaledEntry)
+	err = b.Cache().Put(ctx, datastore.NewKey("_localHeads"), marshaledEntry)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to add data to cache")
 	}
@@ -769,7 +769,7 @@ func (b *BaseStore) replicationLoadComplete(ctx context.Context, logs []ipfslog.
 		return
 	}
 
-	err = b.Cache().Put(datastore.NewKey("_remoteHeads"), headsBytes)
+	err = b.Cache().Put(ctx, datastore.NewKey("_remoteHeads"), headsBytes)
 	if err != nil {
 		b.Logger().Error("unable to update heads cache", zap.Error(err))
 		return
