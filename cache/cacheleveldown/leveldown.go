@@ -1,6 +1,7 @@
 package cacheleveldown
 
 import (
+	"context"
 	"os"
 	"path"
 	"sync"
@@ -29,32 +30,32 @@ type wrappedCache struct {
 	closed       bool
 }
 
-func (w *wrappedCache) Get(key datastore.Key) (value []byte, err error) {
-	return w.wrappedCache.Get(key)
+func (w *wrappedCache) Get(ctx context.Context, key datastore.Key) (value []byte, err error) {
+	return w.wrappedCache.Get(ctx, key)
 }
 
-func (w *wrappedCache) Has(key datastore.Key) (exists bool, err error) {
-	return w.wrappedCache.Has(key)
+func (w *wrappedCache) Has(ctx context.Context, key datastore.Key) (exists bool, err error) {
+	return w.wrappedCache.Has(ctx, key)
 }
 
-func (w *wrappedCache) GetSize(key datastore.Key) (size int, err error) {
-	return w.wrappedCache.GetSize(key)
+func (w *wrappedCache) GetSize(ctx context.Context, key datastore.Key) (size int, err error) {
+	return w.wrappedCache.GetSize(ctx, key)
 }
 
-func (w *wrappedCache) Query(q query.Query) (query.Results, error) {
-	return w.wrappedCache.Query(q)
+func (w *wrappedCache) Query(ctx context.Context, q query.Query) (query.Results, error) {
+	return w.wrappedCache.Query(ctx, q)
 }
 
-func (w *wrappedCache) Put(key datastore.Key, value []byte) error {
-	return w.wrappedCache.Put(key, value)
+func (w *wrappedCache) Put(ctx context.Context, key datastore.Key, value []byte) error {
+	return w.wrappedCache.Put(ctx, key, value)
 }
 
-func (w *wrappedCache) Delete(key datastore.Key) error {
-	return w.wrappedCache.Delete(key)
+func (w *wrappedCache) Delete(ctx context.Context, key datastore.Key) error {
+	return w.wrappedCache.Delete(ctx, key)
 }
 
-func (w *wrappedCache) Sync(key datastore.Key) error {
-	return w.wrappedCache.Sync(key)
+func (w *wrappedCache) Sync(ctx context.Context, key datastore.Key) error {
+	return w.wrappedCache.Sync(ctx, key)
 }
 
 func (w *wrappedCache) Close() error {

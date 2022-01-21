@@ -53,9 +53,9 @@ func testingIPFSAPIsNonMocked(ctx context.Context, t *testing.T, count int) ([]i
 			ExtraOpts: map[string]bool{
 				"pubsub": true,
 			},
-			Host: func(ctx context.Context, id peer.ID, ps peerstore.Peerstore, options ...libp2p.Option) (host.Host, error) {
+			Host: func(id peer.ID, ps peerstore.Peerstore, options ...libp2p.Option) (host.Host, error) {
 				options = append(options, libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
-				return ipfsLibP2P.DefaultHostOption(ctx, id, ps, options...)
+				return ipfsLibP2P.DefaultHostOption(id, ps, options...)
 			},
 		})
 		require.NoError(t, err)

@@ -167,7 +167,7 @@ func TestCreateOpen(t *testing.T) {
 
 				defer ds.Close()
 
-				val, err := ds.Get(datastore.NewKey(fmt.Sprintf("%s/_manifest", addr)))
+				val, err := ds.Get(ctx, datastore.NewKey(fmt.Sprintf("%s/_manifest", addr)))
 				require.NoError(t, err)
 
 				data := string(val)
@@ -402,7 +402,7 @@ func TestCreateOpen(t *testing.T) {
 			idKeystore, err := keystore.NewKeystore(idDS)
 			require.NoError(t, err)
 
-			identity, err := identityprovider.CreateIdentity(&identityprovider.CreateIdentityOptions{ID: "test-id", Keystore: idKeystore, Type: "orbitdb"})
+			identity, err := identityprovider.CreateIdentity(ctx, &identityprovider.CreateIdentityOptions{ID: "test-id", Keystore: idKeystore, Type: "orbitdb"})
 			require.NoError(t, err)
 			require.NotNil(t, identity)
 

@@ -120,6 +120,8 @@ func testDirectChannelNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (or
 }
 
 func testRawPubSubNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func()) {
+	t.Skip("skip unstable raw-pubsub test")
+
 	var closeOps []func()
 
 	performCloseOps := func() {
