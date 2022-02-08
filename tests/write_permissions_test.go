@@ -199,11 +199,14 @@ func TestWritePermissions(t *testing.T) {
 			subCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 			defer cancel()
 
-			sub := db1.Subscribe(ctx)
+			sub, err := orbitdb2.EventBus().Subscribe(new(stores.EventReplicated))
+			require.NoError(t, err)
+			defer sub.Close()
+
 			go func() {
-				for evt := range sub {
+				for evt := range sub.Out() {
 					switch evt.(type) {
-					case *stores.EventReplicated:
+					case stores.EventReplicated:
 						require.Equal(t, "this", "should not occur")
 					}
 				}

@@ -169,11 +169,16 @@ func TestPersistence(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 		defer cancel()
-		sub := db.Subscribe(ctx)
+
+		sub, err := db.EventBus().Subscribe(new(stores.EventReady))
+		require.NoError(t, err)
+
+		defer sub.Close()
+
 		go func() {
-			for evt := range sub {
+			for evt := range sub.Out() {
 				switch evt.(type) {
-				case *stores.EventReady:
+				case stores.EventReady:
 					l.Lock()
 					items, err = db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 					l.Unlock()

@@ -5,14 +5,20 @@ import (
 	cid "github.com/ipfs/go-cid"
 )
 
+var Events = []interface{}{
+	new(EventLoadEnd),
+	new(EventLoadAdded),
+	new(EventLoadProgress),
+}
+
 // EventLoadAdded An event triggered when entries have been added
 type EventLoadAdded struct {
 	Hash cid.Cid
 }
 
 // NewEventLoadAdded Creates a new EventLoadAdded event
-func NewEventLoadAdded(h cid.Cid) *EventLoadAdded {
-	return &EventLoadAdded{
+func NewEventLoadAdded(h cid.Cid) EventLoadAdded {
+	return EventLoadAdded{
 		Hash: h,
 	}
 }
@@ -26,8 +32,8 @@ type EventLoadProgress struct {
 }
 
 // NewEventLoadProgress Creates a new EventLoadProgress event
-func NewEventLoadProgress(id string, h cid.Cid, latest ipfslog.Entry, bufferLength int) *EventLoadProgress {
-	return &EventLoadProgress{
+func NewEventLoadProgress(id string, h cid.Cid, latest ipfslog.Entry, bufferLength int) EventLoadProgress {
+	return EventLoadProgress{
 		ID:           id,
 		Hash:         h,
 		Latest:       latest,
@@ -41,8 +47,8 @@ type EventLoadEnd struct {
 }
 
 // NewEventLoadEnd Creates a new EventLoadEnd event
-func NewEventLoadEnd(logs []ipfslog.Log) *EventLoadEnd {
-	return &EventLoadEnd{
+func NewEventLoadEnd(logs []ipfslog.Log) EventLoadEnd {
+	return EventLoadEnd{
 		Logs: logs,
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	ipfslog "berty.tech/go-ipfs-log"
@@ -16,7 +17,6 @@ import (
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/accesscontroller/simple"
 	"berty.tech/go-orbit-db/address"
-	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/operation"
@@ -26,6 +26,8 @@ import (
 	files "github.com/ipfs/go-ipfs-files"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/path"
+	"github.com/libp2p/go-eventbus"
+	"github.com/libp2p/go-libp2p-core/event"
 	"github.com/pkg/errors"
 	otkv "go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -34,7 +36,15 @@ import (
 
 // BaseStore The base of other stores
 type BaseStore struct {
-	events.EventEmitter
+	eventBus event.Bus
+	emitters struct {
+		evtWrite             event.Emitter
+		evtReady             event.Emitter
+		evtReplicateProgress event.Emitter
+		evtLoad              event.Emitter
+		evtReplicated        event.Emitter
+		evtReplicate         event.Emitter
+	}
 
 	id                string
 	identity          *identityprovider.Identity
@@ -47,7 +57,12 @@ type BaseStore struct {
 	replicator        replicator.Replicator
 	index             iface.StoreIndex
 	replicationStatus replicator.ReplicationInfo
-
+	stats             struct {
+		snapshot struct {
+			bytesLoaded int64
+		}
+		syncRequestsReceived int64
+	}
 	referenceCount int
 	replicate      bool
 	directory      string
@@ -112,12 +127,20 @@ func (b *BaseStore) SharedKey() enc.SharedKey {
 	return b.options.SharedKey
 }
 
+func (b *BaseStore) EventBus() event.Bus {
+	return b.options.EventBus
+}
+
 // InitBaseStore Initializes the store base
 func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) error {
 	var err error
 
 	if options == nil {
 		options = &iface.NewStoreOptions{}
+	}
+
+	if options.EventBus == nil {
+		options.EventBus = eventbus.NewBus()
 	}
 
 	if options.Logger == nil {
@@ -130,6 +153,11 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 
 	if identity == nil {
 		return errors.New("identity required")
+	}
+
+	b.eventBus = options.EventBus
+	if err := b.generateEmitter(options.EventBus); err != nil {
+		return err
 	}
 
 	b.logger = options.Logger
@@ -178,10 +206,15 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 	b.index = options.Index(b.Identity().PublicKey)
 	b.muIndex.Unlock()
 
-	b.replicator = replicator.NewReplicator(ctx, b, options.ReplicationConcurrency, &replicator.Options{
+	atomic.StoreInt64(&b.stats.snapshot.bytesLoaded, -1)
+
+	b.replicator, err = replicator.NewReplicator(ctx, b, options.ReplicationConcurrency, &replicator.Options{
 		Logger: b.logger,
 		Tracer: b.tracer,
 	})
+	if err != nil {
+		return errors.Wrap(err, "unable to init error")
+	}
 
 	b.referenceCount = 64
 	if options.ReferenceCount != nil {
@@ -202,24 +235,38 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 
 	b.options = options
 
-	sub := b.Replicator().Subscribe(ctx)
+	sub, err := b.replicator.EventBus().Subscribe(replicator.Events)
+	if err != nil {
+		return errors.Wrap(err, "unable to subscribe to replicator events")
+	}
+
 	go func() {
+		defer sub.Close()
 		ctx, span := b.tracer.Start(ctx, "base-store-main-loop", trace.WithAttributes(otkv.String("store-address", b.Address().String())))
 		defer span.End()
 
-		for e := range sub {
+		var e interface{}
+		for {
+			select {
+			case e = <-sub.Out():
+			case <-ctx.Done():
+				return
+			}
+
 			switch evt := e.(type) {
-			case *replicator.EventLoadAdded:
+			case replicator.EventLoadAdded:
 				span.AddEvent("replicator-load-added", trace.WithAttributes(otkv.String("hash", evt.Hash.String())))
 				b.ReplicationStatus().IncQueued()
 				b.recalculateReplicationMax(0)
-				b.Emit(ctx, stores.NewEventReplicate(b.Address(), evt.Hash))
+				if err := b.emitters.evtReplicate.Emit(stores.NewEventReplicate(b.Address(), evt.Hash)); err != nil {
+					b.logger.Warn("unable to emit event replicate", zap.Error(err))
+				}
 
-			case *replicator.EventLoadEnd:
+			case replicator.EventLoadEnd:
 				span.AddEvent("replicator-load-end")
 				b.replicationLoadComplete(ctx, evt.Logs)
 
-			case *replicator.EventLoadProgress:
+			case replicator.EventLoadProgress:
 				span.AddEvent("replicator-load-progress")
 				if b.ReplicationStatus().GetBuffered() > evt.BufferLength {
 					b.recalculateReplicationProgress(b.ReplicationStatus().GetProgress() + evt.BufferLength)
@@ -234,7 +281,10 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 				b.ReplicationStatus().SetBuffered(evt.BufferLength)
 				b.recalculateReplicationMax(b.ReplicationStatus().GetProgress())
 				// logger.debug(`<replicate.progress>`)
-				b.Emit(ctx, stores.NewEventReplicateProgress(b.Address(), evt.Hash, evt.Latest, b.ReplicationStatus()))
+				err := b.emitters.evtReplicateProgress.Emit(stores.NewEventReplicateProgress(b.Address(), evt.Hash, evt.Latest, b.ReplicationStatus()))
+				if err != nil {
+					b.logger.Warn("unable to emit event replicate progress", zap.Error(err))
+				}
 			}
 		}
 	}()
@@ -249,7 +299,21 @@ func (b *BaseStore) Close() error {
 	// Reset replication statistics
 	b.ReplicationStatus().Reset()
 
-	b.UnsubscribeAll()
+	// Reset database statistics
+	atomic.StoreInt64(&b.stats.snapshot.bytesLoaded, -1)
+	atomic.StoreInt64(&b.stats.syncRequestsReceived, 0)
+
+	// close emitters
+	emitters := []event.Emitter{
+		b.emitters.evtWrite, b.emitters.evtReady,
+		b.emitters.evtReplicateProgress, b.emitters.evtLoad,
+		b.emitters.evtReplicated, b.emitters.evtReplicate,
+	}
+	for _, emitter := range emitters {
+		if err := emitter.Close(); err != nil {
+			b.logger.Warn("unable to close emitter", zap.Error(err))
+		}
+	}
 
 	err := b.Cache().Close()
 	if err != nil {
@@ -366,7 +430,9 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 			headsForEvent[i] = heads[i]
 		}
 
-		b.Emit(ctx, stores.NewEventLoad(b.Address(), headsForEvent))
+		if err := b.emitters.evtLoad.Emit(stores.NewEventLoad(b.Address(), headsForEvent)); err != nil {
+			b.logger.Warn("unable to emit event load", zap.Error(err))
+		}
 	}
 
 	wg := sync.WaitGroup{}
@@ -432,13 +498,18 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 		span.AddEvent("store-index-updated")
 	}
 
-	b.Emit(ctx, stores.NewEventReady(b.Address(), b.OpLog().Heads().Slice()))
+	if err := b.emitters.evtReady.Emit(stores.NewEventReady(b.Address(), b.OpLog().Heads().Slice())); err != nil {
+		return errors.Wrap(err, "unable to emit event ready")
+	}
+
 	return nil
 }
 
 func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
 	ctx, span := b.tracer.Start(ctx, "store-sync")
 	defer span.End()
+
+	atomic.AddInt64(&b.stats.syncRequestsReceived, 1)
 
 	if len(heads) == 0 {
 		return nil
@@ -511,7 +582,9 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 	b.muJoining.Lock()
 	defer b.muJoining.Unlock()
 
-	b.Emit(ctx, stores.NewEventLoad(b.Address(), nil))
+	if err := b.emitters.evtLoad.Emit(stores.NewEventLoad(b.Address(), nil)); err != nil {
+		b.logger.Warn("unable to emit event load event", zap.Error(err))
+	}
 
 	queueJSON, err := b.Cache().Get(ctx, datastore.NewKey("queue"))
 	if err != nil && err != datastore.ErrNotFound {
@@ -673,7 +746,9 @@ func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, on
 		return nil, errors.Wrap(err, "unable to update index")
 	}
 
-	b.Emit(ctx, stores.NewEventWrite(b.Address(), e, oplog.Heads().Slice()))
+	if err := b.emitters.evtWrite.Emit(stores.NewEventWrite(b.Address(), e, oplog.Heads().Slice())); err != nil {
+		b.logger.Warn("unable to emit event write", zap.Error(err))
+	}
 
 	if onProgressCallback != nil {
 		onProgressCallback <- e
@@ -724,6 +799,36 @@ func (b *BaseStore) updateIndex(ctx context.Context) error {
 	return nil
 }
 
+func (b *BaseStore) generateEmitter(bus event.Bus) error {
+	var err error
+
+	if b.emitters.evtWrite, err = bus.Emitter(new(stores.EventWrite)); err != nil {
+		return errors.Wrap(err, "unable to create EventWrite emitter")
+	}
+
+	if b.emitters.evtReady, err = bus.Emitter(new(stores.EventReady)); err != nil {
+		return errors.Wrap(err, "unable to create EventReady emitter")
+	}
+
+	if b.emitters.evtReplicateProgress, err = bus.Emitter(new(stores.EventReplicateProgress)); err != nil {
+		return errors.Wrap(err, "unable to create EventReplicateProgress emitter")
+	}
+
+	if b.emitters.evtLoad, err = bus.Emitter(new(stores.EventLoad)); err != nil {
+		return errors.Wrap(err, "unable to create EventLoad emitter")
+	}
+
+	if b.emitters.evtReplicated, err = bus.Emitter(new(stores.EventReplicated)); err != nil {
+		return errors.Wrap(err, "unable to create EventReplicated emitter")
+	}
+
+	if b.emitters.evtReplicate, err = bus.Emitter(new(stores.EventReplicate)); err != nil {
+		return errors.Wrap(err, "unable to create EventReplicate emitter")
+	}
+
+	return nil
+}
+
 func (b *BaseStore) replicationLoadComplete(ctx context.Context, logs []ipfslog.Log) {
 	b.muJoining.Lock()
 	defer b.muJoining.Unlock()
@@ -764,7 +869,9 @@ func (b *BaseStore) replicationLoadComplete(ctx context.Context, logs []ipfslog.
 	b.Logger().Debug(fmt.Sprintf("Saved heads %d", heads.Len()))
 
 	// logger.debug(`<replicated>`)
-	b.Emit(ctx, stores.NewEventReplicated(b.Address(), len(logs)))
+	if err := b.emitters.evtReplicated.Emit(stores.NewEventReplicated(b.Address(), len(logs))); err != nil {
+		b.Logger().Warn("unable to emit event replicated", zap.Error(err))
+	}
 }
 
 func (b *BaseStore) SortFn() ipfslog.SortFn {

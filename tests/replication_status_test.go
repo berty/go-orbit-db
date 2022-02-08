@@ -123,10 +123,13 @@ func TestReplicationStatus(t *testing.T) {
 			subCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 			defer cancel()
 
-			sub := db2.Subscribe(subCtx)
+			sub, err := orbitdb2.EventBus().Subscribe(new(stores.EventReplicated))
+			require.NoError(t, err)
+			defer sub.Close()
+
 			go func() {
-				for evt := range sub {
-					if _, ok := evt.(*stores.EventReplicated); ok {
+				for evt := range sub.Out() {
+					if _, ok := evt.(stores.EventReplicated); ok {
 						if db2.ReplicationStatus().GetBuffered() == 0 &&
 							db2.ReplicationStatus().GetQueued() == 0 &&
 							db2.ReplicationStatus().GetProgress() == 2 {
