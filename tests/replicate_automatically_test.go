@@ -11,6 +11,7 @@ import (
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/iface"
+	"berty.tech/go-orbit-db/pubsub/directchannel"
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/operation"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -57,10 +58,16 @@ func TestReplicateAutomatically(t *testing.T) {
 		err = ipfs2.Swarm().Connect(ctx, peerInfo1)
 		require.NoError(t, err)
 
-		orbitdb1, err = orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{Directory: &dbPath1})
+		orbitdb1, err = orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{
+			DirectChannelFactory: directchannel.InitDirectChannelFactory(zap.NewNop(), node1.PeerHost),
+			Directory:            &dbPath1,
+		})
 		require.NoError(t, err)
 
-		orbitdb2, err = orbitdb.NewOrbitDB(ctx, ipfs2, &orbitdb.NewOrbitDBOptions{Directory: &dbPath2})
+		orbitdb2, err = orbitdb.NewOrbitDB(ctx, ipfs2, &orbitdb.NewOrbitDBOptions{
+			DirectChannelFactory: directchannel.InitDirectChannelFactory(zap.NewNop(), node2.PeerHost),
+			Directory:            &dbPath2,
+		})
 		require.NoError(t, err)
 
 		access = accesscontroller.CreateAccessControllerOptions{
@@ -124,11 +131,14 @@ func TestReplicateAutomatically(t *testing.T) {
 
 		hasAllResults := false
 
-		sub := db2.Subscribe(ctx)
+		sub, err := db2.EventBus().Subscribe(new(stores.EventReplicated))
+		require.NoError(t, err)
+		defer sub.Close()
+
 		go func() {
-			for evt := range sub {
+			for evt := range sub.Out() {
 				switch evt.(type) {
-				case *stores.EventReplicated:
+				case stores.EventReplicated:
 					infinity := -1
 
 					result1, err := db1.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
@@ -181,36 +191,33 @@ func TestReplicateAutomatically(t *testing.T) {
 		defer db4.Drop()
 		defer db4.Close()
 
+		hasAllResults := false
+
+		sub1, err := db4.EventBus().Subscribe(new(stores.EventReplicated))
+		require.NoError(t, err)
+		defer sub1.Close()
+
+		select {
+		case <-sub1.Out():
+			require.Fail(t, "Should not happen")
+		default:
+		}
+
 		subCtx, subCancel := context.WithTimeout(ctx, 5*time.Second)
 		defer subCancel()
 
-		hasAllResults := false
+		sub2, err := db2.EventBus().Subscribe([]interface{}{
+			new(stores.EventReplicateProgress),
+			new(stores.EventReplicated),
+		})
+		require.NoError(t, err)
+		defer sub2.Close()
 
 		infinity := -1
-
-		sub1 := db4.Subscribe(ctx)
 		go func() {
-			for event := range sub1 {
-				switch event.(type) {
-				case *stores.EventReplicated:
-					require.Equal(t, "", "Should not happen")
-					subCancel()
-				}
-			}
-		}()
-
-		<-subCtx.Done()
-
-		subCtx, subCancel = context.WithTimeout(ctx, 5*time.Second)
-		defer subCancel()
-
-		sub2 := db2.Subscribe(ctx)
-		go func() {
-			for event := range sub2 {
-				switch event.(type) {
-				case *stores.EventReplicateProgress:
-					e := event.(*stores.EventReplicateProgress)
-
+			for event := range sub2.Out() {
+				switch e := event.(type) {
+				case stores.EventReplicateProgress:
 					op, err := operation.ParseOperation(e.Entry)
 					require.NoError(t, err)
 
@@ -219,7 +226,7 @@ func TestReplicateAutomatically(t *testing.T) {
 					require.True(t, strings.HasPrefix(string(op.GetValue()), "hello"))
 					require.NotNil(t, e.Entry.GetClock())
 
-				case *stores.EventReplicated:
+				case stores.EventReplicated:
 					result1, err := db1.List(subCtx, &orbitdb.StreamOptions{Amount: &infinity})
 					require.NoError(t, err)
 
@@ -358,13 +365,15 @@ func TestReplicateAutomaticallyNonMocked(t *testing.T) {
 
 		hasAllResults := false
 
-		sub := db2.Subscribe(ctx)
-		go func() {
-			for evt := range sub {
-				switch evt.(type) {
-				case *stores.EventReplicated:
-					infinity := -1
+		sub, err := db2.EventBus().Subscribe(new(stores.EventReplicated))
+		require.NoError(t, err)
+		defer sub.Close()
 
+		infinity := -1
+		go func() {
+			for evt := range sub.Out() {
+				switch evt.(type) {
+				case stores.EventReplicated:
 					result1, err := db1.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 					require.NoError(t, err)
 
@@ -420,13 +429,14 @@ func TestReplicateAutomaticallyNonMocked(t *testing.T) {
 
 		hasAllResults := false
 
-		infinity := -1
+		sub1, err := db4.EventBus().Subscribe(new(stores.EventReplicated))
+		require.NoError(t, err)
+		defer sub1.Close()
 
-		sub1 := db4.Subscribe(ctx)
 		go func() {
-			for event := range sub1 {
+			for event := range sub1.Out() {
 				switch event.(type) {
-				case *stores.EventReplicated:
+				case stores.EventReplicated:
 					require.Equal(t, "", "Should not happen")
 					subCancel()
 				}
@@ -438,13 +448,18 @@ func TestReplicateAutomaticallyNonMocked(t *testing.T) {
 		subCtx, subCancel = context.WithCancel(ctx)
 		defer subCancel()
 
-		sub2 := db2.Subscribe(ctx)
-		go func() {
-			for event := range sub2 {
-				switch event.(type) {
-				case *stores.EventReplicateProgress:
-					e := event.(*stores.EventReplicateProgress)
+		sub2, err := db2.EventBus().Subscribe([]interface{}{
+			new(stores.EventReplicateProgress),
+			new(stores.EventReplicated),
+		})
+		require.NoError(t, err)
+		defer sub2.Close()
 
+		infinity := -1
+		go func() {
+			for event := range sub2.Out() {
+				switch e := event.(type) {
+				case stores.EventReplicateProgress:
 					op, err := operation.ParseOperation(e.Entry)
 					require.NoError(t, err)
 
@@ -453,7 +468,7 @@ func TestReplicateAutomaticallyNonMocked(t *testing.T) {
 					require.True(t, strings.HasPrefix(string(op.GetValue()), "hello"))
 					require.NotNil(t, e.Entry.GetClock())
 
-				case *stores.EventReplicated:
+				case stores.EventReplicated:
 					result1, err := db1.List(subCtx, &orbitdb.StreamOptions{Amount: &infinity})
 					require.NoError(t, err)
 
@@ -510,11 +525,14 @@ func TestReplicateAutomaticallyNonMocked(t *testing.T) {
 
 		infinity := -1
 
-		sub1 := db4.Subscribe(ctx)
+		sub1, err := db4.EventBus().Subscribe(new(stores.EventReplicated))
+		require.NoError(t, err)
+		defer sub1.Close()
+
 		go func() {
-			for event := range sub1 {
+			for event := range sub1.Out() {
 				switch event.(type) {
-				case *stores.EventReplicated:
+				case stores.EventReplicated:
 					require.Equal(t, "", "Should not happen")
 					subCancel()
 				}
@@ -533,7 +551,7 @@ func TestReplicateAutomaticallyNonMocked(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		t.Logf("Add took: %s", time.Now().Sub(tRefAdd).String())
+		t.Logf("Add took: %s", time.Since(tRefAdd).String())
 
 		db2, err = orbitdb2.Log(ctx, db1.Address().String(), &orbitdb.CreateDBOptions{
 			Directory:        &dbPath2,
@@ -548,14 +566,18 @@ func TestReplicateAutomaticallyNonMocked(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, entryCount, len(result1))
 
-		sub2 := db2.Subscribe(ctx)
-		go func() {
-			for event := range sub2 {
-				go func(event events.Event) {
-					switch event.(type) {
-					case *stores.EventReplicateProgress:
-						e := event.(*stores.EventReplicateProgress)
+		sub2, err := db2.EventBus().Subscribe([]interface{}{
+			new(stores.EventReplicateProgress),
+			new(stores.EventReplicated),
+		})
+		require.NoError(t, err)
+		defer sub1.Close()
 
+		go func() {
+			for event := range sub2.Out() {
+				go func(event events.Event) {
+					switch e := event.(type) {
+					case stores.EventReplicateProgress:
 						op, err := operation.ParseOperation(e.Entry)
 						require.NoError(t, err)
 
@@ -564,14 +586,14 @@ func TestReplicateAutomaticallyNonMocked(t *testing.T) {
 						require.True(t, strings.HasPrefix(string(op.GetValue()), "hello"))
 						require.NotNil(t, e.Entry.GetClock())
 
-					case *stores.EventReplicated:
+					case stores.EventReplicated:
 						result2, err := db2.List(subCtx, &orbitdb.StreamOptions{Amount: &infinity})
 						require.NoError(t, err)
 
 						resultCount = len(result2)
 
 						if resultCount != entryCount {
-							fmt.Println(fmt.Sprintf("replicated: %d/%d", resultCount, entryCount))
+							fmt.Printf("replicated: %d/%d\n", resultCount, entryCount)
 							return
 						}
 

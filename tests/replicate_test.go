@@ -12,11 +12,11 @@ import (
 	"berty.tech/go-ipfs-log/enc"
 	orbitdb "berty.tech/go-orbit-db"
 	"berty.tech/go-orbit-db/accesscontroller"
-	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/pubsub/directchannel"
 	"berty.tech/go-orbit-db/pubsub/pubsubraw"
 	orbitstores "berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/operation"
+	"github.com/libp2p/go-libp2p-core/event"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -110,7 +110,7 @@ func testDirectChannelNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (or
 
 	orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{
 		Directory:            &dbPath1,
-		DirectChannelFactory: directchannel.InitDirectChannelFactory(ctx, zap.NewNop(), node1.PeerHost),
+		DirectChannelFactory: directchannel.InitDirectChannelFactory(zap.NewNop(), node1.PeerHost),
 	})
 	require.NoError(t, err)
 
@@ -219,7 +219,7 @@ func testLogAppendReplicateMultipeer(t *testing.T, amount int, nodeGen func(t *t
 
 	address := "replication-tests"
 	stores := make([]orbitdb.EventLogStore, nitems)
-	subChans := make([]<-chan events.Event, nitems)
+	subChans := make([]event.Subscription, nitems)
 
 	for i := 0; i < nitems; i++ {
 		store, err := dbs[i].Log(ctx, address, &orbitdb.CreateDBOptions{
@@ -229,8 +229,15 @@ func testLogAppendReplicateMultipeer(t *testing.T, amount int, nodeGen func(t *t
 		require.NoError(t, err)
 
 		stores[i] = store
-		subChans[i] = store.GlobalChannel(ctx)
-		defer func() { _ = store.Close() }()
+		subChans[i], err = store.EventBus().Subscribe([]interface{}{
+			new(orbitstores.EventWrite),
+			new(orbitstores.EventReplicateProgress),
+		})
+		require.NoError(t, err)
+		defer func(i int) {
+			subChans[i].Close()
+			_ = store.Close()
+		}(i)
 	}
 
 	<-time.After(5 * time.Second)
@@ -242,11 +249,11 @@ func testLogAppendReplicateMultipeer(t *testing.T, amount int, nodeGen func(t *t
 		go func(i int) {
 			var err error
 			defer wg.Done()
-			_, err = stores[i].Add(ctx, []byte(fmt.Sprintf("PingPong")))
-			_, err = stores[i].Add(ctx, []byte(fmt.Sprintf("PingPong")))
-			_, err = stores[i].Add(ctx, []byte(fmt.Sprintf("PingPong")))
-			_, err = stores[i].Add(ctx, []byte(fmt.Sprintf("PingPong")))
-			_, err = stores[i].Add(ctx, []byte(fmt.Sprintf("PingPong")))
+
+			for j := 0; j < 5; j++ {
+				_, err = stores[i].Add(ctx, []byte("PingPong"))
+				require.NoError(t, err)
+			}
 			_, err = stores[i].Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
 			require.NoError(t, err)
 		}(i)
@@ -266,14 +273,19 @@ func testLogAppendReplicateMultipeer(t *testing.T, amount int, nodeGen func(t *t
 			received[i] = make(map[string]bool)
 			mu.Unlock()
 			storeValue := fmt.Sprintf("hello%d", i)
-			for e := range subChans[i] {
+			for e := range subChans[i].Out() {
 				entry := ipfslog.Entry(nil)
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
 
 				switch evt := e.(type) {
-				case *orbitstores.EventWrite:
+				case orbitstores.EventWrite:
 					entry = evt.Entry
 
-				case *orbitstores.EventReplicateProgress:
+				case orbitstores.EventReplicateProgress:
 					entry = evt.Entry
 				}
 
@@ -363,7 +375,6 @@ func TestReplicationMultipeer(t *testing.T) {
 			t.Run(fmt.Sprintf("replicates database of %d entries with node type %s", amount, nodeType), func(t *testing.T) {
 				testLogAppendReplicateMultipeer(t, amount, nodeGen)
 			})
-			time.Sleep(4 * time.Second) // wait some time to let CPU relax
 		}
 	}
 }

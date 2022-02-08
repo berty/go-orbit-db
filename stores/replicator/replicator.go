@@ -10,8 +10,9 @@ import (
 	"time"
 
 	ipfslog "berty.tech/go-ipfs-log"
-	"berty.tech/go-orbit-db/events"
 	cid "github.com/ipfs/go-cid"
+	"github.com/libp2p/go-eventbus"
+	"github.com/libp2p/go-libp2p-core/event"
 	"github.com/pkg/errors"
 	otkv "go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -21,13 +22,18 @@ import (
 var batchSize = 1
 
 type replicator struct {
+	eventBus event.Bus
+	emitters struct {
+		evtLoadEnd      event.Emitter
+		evtLoadAdded    event.Emitter
+		evtLoadProgress event.Emitter
+	}
+
 	// These require 64 bit alignment for ARM and 32bit devices
 	statsTasksRequested int64
 	statsTasksStarted   int64
 	statsTasksProcessed int64
 	// For more information see https://pkg.go.dev/sync/atomic#pkg-note-BUG
-
-	events.EventEmitter
 
 	cancelFunc  context.CancelFunc
 	store       storeInterface
@@ -49,6 +55,18 @@ func (r *replicator) GetBufferLen() int {
 
 func (r *replicator) Stop() {
 	r.cancelFunc()
+
+	emitters := []event.Emitter{
+		r.emitters.evtLoadEnd,
+		r.emitters.evtLoadAdded,
+		r.emitters.evtLoadProgress,
+	}
+
+	for _, emitter := range emitters {
+		if err := emitter.Close(); err != nil {
+			r.logger.Warn("unable to close emitter", zap.Error(err))
+		}
+	}
 }
 
 func (r *replicator) GetQueue() []cid.Cid {
@@ -93,14 +111,19 @@ func (r *replicator) Load(ctx context.Context, cids []cid.Cid) {
 }
 
 type Options struct {
-	Logger *zap.Logger
-	Tracer trace.Tracer
+	Logger   *zap.Logger
+	Tracer   trace.Tracer
+	EventBus event.Bus
 }
 
 // NewReplicator Creates a new Replicator instance
-func NewReplicator(ctx context.Context, store storeInterface, concurrency uint, opts *Options) Replicator {
+func NewReplicator(ctx context.Context, store storeInterface, concurrency uint, opts *Options) (Replicator, error) {
 	if opts == nil {
 		opts = &Options{}
+	}
+
+	if opts.EventBus == nil {
+		opts.EventBus = eventbus.NewBus()
 	}
 
 	if opts.Logger == nil {
@@ -118,6 +141,7 @@ func NewReplicator(ctx context.Context, store storeInterface, concurrency uint, 
 	}
 
 	r := replicator{
+		eventBus:    opts.EventBus,
 		cancelFunc:  cancelFunc,
 		concurrency: int64(concurrency),
 		store:       store,
@@ -126,6 +150,7 @@ func NewReplicator(ctx context.Context, store storeInterface, concurrency uint, 
 		logger:      opts.Logger,
 		tracer:      opts.Tracer,
 	}
+	r.generateEmitter(opts.EventBus)
 
 	go func() {
 		for {
@@ -145,7 +170,12 @@ func NewReplicator(ctx context.Context, store storeInterface, concurrency uint, 
 		}
 	}()
 
-	return &r
+	return &r, nil
+}
+
+func (r *replicator) Close() error {
+
+	return nil
 }
 
 func (r *replicator) tasksRunning() int64 {
@@ -176,7 +206,9 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 
 	r.fetching[h.String()] = h
 
-	r.Emit(ctx, NewEventLoadAdded(h))
+	if err := r.emitters.evtLoadAdded.Emit(NewEventLoadAdded(h)); err != nil {
+		r.logger.Warn("unable to emit event load added", zap.Error(err))
+	}
 
 	atomic.AddInt64(&r.statsTasksStarted, 1)
 
@@ -205,7 +237,9 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 	//r.statsTasksProcessed++
 
 	// Notify subscribers that we made progress
-	r.Emit(ctx, NewEventLoadProgress("", h, latest, len(r.buffer))) // TODO JS: this._id should be undefined
+	if err := r.emitters.evtLoadProgress.Emit(NewEventLoadProgress("", h, latest, len(r.buffer))); err != nil {
+		r.logger.Warn("unable to emit event load progress", zap.Error(err))
+	}
 
 	var nextValues []cid.Cid
 
@@ -283,13 +317,37 @@ func (r *replicator) processQueue(ctx context.Context) {
 
 			r.logger.Debug(fmt.Sprintf("load end logs, logs found :%d", bLen))
 
-			r.Emit(ctx, NewEventLoadEnd(b))
+			if err := r.emitters.evtLoadEnd.Emit(NewEventLoadEnd(b)); err != nil {
+				r.logger.Warn("unable to emit event load end", zap.Error(err))
+			}
 		}
 
 		if len(hashes) > 0 {
 			r.Load(ctx, hashes)
 		}
 	}
+}
+
+func (r *replicator) EventBus() event.Bus {
+	return r.eventBus
+}
+
+func (r *replicator) generateEmitter(bus event.Bus) error {
+	var err error
+
+	if r.emitters.evtLoadEnd, err = bus.Emitter(new(EventLoadEnd)); err != nil {
+		return errors.Wrap(err, "unable to create EventLoadEnd emitter")
+	}
+
+	if r.emitters.evtLoadAdded, err = bus.Emitter(new(EventLoadAdded)); err != nil {
+		return errors.Wrap(err, "unable to create EventLoadAdded emitter")
+	}
+
+	if r.emitters.evtLoadProgress, err = bus.Emitter(new(EventLoadProgress)); err != nil {
+		return errors.Wrap(err, "unable to create EventLoadProgress emitter")
+	}
+
+	return nil
 }
 
 func (r *replicator) addToQueue(ctx context.Context, span trace.Span, h cid.Cid) {

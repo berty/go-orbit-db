@@ -6,9 +6,9 @@ import (
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-orbit-db/accesscontroller"
-	"berty.tech/go-orbit-db/events"
 	cid "github.com/ipfs/go-cid"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	"github.com/libp2p/go-libp2p-core/event"
 )
 
 // storeInterface An interface used to avoid import cycles
@@ -23,8 +23,6 @@ type storeInterface interface {
 
 // Replicator Replicates stores information among peers
 type Replicator interface {
-	events.EmitterInterface
-
 	// Stop Stops the replication
 	Stop()
 
@@ -36,6 +34,8 @@ type Replicator interface {
 
 	// GetBufferLen Gets the length of the buffer
 	GetBufferLen() int
+
+	EventBus() event.Bus
 }
 
 // ReplicationInfo Holds information about the current replication state

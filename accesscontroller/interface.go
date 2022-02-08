@@ -6,7 +6,6 @@ import (
 	"berty.tech/go-ipfs-log/accesscontroller"
 	"berty.tech/go-ipfs-log/iface"
 
-	"berty.tech/go-orbit-db/events"
 	"go.uber.org/zap"
 )
 
@@ -15,7 +14,6 @@ type CanAppendAdditionalContext = accesscontroller.CanAppendAdditionalContext
 
 // Interface The interface for OrbitDB Access Controllers
 type Interface interface {
-	events.EmitterInterface
 	accesscontroller.Interface
 
 	// Type Returns the type of the store as a string

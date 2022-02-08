@@ -10,13 +10,18 @@ import (
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/accesscontroller/utils"
 	"berty.tech/go-orbit-db/address"
-	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores"
+
 	cid "github.com/ipfs/go-cid"
+	"github.com/libp2p/go-libp2p-core/event"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
+
+var Events = []interface{}{
+	new(EventUpdated),
+}
 
 // CreateDBOptions An alias for iface.CreateDBOptions
 type CreateDBOptions = iface.CreateDBOptions
@@ -25,12 +30,12 @@ type CreateDBOptions = iface.CreateDBOptions
 type EventUpdated struct{}
 
 type orbitDBAccessController struct {
-	events.EventEmitter
-	orbitdb iface.OrbitDB
-	kvStore iface.KeyValueStore
-	options accesscontroller.ManifestParams
-	lock    sync.RWMutex
-	logger  *zap.Logger
+	emitterEvtUpdated event.Emitter
+	orbitdb           iface.OrbitDB
+	kvStore           iface.KeyValueStore
+	options           accesscontroller.ManifestParams
+	lock              sync.RWMutex
+	logger            *zap.Logger
 }
 
 func (o *orbitDBAccessController) SetLogger(logger *zap.Logger) {
@@ -208,10 +213,22 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 
 	o.kvStore = store
 
-	sub := o.kvStore.Subscribe(ctx)
+	sub, err := o.kvStore.EventBus().Subscribe(stores.Events)
+	if err != nil {
+		return errors.Wrap(err, "unable subscribe to store events")
+	}
+
 	go func() {
-		for e := range sub {
-			switch e.(type) {
+		defer sub.Close()
+
+		var evt interface{}
+		for {
+			select {
+			case <-ctx.Done():
+			case evt = <-sub.Out():
+			}
+
+			switch evt.(type) {
 			case stores.EventReady, stores.EventWrite, stores.EventReplicated:
 				o.onUpdate(ctx)
 			}
@@ -239,7 +256,9 @@ func (o *orbitDBAccessController) Close() error {
 }
 
 func (o *orbitDBAccessController) onUpdate(ctx context.Context) {
-	o.Emit(ctx, &EventUpdated{})
+	if err := o.emitterEvtUpdated.Emit(&EventUpdated{}); err != nil {
+		o.logger.Warn("unable to emit event updated", zap.Error(err))
+	}
 }
 
 // NewIPFSAccessController Returns a default access controller for OrbitDB database
@@ -265,9 +284,15 @@ func NewOrbitDBAccessController(ctx context.Context, db iface.BaseOrbitDB, param
 		return nil, errors.Wrap(err, "unable to init key value store")
 	}
 
+	emitter, err := db.EventBus().Emitter(new(EventUpdated))
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to init emitter")
+	}
+
 	controller := &orbitDBAccessController{
-		kvStore: kvStore,
-		options: params,
+		emitterEvtUpdated: emitter,
+		kvStore:           kvStore,
+		options:           params,
 	}
 
 	for _, o := range options {

@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"sync"
 
-	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/pubsub"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -20,17 +18,14 @@ import (
 const PROTOCOL = "/go-orbit-db/direct-channel/1.1.0"
 
 type directChannel struct {
-	events.EventEmitter
-
-	sub    (<-chan events.Event)
-	logger *zap.Logger
-	host   host.Host
-	peer   peer.ID
+	logger  *zap.Logger
+	host    host.Host
+	emitter iface.DirectChannelEmitter
 }
 
 // Send Sends a message to the other peer
-func (d *directChannel) Send(ctx context.Context, bytes []byte) error {
-	stream, err := d.host.NewStream(ctx, d.peer, PROTOCOL)
+func (d *directChannel) Send(ctx context.Context, pid peer.ID, bytes []byte) error {
+	stream, err := d.host.NewStream(ctx, pid, PROTOCOL)
 	if err != nil {
 		return fmt.Errorf("unable to create stream: %w", err)
 	}
@@ -52,13 +47,6 @@ func (d *directChannel) Send(ctx context.Context, bytes []byte) error {
 
 	_, err = stream.Write(bytes)
 	return err
-}
-
-func (d *directChannel) GlobalChannel(ctx context.Context) <-chan events.Event {
-	if d.sub == nil {
-		d.sub = d.Subscribe(ctx)
-	}
-	return d.sub
 }
 
 func (d *directChannel) handleNewPeer(s network.Stream) {
@@ -87,49 +75,29 @@ func (d *directChannel) handleNewPeer(s network.Stream) {
 		return
 	}
 
-	d.Emit(context.Background(), pubsub.NewEventPayload(data))
+	if err := d.emitter.Emit(pubsub.NewEventPayload(data)); err != nil {
+		d.logger.Error("unable to emit on emitter", zap.Error(err))
+	}
 }
 
 // @NOTE(gfanton): we dont need this on direct channel
 // Connect Waits for the other peer to be connected
-func (d *directChannel) Connect(ctx context.Context) (err error) {
+func (d *directChannel) Connect(ctx context.Context, pid peer.ID) (err error) {
 	return nil
 }
 
 // @NOTE(gfanton): we dont need this on direct channel
 // Close Closes the connection
 func (d *directChannel) Close() error {
-	return nil
+	return d.emitter.Close()
 }
 
 type holderChannels struct {
-	ctx        context.Context
-	muChannels sync.Mutex
-	channels   map[peer.ID]*directChannel
-	host       host.Host
-	logger     *zap.Logger
+	host   host.Host
+	logger *zap.Logger
 }
 
-func (c *holderChannels) incomingConnHandler(s network.Stream) {
-	remotepeer := s.Conn().RemotePeer()
-
-	c.muChannels.Lock()
-	dc, ok := c.channels[remotepeer]
-	if !ok {
-		dc = &directChannel{
-			logger: c.logger,
-			host:   c.host,
-			peer:   remotepeer,
-		}
-		dc.sub = dc.Subscribe(c.ctx)
-		c.channels[remotepeer] = dc
-	}
-	c.muChannels.Unlock()
-
-	go dc.handleNewPeer(s)
-}
-
-func (c *holderChannels) NewChannel(ctx context.Context, receiver peer.ID, opts *iface.DirectChannelOptions) (iface.DirectChannel, error) {
+func (c *holderChannels) NewChannel(ctx context.Context, emitter iface.DirectChannelEmitter, opts *iface.DirectChannelOptions) (iface.DirectChannel, error) {
 	if opts == nil {
 		opts = &iface.DirectChannelOptions{}
 	}
@@ -138,32 +106,22 @@ func (c *holderChannels) NewChannel(ctx context.Context, receiver peer.ID, opts 
 		opts.Logger = c.logger
 	}
 
-	c.muChannels.Lock()
-	defer c.muChannels.Unlock()
-
-	if channel, ok := c.channels[receiver]; ok {
-		return channel, nil
-	}
-
 	dc := &directChannel{
-		logger: c.logger,
-		host:   c.host,
-		peer:   receiver,
+		logger:  c.logger,
+		host:    c.host,
+		emitter: emitter,
 	}
-	dc.sub = dc.Subscribe(ctx)
-	c.channels[receiver] = dc
+
+	c.host.SetStreamHandler(PROTOCOL, dc.handleNewPeer)
 	return dc, nil
+
 }
 
-func InitDirectChannelFactory(ctx context.Context, logger *zap.Logger, host host.Host) iface.DirectChannelFactory {
+func InitDirectChannelFactory(logger *zap.Logger, host host.Host) iface.DirectChannelFactory {
 	holder := &holderChannels{
-		ctx:      ctx,
-		logger:   logger,
-		channels: make(map[peer.ID]*directChannel),
-		host:     host,
+		logger: logger,
+		host:   host,
 	}
-
-	host.SetStreamHandler(PROTOCOL, holder.incomingConnHandler)
 
 	return holder.NewChannel
 }

@@ -16,14 +16,15 @@ import (
 	cid "github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	p2pcore "github.com/libp2p/go-libp2p-core"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/event"
+	peer "github.com/libp2p/go-libp2p-core/peer"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 // CreateDBOptions lists the arguments to create a store
 type CreateDBOptions struct {
+	EventBus                event.Bus
 	Directory               *string
 	Overwrite               *bool
 	LocalOnly               *bool
@@ -90,6 +91,9 @@ type BaseOrbitDB interface {
 	// GetAccessControllerType Retrieves an access controller type constructor if it exists
 	GetAccessControllerType(string) (AccessControllerConstructor, bool)
 
+	// EventBus Returns the eventsBus
+	EventBus() event.Bus
+
 	// Logger Returns the logger
 	Logger() *zap.Logger
 
@@ -151,10 +155,12 @@ type StreamOptions struct {
 	Amount *int
 }
 
+type StoreEvents interface {
+	Subscribe()
+}
+
 // Store Defines the operations common to all stores types
 type Store interface {
-	events.EmitterInterface
-
 	// Close Closes the store
 	Close() error
 
@@ -216,6 +222,9 @@ type Store interface {
 	Tracer() trace.Tracer
 
 	IO() iface.IO
+
+	// subscribe to events on this store
+	EventBus() event.Bus
 
 	SharedKey() enc.SharedKey
 }
@@ -307,6 +316,7 @@ type StoreIndex interface {
 
 // NewStoreOptions Lists the options to create a new store
 type NewStoreOptions struct {
+	EventBus               event.Bus
 	Index                  IndexConstructor
 	AccessController       accesscontroller.Interface
 	Cache                  datastore.Datastore
@@ -329,19 +339,22 @@ type DirectChannelOptions struct {
 }
 
 type DirectChannel interface {
-	events.EmitterInterface
-
-	// Connect Waits for the other peer to be connected
-	Connect(context.Context) error
+	// Deprecated: Connect Waits for the other peer to be connected
+	Connect(context.Context, peer.ID) error
 
 	// Send Sends a message to the other peer
-	Send(context.Context, []byte) error
+	Send(context.Context, peer.ID, []byte) error
 
 	// Close Closes the connection
 	Close() error
 }
 
-type DirectChannelFactory func(ctx context.Context, receiver p2pcore.PeerID, opts *DirectChannelOptions) (DirectChannel, error)
+type DirectChannelEmitter interface {
+	Emit(*EventPubSubPayload) error
+	Close() error
+}
+
+type DirectChannelFactory func(ctx context.Context, emitter DirectChannelEmitter, opts *DirectChannelOptions) (DirectChannel, error)
 
 // StoreConstructor Defines the expected constructor for a custom store
 type StoreConstructor func(context.Context, coreapi.CoreAPI, *identityprovider.Identity, address.Address, *NewStoreOptions) (Store, error)

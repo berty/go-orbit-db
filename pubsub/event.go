@@ -1,11 +1,30 @@
 package pubsub
 
 import (
+	"github.com/libp2p/go-libp2p-core/event"
 	"github.com/libp2p/go-libp2p-core/peer"
 
 	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/iface"
 )
+
+type PubSubPayloadEmitter struct {
+	event.Emitter
+}
+
+func NewPubSubPayloadEmitter(bus event.Bus) (*PubSubPayloadEmitter, error) {
+	emitter, err := bus.Emitter(new(iface.EventPubSubPayload))
+	if err != nil {
+		return nil, err
+	}
+
+	return &PubSubPayloadEmitter{emitter}, nil
+
+}
+
+func (e *PubSubPayloadEmitter) Emit(evt *iface.EventPubSubPayload) error {
+	return e.Emitter.Emit(*evt)
+}
 
 // Creates a new Message event
 func NewEventMessage(content []byte) *iface.EventPubSubMessage {

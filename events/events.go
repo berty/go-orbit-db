@@ -2,9 +2,6 @@ package events
 
 import (
 	"context"
-	"sync"
-
-	"github.com/golang-collections/go-datastructures/queue"
 )
 
 // Event Is a base interface for events
@@ -15,9 +12,6 @@ type EmitterInterface interface {
 	// Emit Sends an event to the subscribed listeners
 	Emit(context.Context, Event)
 
-	// GlobalChannel returns a glocal channel that receives emitted events
-	GlobalChannel(ctx context.Context) <-chan Event
-
 	// Subscribe Returns a channel that receives emitted events
 	Subscribe(context.Context) <-chan Event
 
@@ -26,165 +20,133 @@ type EmitterInterface interface {
 }
 
 // EventEmitter Registers listeners and dispatches events to them
-type EventEmitter struct {
-	sub  *eventSubscription
-	subs []*eventSubscription
-	lock sync.Mutex
-}
+// type EventEmitter struct {
+// 	subs []*eventSubscription
+// 	lock sync.RWMutex
+// }
 
-func (e *EventEmitter) UnsubscribeAll() {
-	for _, s := range e.allEventSubscription() {
-		s.cancel()
-	}
-}
+// func (e *EventEmitter) UnsubscribeAll() {
+// 	for _, s := range e.allEventSubscription() {
+// 		s.cancel()
+// 	}
+// }
 
-func (e *EventEmitter) GlobalChannel(ctx context.Context) <-chan Event {
-	e.lock.Lock()
-	defer e.lock.Unlock()
+// type eventSubscription struct {
+// 	ch     chan Event
+// 	mu     sync.Mutex
+// 	cancel context.CancelFunc
+// 	ctx    context.Context
+// 	queue  queue.Queue
+// 	closed bool
+// }
 
-	if e.sub == nil {
-		sub := &eventSubscription{
-			ch: make(chan Event),
-		}
+// func (e *EventEmitter) allEventSubscription() []*eventSubscription {
+// 	e.lock.RLock()
+// 	defer e.lock.RUnlock()
+// 	if e.subs == nil {
+// 		return []*eventSubscription{}
+// 	}
 
-		sub.ctx, sub.cancel = context.WithCancel(ctx)
+// 	return e.subs
+// }
 
-		e.sub = sub
+// func (s *eventSubscription) queuedEmit(ctx context.Context) {
+// 	for {
+// 		items, err := s.queue.Get(1)
+// 		if err != nil {
+// 			return
+// 		}
 
-		go func() {
-			<-sub.ctx.Done()
-			e.lock.Lock()
-			e.sub = nil
-			e.lock.Unlock()
-			sub.queue.Dispose()
-			sub.close()
-		}()
+// 		if len(items) != 1 {
+// 			continue
+// 		}
 
-		go sub.queuedEmit(sub.ctx)
-	}
-	return e.sub.ch
-}
+// 		evt, ok := items[0].(Event)
+// 		if !ok {
+// 			continue
+// 		}
 
-type eventSubscription struct {
-	ch     chan Event
-	mu     sync.Mutex
-	cancel context.CancelFunc
-	ctx    context.Context
-	queue  queue.Queue
-	closed bool
-}
+// 		s.mu.Lock()
+// 		if ctx.Err() != nil {
+// 			s.mu.Unlock()
+// 			return
+// 		}
 
-func (e *EventEmitter) allEventSubscription() []*eventSubscription {
-	var evts []*eventSubscription
+// 		select {
+// 		case <-ctx.Done():
+// 			s.mu.Unlock()
+// 			return
 
-	e.lock.Lock()
-	defer e.lock.Unlock()
+// 		case s.ch <- evt:
+// 		}
+// 		s.mu.Unlock()
+// 	}
+// }
 
-	if e.sub != nil {
-		evts = append(evts, e.sub)
-	}
+// func (s *eventSubscription) emit(evt Event) {
+// 	if err := s.queue.Put(evt); err != nil {
+// 		s.close()
+// 	}
+// }
 
-	return append(evts, e.subs...)
-}
+// func (e *EventEmitter) Emit(ctx context.Context, evt Event) {
+// 	for _, sub := range e.allEventSubscription() {
+// 		sub.emit(evt)
+// 	}
+// }
 
-func (s *eventSubscription) queuedEmit(ctx context.Context) {
-	for {
-		items, err := s.queue.Get(1)
-		if err != nil {
-			return
-		}
+// func (s *eventSubscription) close() {
+// 	s.mu.Lock()
+// 	defer s.mu.Unlock()
 
-		if len(items) != 1 {
-			continue
-		}
+// 	if s.closed {
+// 		return
+// 	}
 
-		evt, ok := items[0].(Event)
-		if !ok {
-			continue
-		}
+// 	s.closed = true
 
-		s.mu.Lock()
-		if ctx.Err() != nil {
-			s.mu.Unlock()
-			return
-		}
+// 	s.cancel()
+// 	close(s.ch)
+// }
 
-		select {
-		case <-ctx.Done():
-			s.mu.Unlock()
-			return
+// func (e *EventEmitter) removeSub(s *eventSubscription) {
+// 	e.lock.Lock()
+// 	defer e.lock.Unlock()
 
-		case s.ch <- evt:
-		}
+// 	subs := e.subs
 
-		s.mu.Unlock()
-	}
-}
+// 	for i, can := range subs {
+// 		if can == s {
+// 			subs[i] = subs[len(subs)-1]
+// 			subs[len(subs)-1] = nil
+// 			e.subs = subs[:len(subs)-1]
 
-func (s *eventSubscription) emit(evt Event) {
-	if err := s.queue.Put(evt); err != nil {
-		s.close()
-	}
-}
+// 			break
+// 		}
+// 	}
+// }
 
-func (e *EventEmitter) Emit(ctx context.Context, evt Event) {
-	for _, sub := range e.allEventSubscription() {
-		sub.emit(evt)
-	}
-}
+// func (e *EventEmitter) Subscribe(ctx context.Context) <-chan Event {
+// 	sub := &eventSubscription{
+// 		ch: make(chan Event),
+// 	}
 
-func (s *eventSubscription) close() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// 	sub.ctx, sub.cancel = context.WithCancel(ctx)
 
-	if s.closed {
-		return
-	}
+// 	e.lock.Lock()
+// 	e.subs = append(e.subs, sub)
+// 	e.lock.Unlock()
 
-	s.closed = true
+// 	go func() {
+// 		<-sub.ctx.Done()
+// 		e.removeSub(sub)
+// 		sub.queue.Dispose()
+// 		sub.close()
+// 	}()
 
-	s.cancel()
-	close(s.ch)
-}
+// 	go sub.queuedEmit(sub.ctx)
 
-func (e *EventEmitter) removeSub(s *eventSubscription) {
-	e.lock.Lock()
-	defer e.lock.Unlock()
+// 	return sub.ch
+// }
 
-	subs := e.subs
-
-	for i, can := range subs {
-		if can == s {
-			subs[i] = subs[len(subs)-1]
-			subs[len(subs)-1] = nil
-			e.subs = subs[:len(subs)-1]
-
-			break
-		}
-	}
-}
-
-func (e *EventEmitter) Subscribe(ctx context.Context) <-chan Event {
-	sub := &eventSubscription{
-		ch: make(chan Event),
-	}
-
-	sub.ctx, sub.cancel = context.WithCancel(ctx)
-
-	e.lock.Lock()
-	e.subs = append(e.subs, sub)
-	e.lock.Unlock()
-
-	go func() {
-		<-sub.ctx.Done()
-		e.removeSub(sub)
-		sub.queue.Dispose()
-		sub.close()
-	}()
-
-	go sub.queuedEmit(sub.ctx)
-
-	return sub.ch
-}
-
-var _ EmitterInterface = &EventEmitter{}
+// var _ EmitterInterface = &EventEmitter{}
