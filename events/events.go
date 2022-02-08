@@ -15,6 +15,9 @@ type EmitterInterface interface {
 	// Emit Sends an event to the subscribed listeners
 	Emit(context.Context, Event)
 
+	// GlobalChannel returns a glocal channel that receives emitted events
+	GlobalChannel(ctx context.Context) <-chan Event
+
 	// Subscribe Returns a channel that receives emitted events
 	Subscribe(context.Context) <-chan Event
 
@@ -24,6 +27,7 @@ type EmitterInterface interface {
 
 // EventEmitter Registers listeners and dispatches events to them
 type EventEmitter struct {
+	sub  *eventSubscription
 	subs []*eventSubscription
 	lock sync.Mutex
 }
@@ -32,6 +36,33 @@ func (e *EventEmitter) UnsubscribeAll() {
 	for _, s := range e.allEventSubscription() {
 		s.cancel()
 	}
+}
+
+func (e *EventEmitter) GlobalChannel(ctx context.Context) <-chan Event {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+
+	if e.sub == nil {
+		sub := &eventSubscription{
+			ch: make(chan Event),
+		}
+
+		sub.ctx, sub.cancel = context.WithCancel(ctx)
+
+		e.sub = sub
+
+		go func() {
+			<-sub.ctx.Done()
+			e.lock.Lock()
+			e.sub = nil
+			e.lock.Unlock()
+			sub.queue.Dispose()
+			sub.close()
+		}()
+
+		go sub.queuedEmit(sub.ctx)
+	}
+	return e.sub.ch
 }
 
 type eventSubscription struct {
@@ -44,10 +75,16 @@ type eventSubscription struct {
 }
 
 func (e *EventEmitter) allEventSubscription() []*eventSubscription {
+	var evts []*eventSubscription
+
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
-	return append([]*eventSubscription(nil), e.subs...)
+	if e.sub != nil {
+		evts = append(evts, e.sub)
+	}
+
+	return append(evts, e.subs...)
 }
 
 func (s *eventSubscription) queuedEmit(ctx context.Context) {

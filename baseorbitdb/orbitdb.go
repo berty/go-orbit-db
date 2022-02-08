@@ -989,7 +989,7 @@ func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, store Sto
 }
 
 func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel iface.DirectChannel, sharedKey enc.SharedKey) {
-	sub := channel.Subscribe(ctx)
+	sub := channel.GlobalChannel(ctx)
 	go func() {
 		for evt := range sub {
 			o.logger.Debug("received one on one message")
