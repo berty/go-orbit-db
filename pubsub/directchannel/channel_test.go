@@ -33,7 +33,7 @@ func TestInitDirectChannelFactory(t *testing.T) {
 		hosts[i], err = mn.GenPeer()
 		require.NoError(t, err)
 
-		directChannelsFactories[i] = InitDirectChannelFactory(zap.NewNop(), hosts[i])
+		directChannelsFactories[i] = InitDirectChannelFactory(ctx, zap.NewNop(), hosts[i])
 	}
 
 	err = mn.LinkAll()
@@ -92,7 +92,7 @@ func TestInitDirectChannelFactory(t *testing.T) {
 				go func() {
 					defer cancel()
 
-					sub := ch2.Subscribe(ctx)
+					sub := ch2.GlobalChannel(ctx)
 					subWg.Done()
 
 					for evt := range sub {

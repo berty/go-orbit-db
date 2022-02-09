@@ -950,15 +950,17 @@ func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, store Sto
 
 	o.logger.Debug(fmt.Sprintf("connected to %s", p))
 
-	untypedHeads := store.OpLog().Heads().Slice()
-	heads := make([]*entry.Entry, len(untypedHeads))
-	for i := range untypedHeads {
-		head, ok := untypedHeads[i].(*entry.Entry)
-		if !ok {
-			return nil, errors.New("unable to downcast head")
-		}
+	var heads []*entry.Entry
+	headsBytes, err := store.Cache().Get(ctx, datastore.NewKey("_localHeads"))
+	if err != nil && err != datastore.ErrNotFound {
+		return nil, errors.Wrap(err, "unable to get local heads from cache")
+	}
 
-		heads[i] = head
+	if headsBytes != nil {
+		err = json.Unmarshal(headsBytes, &heads)
+		if err != nil {
+			o.logger.Warn("unable to unmarshal cached local heads", zap.Error(err))
+		}
 	}
 
 	exchangedHeads := &exchangedHeads{
@@ -987,7 +989,7 @@ func (o *orbitDB) exchangeHeads(ctx context.Context, p p2pcore.PeerID, store Sto
 }
 
 func (o *orbitDB) watchOneOnOneMessage(ctx context.Context, channel iface.DirectChannel, sharedKey enc.SharedKey) {
-	sub := channel.Subscribe(ctx)
+	sub := channel.GlobalChannel(ctx)
 	go func() {
 		for evt := range sub {
 			o.logger.Debug("received one on one message")

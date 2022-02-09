@@ -22,6 +22,7 @@ const PROTOCOL = "/go-orbit-db/direct-channel/1.1.0"
 type directChannel struct {
 	events.EventEmitter
 
+	sub    (<-chan events.Event)
 	logger *zap.Logger
 	host   host.Host
 	peer   peer.ID
@@ -51,6 +52,13 @@ func (d *directChannel) Send(ctx context.Context, bytes []byte) error {
 
 	_, err = stream.Write(bytes)
 	return err
+}
+
+func (d *directChannel) GlobalChannel(ctx context.Context) <-chan events.Event {
+	if d.sub == nil {
+		d.sub = d.Subscribe(ctx)
+	}
+	return d.sub
 }
 
 func (d *directChannel) handleNewPeer(s network.Stream) {
@@ -95,6 +103,7 @@ func (d *directChannel) Close() error {
 }
 
 type holderChannels struct {
+	ctx        context.Context
 	muChannels sync.Mutex
 	channels   map[peer.ID]*directChannel
 	host       host.Host
@@ -112,6 +121,7 @@ func (c *holderChannels) incomingConnHandler(s network.Stream) {
 			host:   c.host,
 			peer:   remotepeer,
 		}
+		dc.sub = dc.Subscribe(c.ctx)
 		c.channels[remotepeer] = dc
 	}
 	c.muChannels.Unlock()
@@ -140,12 +150,14 @@ func (c *holderChannels) NewChannel(ctx context.Context, receiver peer.ID, opts 
 		host:   c.host,
 		peer:   receiver,
 	}
+	dc.sub = dc.Subscribe(ctx)
 	c.channels[receiver] = dc
 	return dc, nil
 }
 
-func InitDirectChannelFactory(logger *zap.Logger, host host.Host) iface.DirectChannelFactory {
+func InitDirectChannelFactory(ctx context.Context, logger *zap.Logger, host host.Host) iface.DirectChannelFactory {
 	holder := &holderChannels{
+		ctx:      ctx,
 		logger:   logger,
 		channels: make(map[peer.ID]*directChannel),
 		host:     host,
