@@ -126,7 +126,6 @@ type orbitDB struct {
 	muIPFS                  sync.RWMutex
 	muKeyStore              sync.RWMutex
 	muCaches                sync.RWMutex
-	muDirectConnections     sync.RWMutex
 	muAccessControllerTypes sync.RWMutex
 }
 
@@ -795,7 +794,10 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 		return nil, errors.Wrap(err, "unable to subscribe to pubsub")
 	}
 
-	o.storeListener(ctx, store, topic)
+	if err := o.storeListener(ctx, store, topic); err != nil {
+		return nil, errors.Wrap(err, "unable to store listener")
+	}
+
 	o.setStore(parsedDBAddress.String(), store)
 
 	// Subscribe to pubsub to get updates from peers,
@@ -988,7 +990,7 @@ func (o *orbitDB) EventBus() event.Bus {
 }
 
 func makeDirectChannel(ctx context.Context, bus event.Bus, df iface.DirectChannelFactory, opts *iface.DirectChannelOptions) (iface.DirectChannel, error) {
-	emitter, err := pubsub.NewPubSubPayloadEmitter(bus)
+	emitter, err := pubsub.NewPayloadEmitter(bus)
 	if err != nil {
 		return nil, fmt.Errorf("unable to init pubsub emitter: %w", err)
 	}

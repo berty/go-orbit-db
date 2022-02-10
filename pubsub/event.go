@@ -9,21 +9,21 @@ import (
 
 type Event interface{}
 
-type PubSubPayloadEmitter struct {
+type PayloadEmitter struct {
 	event.Emitter
 }
 
-func NewPubSubPayloadEmitter(bus event.Bus) (*PubSubPayloadEmitter, error) {
+func NewPayloadEmitter(bus event.Bus) (*PayloadEmitter, error) {
 	emitter, err := bus.Emitter(new(iface.EventPubSubPayload))
 	if err != nil {
 		return nil, err
 	}
 
-	return &PubSubPayloadEmitter{emitter}, nil
+	return &PayloadEmitter{emitter}, nil
 
 }
 
-func (e *PubSubPayloadEmitter) Emit(evt *iface.EventPubSubPayload) error {
+func (e *PayloadEmitter) Emit(evt *iface.EventPubSubPayload) error {
 	return e.Emitter.Emit(*evt)
 }
 

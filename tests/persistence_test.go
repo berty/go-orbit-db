@@ -237,7 +237,6 @@ func TestPersistence(t *testing.T) {
 			setupCleanup := setup(t)
 
 			dbName := fmt.Sprintf("%d", time.Now().UnixNano())
-			var entryArr []operation.Operation
 
 			db, err := orbitdb1.Log(ctx, dbName, nil)
 			require.NoError(t, err)
@@ -245,10 +244,8 @@ func TestPersistence(t *testing.T) {
 			address = db.Address()
 
 			for i := 0; i < entryCount; i++ {
-				op, err := db.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
+				_, err := db.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
 				require.NoError(t, err)
-
-				entryArr = append(entryArr, op)
 			}
 
 			_, err = basestore.SaveSnapshot(ctx, db)

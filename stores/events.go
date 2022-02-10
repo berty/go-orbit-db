@@ -6,7 +6,7 @@ import (
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores/replicator"
 	cid "github.com/ipfs/go-cid"
-	p2pcore "github.com/libp2p/go-libp2p-core"
+	peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
 var Events = []interface{}{
@@ -125,11 +125,11 @@ func NewEventWrite(addr address.Address, e ipfslog.Entry, heads []ipfslog.Entry)
 
 // EventNewPeer An event sent when a new peer is discovered on the pubsub channel
 type EventNewPeer struct {
-	Peer p2pcore.PeerID
+	Peer peer.ID
 }
 
 // NewEventNewPeer Creates a new EventNewPeer event
-func NewEventNewPeer(p p2pcore.PeerID) EventNewPeer {
+func NewEventNewPeer(p peer.ID) EventNewPeer {
 	return EventNewPeer{
 		Peer: p,
 	}

@@ -24,16 +24,14 @@ const (
 )
 
 type channel struct {
-	ccpeers map[peer.ID]chan struct{}
-	subs    map[peer.ID]coreapi.PubSubSubscription
-	muSubs  sync.Mutex
+	subs   map[peer.ID]coreapi.PubSubSubscription
+	muSubs sync.Mutex
 
 	selfID  peer.ID
 	emitter iface.DirectChannelEmitter
 	ctx     context.Context
 	cancel  context.CancelFunc
 	ipfs    coreapi.CoreAPI
-	sub     coreapi.PubSubSubscription
 	logger  *zap.Logger
 }
 
@@ -50,13 +48,11 @@ func (c *channel) Connect(ctx context.Context, target peer.ID) error {
 			return errors.Wrap(err, "unable to subscribe to pubsub")
 		}
 
-		theirChannelID := c.getTheirChannelID(target)
-
-		if err = c.ipfs.PubSub().Publish(ctx, theirChannelID, []byte(HelloPacket)); err != nil {
+		// force to join other peer channel by sending an hello packet
+		if err := c.sendHelloPacket(ctx, target); err != nil {
 			c.muSubs.Unlock()
-			return errors.Wrap(err, "unable to publish to pubsub")
+			return errors.Wrap(err, "unable to send hello packet")
 		}
-
 		go c.monitorTopic(sub, target)
 
 		c.subs[target] = sub
@@ -64,8 +60,7 @@ func (c *channel) Connect(ctx context.Context, target peer.ID) error {
 	c.muSubs.Unlock()
 
 	// @FIXME(gfanton): this is very bad
-	c.waitForPeers(ctx, target, channelID)
-	return nil
+	return c.waitForPeers(ctx, target, channelID)
 }
 
 func (c *channel) sendHelloPacket(ctx context.Context, p peer.ID) error {
@@ -88,7 +83,6 @@ func (c *channel) Send(ctx context.Context, p peer.ID, data []byte) error {
 }
 
 func (c *channel) waitForPeers(ctx context.Context, otherPeer peer.ID, channelID string) error {
-	fmt.Printf("waiting for other peer: %s\n", otherPeer.String())
 	for {
 		select {
 		case <-ctx.Done():
@@ -98,14 +92,12 @@ func (c *channel) waitForPeers(ctx context.Context, otherPeer peer.ID, channelID
 
 		peers, err := c.ipfs.PubSub().Peers(ctx, options.PubSub.Topic(channelID))
 		if err != nil {
-			fmt.Printf("failed to get peer\n")
 			c.logger.Error("failed to get peers on pub sub")
 			return err
 		}
 
 		for _, p := range peers {
 			if p == otherPeer {
-				fmt.Printf("found other peer: %s\n", otherPeer.String())
 				return nil
 			}
 		}

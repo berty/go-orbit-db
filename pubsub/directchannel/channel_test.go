@@ -37,7 +37,7 @@ func TestInitDirectChannelFactory(t *testing.T) {
 		f := InitDirectChannelFactory(zap.NewNop(), hosts[i])
 
 		eventBus[i] = eventbus.NewBus()
-		emitter, err := pubsub.NewPubSubPayloadEmitter(eventBus[i])
+		emitter, err := pubsub.NewPayloadEmitter(eventBus[i])
 		require.NoError(t, err)
 
 		dc[i], err = f(ctx, emitter, nil)
