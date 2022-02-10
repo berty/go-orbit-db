@@ -74,6 +74,8 @@ func TestPersistence(t *testing.T) {
 		require.NoError(t, err)
 
 		items, err := db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
+		require.NoError(t, err)
+
 		require.Equal(t, len(items), entryCount)
 		require.Equal(t, string(items[0].GetValue()), "hello0")
 		require.Equal(t, string(items[len(items)-1].GetValue()), fmt.Sprintf("hello%d", entryCount-1))

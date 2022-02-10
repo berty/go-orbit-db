@@ -4,9 +4,10 @@ import (
 	"github.com/libp2p/go-libp2p-core/event"
 	"github.com/libp2p/go-libp2p-core/peer"
 
-	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/iface"
 )
+
+type Event interface{}
 
 type PubSubPayloadEmitter struct {
 	event.Emitter
@@ -41,14 +42,14 @@ func NewEventPayload(payload []byte) *iface.EventPubSubPayload {
 }
 
 // NewEventPeerJoin creates a new EventPubSubJoin event
-func NewEventPeerJoin(p peer.ID) events.Event {
+func NewEventPeerJoin(p peer.ID) Event {
 	return &iface.EventPubSubJoin{
 		Peer: p,
 	}
 }
 
 // NewEventPeerLeave creates a new EventPubSubLeave event
-func NewEventPeerLeave(p peer.ID) events.Event {
+func NewEventPeerLeave(p peer.ID) Event {
 	return &iface.EventPubSubLeave{
 		Peer: p,
 	}

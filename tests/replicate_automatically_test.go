@@ -9,7 +9,6 @@ import (
 
 	orbitdb "berty.tech/go-orbit-db"
 	"berty.tech/go-orbit-db/accesscontroller"
-	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/pubsub/directchannel"
 	"berty.tech/go-orbit-db/stores"
@@ -575,7 +574,7 @@ func TestReplicateAutomaticallyNonMocked(t *testing.T) {
 
 		go func() {
 			for event := range sub2.Out() {
-				go func(event events.Event) {
+				go func(event interface{}) {
 					switch e := event.(type) {
 					case stores.EventReplicateProgress:
 						op, err := operation.ParseOperation(e.Entry)
