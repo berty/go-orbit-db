@@ -3,11 +3,8 @@ package replicator
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
-	"sync/atomic"
-	"time"
 
 	ipfslog "berty.tech/go-ipfs-log"
 	cid "github.com/ipfs/go-cid"
@@ -21,6 +18,13 @@ import (
 
 var batchSize = 1
 
+type queuedState int
+
+const (
+	stateAdded queuedState = iota
+	stateFetching
+)
+
 type replicator struct {
 	eventBus event.Bus
 	emitters struct {
@@ -29,85 +33,24 @@ type replicator struct {
 		evtLoadProgress event.Emitter
 	}
 
-	// These require 64 bit alignment for ARM and 32bit devices
-	statsTasksRequested int64
-	statsTasksStarted   int64
-	statsTasksProcessed int64
-	// For more information see https://pkg.go.dev/sync/atomic#pkg-note-BUG
+	taskInProgress int64
 
 	cancelFunc  context.CancelFunc
 	store       storeInterface
-	fetching    map[string]cid.Cid
-	buffer      []ipfslog.Log
 	concurrency int64
-	queue       map[string]cid.Cid
-	lock        sync.RWMutex
-	logger      *zap.Logger
-	tracer      trace.Tracer
-}
 
-func (r *replicator) GetBufferLen() int {
-	r.lock.RLock()
-	defer r.lock.RUnlock()
+	tasks map[cid.Cid]queuedState
+	queue []cid.Cid
 
-	return len(r.buffer)
-}
+	buffer   []ipfslog.Log
+	muBuffer sync.Mutex
 
-func (r *replicator) Stop() {
-	r.cancelFunc()
+	muProcess   *sync.RWMutex
+	condProcess *sync.Cond
 
-	emitters := []event.Emitter{
-		r.emitters.evtLoadEnd,
-		r.emitters.evtLoadAdded,
-		r.emitters.evtLoadProgress,
-	}
-
-	for _, emitter := range emitters {
-		if err := emitter.Close(); err != nil {
-			r.logger.Warn("unable to close emitter", zap.Error(err))
-		}
-	}
-}
-
-func (r *replicator) GetQueue() []cid.Cid {
-	r.lock.RLock()
-	defer r.lock.RUnlock()
-
-	queue := make([]cid.Cid, len(r.queue))
-	i := 0
-
-	for _, c := range r.queue {
-		queue[i] = c
-		i++
-	}
-
-	return queue
-}
-
-func (r *replicator) Load(ctx context.Context, cids []cid.Cid) {
-	cidsStrings := make([]string, len(cids))
-	for i, c := range cids {
-		cidsStrings[i] = c.String()
-	}
-
-	ctx, span := r.tracer.Start(ctx, "replicator-load", trace.WithAttributes(otkv.String("cids", strings.Join(cidsStrings, ","))))
-	defer span.End()
-
-	for _, h := range cids {
-		_, inLog := r.store.OpLog().Get(h)
-		r.lock.RLock()
-		_, fetching := r.fetching[h.String()]
-		_, queued := r.queue[h.String()]
-		r.lock.RUnlock()
-
-		if fetching || queued || inLog {
-			continue
-		}
-
-		r.addToQueue(ctx, span, h)
-	}
-
-	r.processQueue(ctx)
+	lock   sync.RWMutex
+	logger *zap.Logger
+	tracer trace.Tracer
 }
 
 type Options struct {
@@ -117,7 +60,7 @@ type Options struct {
 }
 
 // NewReplicator Creates a new Replicator instance
-func NewReplicator(ctx context.Context, store storeInterface, concurrency uint, opts *Options) (Replicator, error) {
+func NewReplicator(store storeInterface, concurrency uint, opts *Options) (Replicator, error) {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -134,85 +77,168 @@ func NewReplicator(ctx context.Context, store storeInterface, concurrency uint, 
 		opts.Tracer = trace.NewNoopTracerProvider().Tracer("")
 	}
 
-	ctx, cancelFunc := context.WithCancel(ctx)
-
 	if concurrency == 0 {
-		concurrency = 128
+		concurrency = 32
 	}
 
+	muProcess := sync.RWMutex{}
 	r := replicator{
 		eventBus:    opts.EventBus,
-		cancelFunc:  cancelFunc,
 		concurrency: int64(concurrency),
 		store:       store,
-		queue:       map[string]cid.Cid{},
-		fetching:    map[string]cid.Cid{},
+		tasks:       make(map[cid.Cid]queuedState),
+		queue:       []cid.Cid{},
 		logger:      opts.Logger,
 		tracer:      opts.Tracer,
+		muProcess:   &muProcess,
+		condProcess: sync.NewCond(&muProcess),
 	}
 	if err := r.generateEmitter(opts.EventBus); err != nil {
 		return nil, err
 	}
 
-	go func() {
-		for {
-			select {
-			case <-time.After(time.Second * 3):
-				r.lock.RLock()
-				qLen := len(r.queue)
-				r.lock.RUnlock()
-
-				if r.tasksRunning() == 0 && qLen > 0 {
-					r.logger.Debug(fmt.Sprintf("Had to flush the queue! %d items in the queue, %d %d tasks requested/finished", qLen, r.tasksRequested(), r.tasksFinished()))
-					go r.processQueue(ctx)
-				}
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
 	return &r, nil
 }
 
-func (r *replicator) Close() error {
+func (r *replicator) Stop() {
+	emitters := []event.Emitter{
+		r.emitters.evtLoadEnd,
+		r.emitters.evtLoadAdded,
+		r.emitters.evtLoadProgress,
+	}
 
-	return nil
+	for _, emitter := range emitters {
+		if err := emitter.Close(); err != nil {
+			r.logger.Warn("unable to close emitter", zap.Error(err))
+		}
+	}
 }
 
-func (r *replicator) tasksRunning() int64 {
-	return atomic.LoadInt64(&r.statsTasksStarted) - atomic.LoadInt64(&r.statsTasksProcessed)
+func (r *replicator) GetQueue() []cid.Cid {
+	r.muProcess.Lock()
+	defer r.muProcess.Unlock()
+
+	return r.queue
 }
 
-func (r *replicator) tasksRequested() int64 {
-	return atomic.LoadInt64(&r.statsTasksRequested)
+func (r *replicator) Load(ctx context.Context, cids []cid.Cid) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	cidsStrings := make([]string, len(cids))
+	for i, c := range cids {
+		cidsStrings[i] = c.String()
+	}
+
+	ctx, span := r.tracer.Start(ctx, "replicator-load", trace.WithAttributes(otkv.String("cids", strings.Join(cidsStrings, ","))))
+	defer span.End()
+
+	// process and wait the whole queue to complete
+	wg := sync.WaitGroup{}
+
+	r.muProcess.Lock()
+	for _, h := range cids {
+		_, inLog := r.store.OpLog().Get(h)
+		_, queued := r.tasks[h]
+		if queued || inLog {
+			continue
+		}
+
+		r.queue = append(r.queue, h)
+		r.tasks[h] = stateAdded
+
+		// add one process
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			next, err := r.processOne(ctx)
+			if err != nil {
+				r.logger.Error("uanble process cids", zap.Error(err))
+				return
+			}
+
+			if len(next) > 0 {
+				// load next cids
+				r.Load(ctx, next)
+			}
+		}()
+	}
+	r.muProcess.Unlock()
+
+	wg.Wait()
+
+	// send load end event
+	r.muProcess.Lock()
+	if r.taskInProgress == 0 {
+		// should be thread safe
+		// @NOTE(gfanton) we should probably do this when load is done instead
+		if len(r.buffer) > 0 {
+			if err := r.emitters.evtLoadEnd.Emit(NewEventLoadEnd(r.buffer)); err != nil {
+				r.logger.Warn("unable to emit event load end", zap.Error(err))
+			}
+			r.buffer = []ipfslog.Log{}
+		}
+	}
+	r.muProcess.Unlock()
 }
 
-func (r *replicator) tasksFinished() int64 {
-	return atomic.LoadInt64(&r.statsTasksProcessed)
+func (r *replicator) waitForProcessSlot(ctx context.Context) (h cid.Cid, err error) {
+	r.condProcess.L.Lock()
+
+	r.taskInProgress++
+	for r.taskInProgress >= r.concurrency {
+		r.condProcess.Wait()
+	}
+
+	select {
+	case <-ctx.Done():
+		r.taskInProgress--
+		r.condProcess.Signal()
+		err = ctx.Err()
+	default:
+		// pop hash from queue
+		h = r.queue[0]
+		r.queue = r.queue[1:]
+		r.tasks[h] = stateFetching
+	}
+
+	r.condProcess.L.Unlock()
+	return
 }
 
-func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, error) {
+func (r *replicator) processDone(h cid.Cid) {
+	r.condProcess.L.Lock()
+
+	r.taskInProgress--
+
+	// remove hash from queued list
+	delete(r.tasks, h)
+
+	// signal that a process slot is available
+	r.condProcess.Signal()
+
+	r.condProcess.L.Unlock()
+}
+
+func (r *replicator) processOne(ctx context.Context) ([]cid.Cid, error) {
+	h, err := r.waitForProcessSlot(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer r.processDone(h)
+
 	ctx, span := r.tracer.Start(ctx, "replicator-process-one")
 	defer span.End()
 
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
-	_, isFetching := r.fetching[h.String()]
-	_, hasEntry := r.store.OpLog().Get(h)
-
-	if hasEntry || isFetching {
+	entry, hasEntry := r.store.OpLog().Get(h)
+	if hasEntry {
 		return nil, nil
 	}
 
-	r.fetching[h.String()] = h
-
-	if err := r.emitters.evtLoadAdded.Emit(NewEventLoadAdded(h)); err != nil {
+	if err := r.emitters.evtLoadAdded.Emit(NewEventLoadAdded(h, entry)); err != nil {
 		r.logger.Warn("unable to emit event load added", zap.Error(err))
 	}
-
-	atomic.AddInt64(&r.statsTasksStarted, 1)
 
 	l, err := ipfslog.NewFromEntryHash(ctx, r.store.IPFS(), r.store.Identity(), h, &ipfslog.LogOptions{
 		ID:               r.store.OpLog().GetID(),
@@ -227,21 +253,16 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 		return nil, errors.Wrap(err, "unable to fetch log")
 	}
 
-	var logToAppend ipfslog.Log = l
-
-	r.buffer = append(r.buffer, logToAppend)
-
 	latest := l.Values().At(0)
 
-	delete(r.queue, h.String())
-
-	// Mark this task as processed
-	//r.statsTasksProcessed++
+	r.muBuffer.Lock()
+	r.buffer = append(r.buffer, l)
 
 	// Notify subscribers that we made progress
 	if err := r.emitters.evtLoadProgress.Emit(NewEventLoadProgress("", h, latest, len(r.buffer))); err != nil {
 		r.logger.Warn("unable to emit event load progress", zap.Error(err))
 	}
+	r.muBuffer.Unlock()
 
 	var nextValues []cid.Cid
 
@@ -252,82 +273,6 @@ func (r *replicator) processOne(ctx context.Context, h cid.Cid) ([]cid.Cid, erro
 
 	// Return all next pointers
 	return nextValues, nil
-}
-
-func (r *replicator) processQueue(ctx context.Context) {
-	if r.tasksRunning() >= r.concurrency {
-		return
-	}
-
-	ctx, span := r.tracer.Start(ctx, "replicator-process-queue")
-	defer span.End()
-
-	capacity := r.concurrency - r.tasksRunning()
-	slicedQueue := r.GetQueue()
-	if int64(len(slicedQueue)) < capacity {
-		capacity = int64(len(slicedQueue))
-	}
-
-	items := map[string]cid.Cid{}
-	for _, h := range slicedQueue[:capacity] {
-		items[h.String()] = h
-	}
-
-	var hashesList = make([][]cid.Cid, len(items))
-	hashesListIdx := 0
-	wg := sync.WaitGroup{}
-
-	r.lock.Lock()
-	for _, e := range items {
-		delete(r.queue, e.String())
-	}
-	r.lock.Unlock()
-
-	for _, e := range items {
-		wg.Add(1)
-
-		go func(hashesListIdx int, e cid.Cid) {
-			defer wg.Done()
-
-			hashes, err := r.processOne(ctx, e)
-			if err != nil {
-				r.logger.Error("unable to get data to process %v", zap.Error(err))
-				return
-			}
-
-			hashesList[hashesListIdx] = hashes
-		}(hashesListIdx, e)
-
-		hashesListIdx++
-	}
-
-	wg.Wait()
-
-	for _, hashes := range hashesList {
-		r.lock.RLock()
-		b := r.buffer
-		bLen := len(b)
-		r.lock.RUnlock()
-
-		// Mark this task as processed
-		atomic.AddInt64(&r.statsTasksProcessed, 1)
-
-		if bLen > 0 && r.tasksRunning() == 0 {
-			r.lock.Lock()
-			r.buffer = []ipfslog.Log{}
-			r.lock.Unlock()
-
-			r.logger.Debug(fmt.Sprintf("load end logs, logs found :%d", bLen))
-
-			if err := r.emitters.evtLoadEnd.Emit(NewEventLoadEnd(b)); err != nil {
-				r.logger.Warn("unable to emit event load end", zap.Error(err))
-			}
-		}
-
-		if len(hashes) > 0 {
-			r.Load(ctx, hashes)
-		}
-	}
 }
 
 func (r *replicator) EventBus() event.Bus {
@@ -350,16 +295,6 @@ func (r *replicator) generateEmitter(bus event.Bus) error {
 	}
 
 	return nil
-}
-
-func (r *replicator) addToQueue(ctx context.Context, span trace.Span, h cid.Cid) {
-	span.AddEvent("replicator-add-to-queue", trace.WithAttributes(otkv.String("cid", h.String())))
-
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
-	atomic.AddInt64(&r.statsTasksRequested, 1)
-	r.queue[h.String()] = h
 }
 
 var _ Replicator = &replicator{}

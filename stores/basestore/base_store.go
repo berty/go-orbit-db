@@ -208,7 +208,9 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 
 	atomic.StoreInt64(&b.stats.snapshot.bytesLoaded, -1)
 
-	b.replicator, err = replicator.NewReplicator(ctx, b, options.ReplicationConcurrency, &replicator.Options{
+	options.ReplicationConcurrency = 10
+
+	b.replicator, err = replicator.NewReplicator(b, options.ReplicationConcurrency, &replicator.Options{
 		Logger: b.logger,
 		Tracer: b.tracer,
 	})
@@ -255,9 +257,11 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 
 			switch evt := e.(type) {
 			case replicator.EventLoadAdded:
-				span.AddEvent("replicator-load-added", trace.WithAttributes(otkv.String("hash", evt.Hash.String())))
-				b.ReplicationStatus().IncQueued()
-				b.recalculateReplicationMax(0)
+				maxTotal := 0
+				if evt.Entry != nil {
+					maxTotal = evt.Entry.GetClock().GetTime()
+				}
+				b.recalculateReplicationMax(maxTotal)
 				if err := b.emitters.evtReplicate.Emit(stores.NewEventReplicate(b.Address(), evt.Hash)); err != nil {
 					b.logger.Warn("unable to emit event replicate", zap.Error(err))
 				}
@@ -268,19 +272,33 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 
 			case replicator.EventLoadProgress:
 				span.AddEvent("replicator-load-progress")
-				if b.ReplicationStatus().GetBuffered() > evt.BufferLength {
-					b.recalculateReplicationProgress(b.ReplicationStatus().GetProgress() + evt.BufferLength)
-				} else {
-					if _, ok := b.OpLog().Get(evt.Hash); ok {
-						continue
-					}
+				// previousProgress := b.ReplicationStatus().GetProgress()
+				// previousMax := b.ReplicationStatus().GetMax()
 
-					b.recalculateReplicationProgress(b.OpLog().Len() + evt.BufferLength)
+				// maxTotal := 0
+				// if evt.Latest != nil {
+				// 	maxTotal = evt.Latest.GetClock().GetTime()
+				// }
+
+				// b.recalculateReplicationStatus(maxTotal)
+				// // fmt.Printf("%d > %d || %d > %d\n",
+				// // 	b.ReplicationStatus().GetProgress(), previousProgress, b.ReplicationStatus().GetMax(), previousMax)
+				// if b.ReplicationStatus().GetProgress() > previousProgress || b.ReplicationStatus().GetMax() > previousMax {
+				// 	err := b.emitters.evtReplicateProgress.Emit(stores.NewEventReplicateProgress(b.Address(), evt.Hash, evt.Latest, b.ReplicationStatus()))
+				// 	if err != nil {
+				// 		b.logger.Warn("unable to emit event replicate progress", zap.Error(err))
+				// 	}
+				// }
+
+				maxTotal := 0
+				if evt.Latest != nil {
+					maxTotal = evt.Latest.GetClock().GetTime()
 				}
 
-				b.ReplicationStatus().SetBuffered(evt.BufferLength)
-				b.recalculateReplicationMax(b.ReplicationStatus().GetProgress())
-				// logger.debug(`<replicate.progress>`)
+				b.recalculateReplicationStatus(maxTotal)
+				// fmt.Printf("%d > %d || %d > %d\n",
+				// 	b.ReplicationStatus().GetProgress(), previousProgress, b.ReplicationStatus().GetMax(), previousMax)
+
 				err := b.emitters.evtReplicateProgress.Emit(stores.NewEventReplicateProgress(b.Address(), evt.Hash, evt.Latest, b.ReplicationStatus()))
 				if err != nil {
 					b.logger.Warn("unable to emit event replicate progress", zap.Error(err))
@@ -447,8 +465,6 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 
 			oplog := b.OpLog()
 
-			b.recalculateReplicationMax(h.GetClock().GetTime())
-
 			span.AddEvent("store-head-loading")
 			l, inErr := ipfslog.NewFromEntryHash(ctx, b.IPFS(), b.Identity(), h.GetHash(), &ipfslog.LogOptions{
 				ID:               oplog.GetID(),
@@ -466,6 +482,8 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 				err = errors.Wrap(inErr, "unable to create log from entry hash")
 				return
 			}
+
+			b.recalculateReplicationStatus(h.GetClock().GetTime())
 
 			span.AddEvent("store-head-loaded")
 
@@ -730,7 +748,8 @@ func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, on
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to append data on log")
 	}
-	b.recalculateReplicationStatus(b.ReplicationStatus().GetProgress()+1, e.GetClock().GetTime())
+
+	b.recalculateReplicationStatus(e.GetClock().GetTime())
 
 	marshaledEntry, err := json.Marshal([]ipfslog.Entry{e})
 	if err != nil {
@@ -757,17 +776,17 @@ func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, on
 	return e, nil
 }
 
-func (b *BaseStore) recalculateReplicationProgress(max int) {
+func (b *BaseStore) recalculateReplicationProgress() {
+	max := b.ReplicationStatus().GetMax()
+	if progress := b.ReplicationStatus().GetProgress() + 1; progress < max {
+		max = progress
+	}
 	if opLogLen := b.OpLog().Len(); opLogLen > max {
 		max = opLogLen
 
-	} else if replMax := b.ReplicationStatus().GetMax(); replMax > max {
-		max = replMax
 	}
 
 	b.ReplicationStatus().SetProgress(max)
-
-	b.recalculateReplicationMax(b.ReplicationStatus().GetProgress())
 }
 
 func (b *BaseStore) recalculateReplicationMax(max int) {
@@ -781,20 +800,18 @@ func (b *BaseStore) recalculateReplicationMax(max int) {
 	b.ReplicationStatus().SetMax(max)
 }
 
-func (b *BaseStore) recalculateReplicationStatus(maxProgress, maxTotal int) {
-	b.recalculateReplicationProgress(maxProgress)
+func (b *BaseStore) recalculateReplicationStatus(maxTotal int) {
 	b.recalculateReplicationMax(maxTotal)
+	b.recalculateReplicationProgress()
 }
 
 func (b *BaseStore) updateIndex(ctx context.Context) error {
 	_, span := b.tracer.Start(ctx, "update-index")
 	defer span.End()
 
-	b.recalculateReplicationMax(0)
 	if err := b.Index().UpdateIndex(b.OpLog(), []ipfslog.Entry{}); err != nil {
 		return errors.Wrap(err, "unable to update index")
 	}
-	b.recalculateReplicationProgress(0)
 
 	return nil
 }
@@ -843,8 +860,7 @@ func (b *BaseStore) replicationLoadComplete(ctx context.Context, logs []ipfslog.
 			return
 		}
 	}
-	b.ReplicationStatus().DecreaseQueued(len(logs))
-	b.ReplicationStatus().SetBuffered(b.Replicator().GetBufferLen())
+
 	err := b.updateIndex(ctx)
 	if err != nil {
 		b.Logger().Error("unable to update index", zap.Error(err))

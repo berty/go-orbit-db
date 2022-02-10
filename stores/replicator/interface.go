@@ -32,9 +32,6 @@ type Replicator interface {
 	// GetQueue Returns the list of CID in the queue
 	GetQueue() []cid.Cid
 
-	// GetBufferLen Gets the length of the buffer
-	GetBufferLen() int
-
 	EventBus() event.Bus
 }
 
@@ -43,30 +40,15 @@ type ReplicationInfo interface {
 	// GetProgress Get the value of progress
 	GetProgress() int
 
+	// GetProgress Get the value of progress
+	SetProgress(i int)
+
 	// GetMax Get the value of max
 	GetMax() int
-
-	// GetBuffered Get the value of buffered
-	GetBuffered() int
-
-	// GetQueued Get the value of queued
-	GetQueued() int
-
-	// IncQueued Increments the value of queued
-	IncQueued()
-
-	// Reset Resets all values to 0
-	Reset()
-
-	// SetProgress Sets the value of progress
-	SetProgress(i int)
 
 	// SetMax Sets the value of max
 	SetMax(i int)
 
-	// DecreaseQueued Decrements the value of queued of i
-	DecreaseQueued(i int)
-
-	// SetBuffered Sets the value of buffered
-	SetBuffered(i int)
+	// Reset Resets all values to 0
+	Reset()
 }

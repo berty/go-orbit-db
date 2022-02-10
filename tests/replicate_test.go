@@ -25,7 +25,7 @@ import (
 )
 
 func testLogAppendReplicate(t *testing.T, amount int, nodeGen func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func())) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*50)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
 	defer cancel()
 
 	dbs := make([]orbitdb.OrbitDB, 2)
@@ -70,6 +70,23 @@ func testLogAppendReplicate(t *testing.T, amount int, nodeGen func(t *testing.T,
 
 	infinity := -1
 
+	sub, err := store1.EventBus().Subscribe(new(orbitstores.EventReplicated))
+	require.NoError(t, err)
+	defer sub.Close()
+
+	cerr := make(chan error)
+	go func() {
+		defer close(cerr)
+		for i := 0; i < amount; i++ {
+			select {
+			case <-time.After(time.Second):
+				cerr <- fmt.Errorf("timeout on %d", i)
+				return
+			case <-sub.Out():
+			}
+		}
+	}()
+
 	for i := 0; i < amount; i++ {
 		_, err = store0.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
 		require.NoError(t, err)
@@ -79,8 +96,11 @@ func testLogAppendReplicate(t *testing.T, amount int, nodeGen func(t *testing.T,
 	require.NoError(t, err)
 	require.Equal(t, amount, len(items))
 
-	<-time.After(time.Millisecond * 2000)
-	items, err = store1.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
+	err = <-cerr
+	<-time.After(time.Second)
+
+	assert.NoError(t, err)
+	items, err = store1.List(context.Background(), &orbitdb.StreamOptions{Amount: &infinity})
 	require.NoError(t, err)
 	require.Equal(t, amount, len(items))
 	require.Equal(t, "hello0", string(items[0].GetValue()))
@@ -234,13 +254,12 @@ func testLogAppendReplicateMultipeer(t *testing.T, amount int, nodeGen func(t *t
 			new(orbitstores.EventReplicateProgress),
 		})
 		require.NoError(t, err)
+
 		defer func(i int) {
 			subChans[i].Close()
 			_ = store.Close()
 		}(i)
 	}
-
-	<-time.After(5 * time.Second)
 
 	//infinity := -1
 	wg := sync.WaitGroup{}
@@ -249,7 +268,6 @@ func testLogAppendReplicateMultipeer(t *testing.T, amount int, nodeGen func(t *t
 		go func(i int) {
 			var err error
 			defer wg.Done()
-
 			for j := 0; j < 5; j++ {
 				_, err = stores[i].Add(ctx, []byte("PingPong"))
 				require.NoError(t, err)
@@ -273,12 +291,15 @@ func testLogAppendReplicateMultipeer(t *testing.T, amount int, nodeGen func(t *t
 			received[i] = make(map[string]bool)
 			mu.Unlock()
 			storeValue := fmt.Sprintf("hello%d", i)
-			for e := range subChans[i].Out() {
-				entry := ipfslog.Entry(nil)
+
+			var e interface{}
+			for {
+				var entry ipfslog.Entry
 				select {
-				case <-ctx.Done():
+				case e = <-subChans[i].Out():
+				case <-time.After(time.Second):
+					assert.Fail(t, "timeout while waiting for event")
 					return
-				default:
 				}
 
 				switch evt := e.(type) {
@@ -294,6 +315,7 @@ func testLogAppendReplicateMultipeer(t *testing.T, amount int, nodeGen func(t *t
 				}
 
 				op, _ := operation.ParseOperation(entry)
+
 				if string(op.GetValue()) != storeValue && string(op.GetValue()) != "PingPong" {
 					mu.Lock()
 					received[i][string(op.GetValue())] = true
@@ -308,6 +330,7 @@ func testLogAppendReplicateMultipeer(t *testing.T, amount int, nodeGen func(t *t
 	}
 
 	wg.Wait()
+
 	ok := true
 	mu.Lock()
 	for i := 0; i < nitems; i++ {
@@ -334,7 +357,7 @@ func TestReplication(t *testing.T) {
 	for _, amount := range []int{
 		1,
 		10,
-		// 100,
+		100,
 	} {
 		for nodeType, nodeGen := range map[string]func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func()){
 			"default":        testDefaultNodeGenerator,
@@ -363,9 +386,9 @@ func TestReplicationMultipeer(t *testing.T) {
 	for _, amount := range []int{
 		2,
 		5,
-		//6,  //FIXME: need increase test timeout
-		//8,  //FIXME: need improve "github.com/libp2p/go-libp2p-pubsub to completely resolve problem + increase test timeout
-		//10, //FIXME: need improve "github.com/libp2p/go-libp2p-pubsub to completely resolve problem + increase test timeout
+		// 6, //FIXME: need increase test timeout
+		// 8,  //FIXME: need improve "github.com/libp2p/go-libp2p-pubsub to completely resolve problem + increase test timeout
+		10,
 	} {
 		for nodeType, nodeGen := range map[string]func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func()){
 			"default":        testDefaultNodeGenerator,
@@ -444,6 +467,7 @@ func TestLogAppendReplicateEncrypted(t *testing.T) {
 
 	<-time.After(time.Millisecond * 2000)
 	items, err = store1.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
+
 	require.NoError(t, err)
 	require.Equal(t, amount, len(items))
 	require.Equal(t, "hello0", string(items[0].GetValue()))

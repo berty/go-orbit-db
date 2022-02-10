@@ -13,13 +13,15 @@ var Events = []interface{}{
 
 // EventLoadAdded An event triggered when entries have been added
 type EventLoadAdded struct {
-	Hash cid.Cid
+	Entry ipfslog.Entry
+	Hash  cid.Cid
 }
 
 // NewEventLoadAdded Creates a new EventLoadAdded event
-func NewEventLoadAdded(h cid.Cid) EventLoadAdded {
+func NewEventLoadAdded(h cid.Cid, entry ipfslog.Entry) EventLoadAdded {
 	return EventLoadAdded{
-		Hash: h,
+		Entry: entry,
+		Hash:  h,
 	}
 }
 

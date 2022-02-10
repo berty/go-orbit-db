@@ -3,7 +3,6 @@ package stores
 import (
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-orbit-db/address"
-	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores/replicator"
 	cid "github.com/ipfs/go-cid"
 	peer "github.com/libp2p/go-libp2p-core/peer"
@@ -32,6 +31,8 @@ func NewEventReplicate(addr address.Address, c cid.Cid) EventReplicate {
 
 // EventReplicateProgress An event containing the current replication progress.
 type EventReplicateProgress struct {
+	Max               int
+	Progress          int
 	Address           address.Address
 	Hash              cid.Cid
 	Entry             ipfslog.Entry
@@ -41,16 +42,16 @@ type EventReplicateProgress struct {
 // NewEventReplicateProgress Creates a new EventReplicateProgress event
 func NewEventReplicateProgress(addr address.Address, h cid.Cid, e ipfslog.Entry, replicationStatus replicator.ReplicationInfo) EventReplicateProgress {
 	return EventReplicateProgress{
-		Address:           addr,
-		Hash:              h,
-		Entry:             e,
-		ReplicationStatus: replicationStatus,
+		Max:      replicationStatus.GetMax(),
+		Progress: replicationStatus.GetProgress(),
+		Address:  addr,
+		Hash:     h,
+		Entry:    e,
 	}
 }
 
 // EventReplicated An event sent when data has been replicated
 type EventReplicated struct {
-	Store     iface.Store
 	Address   address.Address
 	LogLength int
 }

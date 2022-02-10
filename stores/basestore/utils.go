@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 
 	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-orbit-db/iface"
@@ -19,6 +20,7 @@ func SaveSnapshot(ctx context.Context, b iface.Store) (cid.Cid, error) {
 	// TODO: avoid using `*entry.Entry`?
 
 	unfinished := b.Replicator().GetQueue()
+	fmt.Printf("unfinished: %d\n", len(unfinished))
 
 	oplog := b.OpLog()
 
@@ -90,3 +92,24 @@ func SaveSnapshot(ctx context.Context, b iface.Store) (cid.Cid, error) {
 
 	return snapshotPath.Cid(), nil
 }
+
+// func Max(n ...int) (r int) {
+// 	if len(n) > 0 {
+// 		r = n[0]
+// 		for a := range
+// 		if a >= b {
+// 			return a
+// 		}
+
+// 		return b
+// 	}
+// }
+
+// func Min(n ...int) int {
+
+// 	if a >= b {
+// 		return a
+// 	}
+
+// 	return b
+// }
