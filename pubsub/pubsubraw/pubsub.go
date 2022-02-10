@@ -4,7 +4,6 @@ import (
 	"context"
 	"sync"
 
-	p2pcore "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/peer"
 	p2ppubsub "github.com/libp2p/go-libp2p-pubsub"
 	"go.opentelemetry.io/otel/trace"
@@ -24,7 +23,7 @@ func (p *psTopic) Publish(ctx context.Context, message []byte) error {
 	return p.topic.Publish(ctx, message)
 }
 
-func (p *psTopic) Peers(_ context.Context) ([]p2pcore.PeerID, error) {
+func (p *psTopic) Peers(_ context.Context) ([]peer.ID, error) {
 	return p.topic.ListPeers(), nil
 }
 

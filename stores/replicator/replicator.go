@@ -150,7 +150,9 @@ func NewReplicator(ctx context.Context, store storeInterface, concurrency uint, 
 		logger:      opts.Logger,
 		tracer:      opts.Tracer,
 	}
-	r.generateEmitter(opts.EventBus)
+	if err := r.generateEmitter(opts.EventBus); err != nil {
+		return nil, err
+	}
 
 	go func() {
 		for {

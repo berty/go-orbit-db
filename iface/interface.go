@@ -340,7 +340,7 @@ type DirectChannelOptions struct {
 }
 
 type DirectChannel interface {
-	// Deprecated: Connect Waits for the other peer to be connected
+	// Connect Waits for the other peer to be connected
 	Connect(context.Context, peer.ID) error
 
 	// Send Sends a message to the other peer
