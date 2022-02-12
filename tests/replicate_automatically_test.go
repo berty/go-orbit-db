@@ -104,7 +104,6 @@ func TestReplicateAutomatically(t *testing.T) {
 		}
 		return cleanup
 	}
-
 	t.Run("starts replicating the database when peers connect", func(t *testing.T) {
 		defer setup(t)()
 

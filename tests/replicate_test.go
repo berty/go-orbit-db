@@ -16,6 +16,7 @@ import (
 	"berty.tech/go-orbit-db/pubsub/pubsubraw"
 	orbitstores "berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/operation"
+	"github.com/libp2p/go-eventbus"
 	"github.com/libp2p/go-libp2p-core/event"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
@@ -25,7 +26,14 @@ import (
 )
 
 func testLogAppendReplicate(t *testing.T, amount int, nodeGen func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func())) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	type replicateEvent int
+	const (
+		EventReplicate replicateEvent = iota
+		EventReplicateProgress
+		EventReplicated
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
 	defer cancel()
 
 	dbs := make([]orbitdb.OrbitDB, 2)
@@ -70,19 +78,38 @@ func testLogAppendReplicate(t *testing.T, amount int, nodeGen func(t *testing.T,
 
 	infinity := -1
 
-	sub, err := store1.EventBus().Subscribe(new(orbitstores.EventReplicated))
+	sub, err := store1.EventBus().Subscribe([]interface{}{
+		new(orbitstores.EventReplicateProgress),
+		new(orbitstores.EventReplicate),
+		new(orbitstores.EventReplicated),
+	}, eventbus.BufSize(amount))
+
 	require.NoError(t, err)
 	defer sub.Close()
 
+	events := make(map[replicateEvent]int)
 	cerr := make(chan error)
 	go func() {
 		defer close(cerr)
-		for i := 0; i < amount; i++ {
+		for events[EventReplicate] < amount || events[EventReplicated] < amount || events[EventReplicateProgress] < amount {
+			var e interface{}
 			select {
-			case <-time.After(time.Second):
-				cerr <- fmt.Errorf("timeout on %d", i)
+			case <-ctx.Done():
+				cerr <- ctx.Err()
 				return
-			case <-sub.Out():
+			case <-time.After(time.Second * 10):
+				cerr <- fmt.Errorf("timeout while waiting for event")
+				return
+			case e = <-sub.Out():
+			}
+
+			switch evt := e.(type) {
+			case orbitstores.EventReplicate:
+				events[EventReplicate] += 1
+			case orbitstores.EventReplicateProgress:
+				events[EventReplicateProgress] += 1
+			case orbitstores.EventReplicated:
+				events[EventReplicated] += evt.LogLength
 			}
 		}
 	}()
@@ -97,9 +124,24 @@ func testLogAppendReplicate(t *testing.T, amount int, nodeGen func(t *testing.T,
 	require.Equal(t, amount, len(items))
 
 	err = <-cerr
-	<-time.After(time.Second)
+
+	evtReplicate, ok := events[EventReplicate]
+	if assert.True(t, ok) {
+		assert.Equal(t, amount, evtReplicate, "EventReplicate")
+	}
+
+	evtReplicateProgress, ok := events[EventReplicateProgress]
+	if assert.True(t, ok) {
+		assert.Equal(t, amount, evtReplicateProgress, "EventReplicateProgress")
+	}
+
+	evtReplicated, ok := events[EventReplicate]
+	if assert.True(t, ok) {
+		assert.Equal(t, amount, evtReplicated, "EventReplicated")
+	}
 
 	assert.NoError(t, err)
+
 	items, err = store1.List(context.Background(), &orbitdb.StreamOptions{Amount: &infinity})
 	require.NoError(t, err)
 	require.Equal(t, amount, len(items))
@@ -210,16 +252,20 @@ func testDefaultNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.
 	return orbitdb1, dbPath1, performCloseOps
 }
 
-func testLogAppendReplicateMultipeer(t *testing.T, amount int, nodeGen func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func())) {
+func testLogAppendReplicateMultipeer(t *testing.T, npeer int, nodeGen func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func())) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*70)
 	defer cancel()
-	nitems := amount
-	dbs := make([]orbitdb.OrbitDB, nitems)
-	dbPaths := make([]string, nitems)
-	ids := make([]string, nitems)
+
+	// @NOTE(gfanton): this works with 50 elements but it's too slow for now
+	// n items to send
+	const nitems = 5
+
+	dbs := make([]orbitdb.OrbitDB, npeer)
+	dbPaths := make([]string, npeer)
+	ids := make([]string, npeer)
 	mn := testingMockNet(ctx)
 
-	for i := 0; i < nitems; i++ {
+	for i := 0; i < npeer; i++ {
 		dbs[i], dbPaths[i], cancel = nodeGen(t, mn, i)
 		ids[i] = dbs[i].Identity().ID
 		defer cancel()
@@ -238,10 +284,11 @@ func testLogAppendReplicateMultipeer(t *testing.T, amount int, nodeGen func(t *t
 	}
 
 	address := "replication-tests"
-	stores := make([]orbitdb.EventLogStore, nitems)
-	subChans := make([]event.Subscription, nitems)
+	stores := make([]orbitdb.EventLogStore, npeer)
+	subChans := make([]event.Subscription, npeer)
+	nToReceive := npeer * nitems
 
-	for i := 0; i < nitems; i++ {
+	for i := 0; i < npeer; i++ {
 		store, err := dbs[i].Log(ctx, address, &orbitdb.CreateDBOptions{
 			Directory:        &dbPaths[i],
 			AccessController: access,
@@ -250,9 +297,10 @@ func testLogAppendReplicateMultipeer(t *testing.T, amount int, nodeGen func(t *t
 
 		stores[i] = store
 		subChans[i], err = store.EventBus().Subscribe([]interface{}{
+			new(orbitstores.EventReplicated),
 			new(orbitstores.EventWrite),
 			new(orbitstores.EventReplicateProgress),
-		})
+		}, eventbus.BufSize(nToReceive))
 		require.NoError(t, err)
 
 		defer func(i int) {
@@ -261,85 +309,88 @@ func testLogAppendReplicateMultipeer(t *testing.T, amount int, nodeGen func(t *t
 		}(i)
 	}
 
-	//infinity := -1
-	wg := sync.WaitGroup{}
-	wg.Add(nitems)
-	for i := 0; i < nitems; i++ {
+	centries := make([]chan ipfslog.Entry, npeer)
+	for i := 0; i < npeer; i++ {
+		centries[i] = make(chan ipfslog.Entry, nToReceive)
 		go func(i int) {
-			var err error
-			defer wg.Done()
-			for j := 0; j < 5; j++ {
-				_, err = stores[i].Add(ctx, []byte("PingPong"))
-				require.NoError(t, err)
-			}
-			_, err = stores[i].Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
-			require.NoError(t, err)
-		}(i)
-	}
+			defer close(centries[i])
 
-	wg.Wait()
+			var nentry, received int
+			for received < nToReceive || nentry < nToReceive {
+				var e interface{}
 
-	wg = sync.WaitGroup{}
-	wg.Add(nitems)
-	mu := sync.Mutex{}
-	received := make([]map[string]bool, nitems)
-
-	for i := 0; i < nitems; i++ {
-		go func(i int) {
-			defer wg.Done()
-			mu.Lock()
-			received[i] = make(map[string]bool)
-			mu.Unlock()
-			storeValue := fmt.Sprintf("hello%d", i)
-
-			var e interface{}
-			for {
-				var entry ipfslog.Entry
 				select {
+				case <-ctx.Done():
+					return
 				case e = <-subChans[i].Out():
-				case <-time.After(time.Second):
+				case <-ctx.Done():
+					assert.NoError(t, ctx.Err())
+					return
+				case <-time.After(time.Second * 10):
 					assert.Fail(t, "timeout while waiting for event")
 					return
 				}
 
+				if e == nil {
+					assert.Fail(t, "receiving nil entry")
+					return
+				}
+
 				switch evt := e.(type) {
-				case orbitstores.EventWrite:
-					entry = evt.Entry
-
 				case orbitstores.EventReplicateProgress:
-					entry = evt.Entry
-				}
-
-				if entry == nil {
-					continue
-				}
-
-				op, _ := operation.ParseOperation(entry)
-
-				if string(op.GetValue()) != storeValue && string(op.GetValue()) != "PingPong" {
-					mu.Lock()
-					received[i][string(op.GetValue())] = true
-					if nitems-1 == len(received[i]) {
-						mu.Unlock()
-						return
-					}
-					mu.Unlock()
+					centries[i] <- evt.Entry
+					nentry += 1
+				case orbitstores.EventWrite:
+					centries[i] <- evt.Entry
+					nentry += 1
+					received += 1
+				case orbitstores.EventReplicated:
+					received += evt.LogLength
 				}
 			}
 		}(i)
 	}
 
+	payloads := make([]string, nToReceive)
+	wg := sync.WaitGroup{}
+	wg.Add(npeer)
+	for i := 0; i < npeer; i++ {
+		go func(i int) {
+			var err error
+			for j := 0; j < nitems; j++ {
+				msg := fmt.Sprintf("[%d]entry-%d", i, j)
+				eventid := i*nitems + j
+				payloads[eventid] = msg
+				_, err = stores[i].Add(ctx, []byte(msg))
+				require.NoError(t, err)
+			}
+
+			wg.Done()
+		}(i)
+	}
+
 	wg.Wait()
 
-	ok := true
-	mu.Lock()
-	for i := 0; i < nitems; i++ {
-		if !assert.Equal(t, nitems-1, len(received[i]), fmt.Sprintf("mismatch for client %d", i)) {
-			ok = false
+	received := make([]map[string]int, npeer)
+	for i := 0; i < npeer; i++ {
+		received[i] = make(map[string]int)
+		for entry := range centries[i] {
+			op, err := operation.ParseOperation(entry)
+			require.NoError(t, err)
+			value := string(op.GetValue())
+			received[i][value] += 1
 		}
 	}
-	mu.Unlock()
-	require.True(t, ok)
+
+	// check if every entries has been received
+	for i, peer := range received {
+		for _, payload := range payloads {
+			n, ok := peer[payload]
+			require.Truef(t, ok, "peer %d missing entry `%s`", i, payload)
+			require.Equalf(t, 1, n, "entry `%s` received more than once by peer %d", payload, i)
+		}
+	}
+
 }
 
 func TestReplication(t *testing.T) {

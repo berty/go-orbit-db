@@ -190,12 +190,12 @@ func (o *orbitDB) getStore(address string) (iface.Store, bool) {
 	return store, ok
 }
 
-func (o *orbitDB) deleteStore(address string) {
-	o.muStores.Lock()
-	defer o.muStores.Unlock()
+// func (o *orbitDB) deleteStore(address string) {
+// 	o.muStores.Lock()
+// 	defer o.muStores.Unlock()
 
-	delete(o.stores, address)
-}
+// 	delete(o.stores, address)
+// }
 
 func (o *orbitDB) closeAllStores() {
 	o.muStores.Lock()
@@ -816,11 +816,12 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 	return store, nil
 }
 
-func (o *orbitDB) onClose(addr cid.Cid) error {
-	o.deleteStore(addr.String())
+// not used
+// func (o *orbitDB) onClose(addr cid.Cid) error {
+// 	o.deleteStore(addr.String())
 
-	return nil
-}
+// 	return nil
+// }
 
 func (o *orbitDB) storeListener(ctx context.Context, store Store, topic iface.PubSubTopic) error {
 	sub, err := store.EventBus().Subscribe(new(stores.EventWrite))

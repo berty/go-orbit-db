@@ -2,23 +2,51 @@ package tests
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"io/ioutil"
 	"os"
 	"testing"
 
-	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/peerstore"
 
+	ds "github.com/ipfs/go-datastore"
+	dsync "github.com/ipfs/go-datastore/sync"
+	cfg "github.com/ipfs/go-ipfs-config"
 	ipfsCore "github.com/ipfs/go-ipfs/core"
 	"github.com/ipfs/go-ipfs/core/coreapi"
 	mock "github.com/ipfs/go-ipfs/core/mock"
-	ipfsLibP2P "github.com/ipfs/go-ipfs/core/node/libp2p"
+	"github.com/ipfs/go-ipfs/repo"
 	iface "github.com/ipfs/interface-go-ipfs-core"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/require"
 )
+
+func testingRepo(ctx context.Context, t *testing.T) repo.Repo {
+	t.Helper()
+
+	c := cfg.Config{}
+	priv, pub, err := crypto.GenerateKeyPairWithReader(crypto.RSA, 2048, rand.Reader)
+	require.NoError(t, err)
+
+	pid, err := peer.IDFromPublicKey(pub)
+	require.NoError(t, err)
+
+	privkeyb, err := crypto.MarshalPrivateKey(priv)
+	require.NoError(t, err)
+
+	c.Pubsub.Enabled = cfg.True
+	c.Bootstrap = []string{}
+	c.Addresses.Swarm = []string{"/ip4/127.0.0.1/tcp/4001", "/ip4/127.0.0.1/udp/4001/quic"}
+	c.Identity.PeerID = pid.Pretty()
+	c.Identity.PrivKey = base64.StdEncoding.EncodeToString(privkeyb)
+
+	return &repo.Mock{
+		D: dsync.MutexWrap(ds.NewMapDatastore()),
+		C: c,
+	}
+}
 
 func testingIPFSAPIs(ctx context.Context, t *testing.T, count int) ([]iface.CoreAPI, func()) {
 	t.Helper()
@@ -50,12 +78,9 @@ func testingIPFSAPIsNonMocked(ctx context.Context, t *testing.T, count int) ([]i
 	for i := 0; i < count; i++ {
 		core, err := ipfsCore.NewNode(ctx, &ipfsCore.BuildCfg{
 			Online: true,
+			Repo:   testingRepo(ctx, t),
 			ExtraOpts: map[string]bool{
 				"pubsub": true,
-			},
-			Host: func(id peer.ID, ps peerstore.Peerstore, options ...libp2p.Option) (host.Host, error) {
-				options = append(options, libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
-				return ipfsLibP2P.DefaultHostOption(id, ps, options...)
 			},
 		})
 		require.NoError(t, err)
@@ -78,6 +103,7 @@ func testingIPFSNode(ctx context.Context, t *testing.T, m mocknet.Mocknet) (*ipf
 
 	core, err := ipfsCore.NewNode(ctx, &ipfsCore.BuildCfg{
 		Online: true,
+		Repo:   testingRepo(ctx, t),
 		Host:   mock.MockHostOption(m),
 		ExtraOpts: map[string]bool{
 			"pubsub": true,
@@ -94,6 +120,7 @@ func testingNonMockedIPFSNode(ctx context.Context, t *testing.T) (*ipfsCore.Ipfs
 
 	core, err := ipfsCore.NewNode(ctx, &ipfsCore.BuildCfg{
 		Online: true,
+		Repo:   testingRepo(ctx, t),
 		ExtraOpts: map[string]bool{
 			"pubsub": true,
 		},

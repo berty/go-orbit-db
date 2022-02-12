@@ -27,19 +27,13 @@ func NewEventLoadAdded(h cid.Cid, entry ipfslog.Entry) EventLoadAdded {
 
 // EventLoadProgress An event triggered when entries have been loaded
 type EventLoadProgress struct {
-	ID           string
-	Hash         cid.Cid
-	Latest       ipfslog.Entry
-	BufferLength int
+	Entry ipfslog.Entry
 }
 
 // NewEventLoadProgress Creates a new EventLoadProgress event
-func NewEventLoadProgress(id string, h cid.Cid, latest ipfslog.Entry, bufferLength int) EventLoadProgress {
+func NewEventLoadProgress(entry ipfslog.Entry) EventLoadProgress {
 	return EventLoadProgress{
-		ID:           id,
-		Hash:         h,
-		Latest:       latest,
-		BufferLength: bufferLength,
+		Entry: entry,
 	}
 }
 

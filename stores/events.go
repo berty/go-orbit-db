@@ -78,21 +78,21 @@ func NewEventLoad(addr address.Address, heads []ipfslog.Entry) EventLoad {
 	}
 }
 
-//type EventLoadProgress struct {
-//	Address           address.Address
-//	Hash              cid.Cid
-//	Entry             ipfslog.Entry
-//	ReplicationStatus replicator.ReplicationInfo
-//}
-//
-//func NewEventLoadProgress(addr address.Address, h cid.Cid, e ipfslog.Entry, replicationStatus replicator.ReplicationInfo) *EventLoadProgress {
-//	return &EventLoadProgress{
-//		Address:           addr,
-//		Hash:              h,
-//		Entry:             e,
-//		ReplicationStatus: replicationStatus,
-//	}
-//}
+type EventLoadProgress struct {
+	Address       address.Address
+	Hash          cid.Cid
+	Entry         ipfslog.Entry
+	progress, max int
+}
+
+func NewEventLoadProgress(addr address.Address, h cid.Cid, e ipfslog.Entry, progress, max int) EventLoadProgress {
+	return EventLoadProgress{
+		Address:  addr,
+		Hash:     h,
+		Entry:    e,
+		progress: progress, max: max,
+	}
+}
 
 // EventReady An event sent when the store is ready
 type EventReady struct {

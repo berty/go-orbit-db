@@ -10,6 +10,7 @@ require (
 	github.com/ipfs/go-datastore v0.5.1
 	github.com/ipfs/go-ds-leveldb v0.5.0
 	github.com/ipfs/go-ipfs v0.11.0
+	github.com/ipfs/go-ipfs-config v0.18.0
 	github.com/ipfs/go-ipfs-files v0.0.9
 	github.com/ipfs/go-ipld-cbor v0.0.6
 	github.com/ipfs/interface-go-ipfs-core v0.5.2
@@ -26,3 +27,5 @@ require (
 	go.uber.org/zap v1.19.1
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
 )
+
+replace berty.tech/go-ipfs-log => github.com/gfanton/go-ipfs-log v0.0.0-20220222191845-0aaf600b5311

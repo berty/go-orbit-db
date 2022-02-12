@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
 
 	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-orbit-db/iface"
@@ -20,7 +19,6 @@ func SaveSnapshot(ctx context.Context, b iface.Store) (cid.Cid, error) {
 	// TODO: avoid using `*entry.Entry`?
 
 	unfinished := b.Replicator().GetQueue()
-	fmt.Printf("unfinished: %d\n", len(unfinished))
 
 	oplog := b.OpLog()
 

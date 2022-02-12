@@ -14,6 +14,7 @@ import (
 	"berty.tech/go-ipfs-log/enc"
 	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
+	ifacelog "berty.tech/go-ipfs-log/iface"
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/accesscontroller/simple"
 	"berty.tech/go-orbit-db/address"
@@ -42,6 +43,7 @@ type BaseStore struct {
 		evtReady             event.Emitter
 		evtReplicateProgress event.Emitter
 		evtLoad              event.Emitter
+		evtLoadProgress      event.Emitter
 		evtReplicated        event.Emitter
 		evtReplicate         event.Emitter
 	}
@@ -261,48 +263,51 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 				if evt.Entry != nil {
 					maxTotal = evt.Entry.GetClock().GetTime()
 				}
+
 				b.recalculateReplicationMax(maxTotal)
+
 				if err := b.emitters.evtReplicate.Emit(stores.NewEventReplicate(b.Address(), evt.Hash)); err != nil {
 					b.logger.Warn("unable to emit event replicate", zap.Error(err))
 				}
 
 			case replicator.EventLoadEnd:
 				span.AddEvent("replicator-load-end")
+
+				// @FIXME(gfanton): should we run this in a goroutine ?
 				b.replicationLoadComplete(ctx, evt.Logs)
 
 			case replicator.EventLoadProgress:
 				span.AddEvent("replicator-load-progress")
-				// previousProgress := b.ReplicationStatus().GetProgress()
-				// previousMax := b.ReplicationStatus().GetMax()
 
-				// maxTotal := 0
-				// if evt.Latest != nil {
-				// 	maxTotal = evt.Latest.GetClock().GetTime()
-				// }
+				//      @FIXME(gfanton): this currently doesn't work and wont emit replicate progress
+				// 	previousProgress := b.ReplicationStatus().GetProgress()
+				// 	previousMax := b.ReplicationStatus().GetMax()
 
-				// b.recalculateReplicationStatus(maxTotal)
-				// // fmt.Printf("%d > %d || %d > %d\n",
-				// // 	b.ReplicationStatus().GetProgress(), previousProgress, b.ReplicationStatus().GetMax(), previousMax)
-				// if b.ReplicationStatus().GetProgress() > previousProgress || b.ReplicationStatus().GetMax() > previousMax {
-				// 	err := b.emitters.evtReplicateProgress.Emit(stores.NewEventReplicateProgress(b.Address(), evt.Hash, evt.Latest, b.ReplicationStatus()))
-				// 	if err != nil {
-				// 		b.logger.Warn("unable to emit event replicate progress", zap.Error(err))
+				// 	maxTotal := evt.Entry.GetClock().GetTime()
+
+				// 	b.recalculateReplicationStatus(maxTotal)
+				// 	fmt.Printf("%d: after %d > %d || %d > %d\n", maxTotal,
+				// 		b.ReplicationStatus().GetProgress(), previousProgress, b.ReplicationStatus().GetMax(), previousMax)
+				// 	if b.ReplicationStatus().GetProgress() > previousProgress || b.ReplicationStatus().GetMax() > previousMax {
+				// 		hash := evt.Entry.GetHash()
+				// 		err := b.emitters.evtReplicateProgress.Emit(stores.NewEventReplicateProgress(b.Address(), hash, evt.Entry, b.ReplicationStatus()))
+				// 		if err != nil {
+				// 			b.logger.Warn("unable to emit event replicate progress", zap.Error(err))
+				// 		}
 				// 	}
-				// }
 
 				maxTotal := 0
-				if evt.Latest != nil {
-					maxTotal = evt.Latest.GetClock().GetTime()
+				if evt.Entry != nil {
+					maxTotal = evt.Entry.GetClock().GetTime()
 				}
 
 				b.recalculateReplicationStatus(maxTotal)
-				// fmt.Printf("%d > %d || %d > %d\n",
-				// 	b.ReplicationStatus().GetProgress(), previousProgress, b.ReplicationStatus().GetMax(), previousMax)
-
-				err := b.emitters.evtReplicateProgress.Emit(stores.NewEventReplicateProgress(b.Address(), evt.Hash, evt.Latest, b.ReplicationStatus()))
+				hash := evt.Entry.GetHash()
+				err := b.emitters.evtReplicateProgress.Emit(stores.NewEventReplicateProgress(b.Address(), hash, evt.Entry, b.ReplicationStatus()))
 				if err != nil {
 					b.logger.Warn("unable to emit event replicate progress", zap.Error(err))
 				}
+
 			}
 		}
 	}()
@@ -456,6 +461,26 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 	wg := sync.WaitGroup{}
 	wg.Add(len(heads))
 
+	// @FIXME(gfanton): chan progress should be created and close on ipfs-log
+	progress := make(chan ifacelog.IPFSLogEntry)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+			case entry := <-progress:
+				if entry == nil {
+					continue
+				}
+
+				b.recalculateReplicationStatus(entry.GetClock().GetTime())
+				evt := stores.NewEventLoadProgress(b.Address(), entry.GetHash(), entry, b.replicationStatus.GetProgress(), b.replicationStatus.GetMax())
+				if err := b.emitters.evtLoadProgress.Emit(evt); err != nil {
+					b.logger.Warn("unable to emit event load", zap.Error(err))
+				}
+			}
+		}
+	}()
+
 	for _, h := range heads {
 		go func(h *entry.Entry) {
 			ctx, span := b.tracer.Start(ctx, "store-handling-head", trace.WithAttributes(otkv.String("cid", h.GetHash().String())))
@@ -466,15 +491,16 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 			oplog := b.OpLog()
 
 			span.AddEvent("store-head-loading")
+
 			l, inErr := ipfslog.NewFromEntryHash(ctx, b.IPFS(), b.Identity(), h.GetHash(), &ipfslog.LogOptions{
 				ID:               oplog.GetID(),
 				AccessController: b.AccessController(),
 				SortFn:           b.SortFn(),
 				IO:               b.options.IO,
 			}, &ipfslog.FetchOptions{
-				Length:  &amount,
-				Exclude: oplog.GetEntries().Slice(),
-				// TODO: ProgressChan:  this._onLoadProgress.bind(this),
+				Length:       &amount,
+				Exclude:      oplog.GetEntries().Slice(),
+				ProgressChan: progress,
 			})
 
 			if inErr != nil {
@@ -528,12 +554,9 @@ func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
 	defer span.End()
 
 	atomic.AddInt64(&b.stats.syncRequestsReceived, 1)
-
 	if len(heads) == 0 {
 		return nil
 	}
-
-	var savedEntriesCIDs []cid.Cid
 
 	for _, h := range heads {
 		if h == nil {
@@ -572,17 +595,16 @@ func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
 			return errors.New("WARNING! Head hash didn't match the contents")
 		}
 
-		savedEntriesCIDs = append(savedEntriesCIDs, hash)
 		span.AddEvent("store-sync-head-verified")
 	}
 
-	b.Replicator().Load(ctx, savedEntriesCIDs)
+	go b.Replicator().Load(ctx, heads)
 
 	return nil
 }
 
-func (b *BaseStore) LoadMoreFrom(ctx context.Context, amount uint, cids []cid.Cid) {
-	b.Replicator().Load(ctx, cids)
+func (b *BaseStore) LoadMoreFrom(ctx context.Context, amount uint, entries []ipfslog.Entry) {
+	b.Replicator().Load(ctx, entries)
 	// TODO: can this return an error?
 }
 
@@ -594,11 +616,11 @@ type storeSnapshot struct {
 }
 
 func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
-	ctx, span := b.tracer.Start(ctx, "load-from-snapshot")
-	defer span.End()
-
 	b.muJoining.Lock()
 	defer b.muJoining.Unlock()
+
+	ctx, span := b.tracer.Start(ctx, "load-from-snapshot")
+	defer span.End()
 
 	if err := b.emitters.evtLoad.Emit(stores.NewEventLoad(b.Address(), nil)); err != nil {
 		b.logger.Warn("unable to emit event load event", zap.Error(err))
@@ -835,6 +857,10 @@ func (b *BaseStore) generateEmitter(bus event.Bus) error {
 		return errors.Wrap(err, "unable to create EventLoad emitter")
 	}
 
+	if b.emitters.evtLoadProgress, err = bus.Emitter(new(stores.EventLoadProgress)); err != nil {
+		return errors.Wrap(err, "unable to create EventLoad emitter")
+	}
+
 	if b.emitters.evtReplicated, err = bus.Emitter(new(stores.EventReplicated)); err != nil {
 		return errors.Wrap(err, "unable to create EventReplicated emitter")
 	}
@@ -880,6 +906,10 @@ func (b *BaseStore) replicationLoadComplete(ctx context.Context, logs []ipfslog.
 	if err != nil {
 		b.Logger().Error("unable to update heads cache", zap.Error(err))
 		return
+	}
+
+	if oplog.Len() > b.replicationStatus.GetProgress() {
+		b.recalculateReplicationStatus(oplog.Len())
 	}
 
 	b.Logger().Debug(fmt.Sprintf("Saved heads %d", heads.Len()))

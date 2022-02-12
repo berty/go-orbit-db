@@ -71,7 +71,6 @@ func TestReplicationStatus(t *testing.T) {
 	})
 
 	t.Run("has correct replication info after load", func(t *testing.T) {
-
 		subSetup := func(t *testing.T) func() {
 			mainSetupCleanup := setup(t)
 
@@ -113,26 +112,15 @@ func TestReplicationStatus(t *testing.T) {
 			db2, err = orbitdb2.Log(ctx, db.Address().String(), &orbitdb.CreateDBOptions{Create: &create})
 			require.NoError(t, err)
 
-			subCtx, cancel := context.WithTimeout(ctx, time.Second*5)
-			defer cancel()
-
-			sub, err := orbitdb2.EventBus().Subscribe(new(stores.EventReplicated))
+			sub, err := db2.EventBus().Subscribe(new(stores.EventReplicated))
 			require.NoError(t, err)
 			defer sub.Close()
-
-			go func() {
-				for range sub.Out() {
-					if db2.ReplicationStatus().GetProgress() == 2 {
-						cancel()
-						return
-					}
-				}
-			}()
 
 			err = db2.Sync(ctx, db.OpLog().Heads().Slice())
 			require.NoError(t, err)
 
-			<-subCtx.Done()
+			evt := <-sub.Out()
+			require.NotNil(t, evt)
 
 			assert.Equal(t, db2.ReplicationStatus().GetProgress(), 2)
 			assert.Equal(t, db2.ReplicationStatus().GetMax(), 2)

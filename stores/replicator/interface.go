@@ -27,7 +27,7 @@ type Replicator interface {
 	Stop()
 
 	// Load Loads new data to replicate
-	Load(ctx context.Context, cids []cid.Cid)
+	Load(ctx context.Context, heads []ipfslog.Entry)
 
 	// GetQueue Returns the list of CID in the queue
 	GetQueue() []cid.Cid

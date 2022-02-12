@@ -72,7 +72,11 @@ func (c *channel) sendHelloPacket(ctx context.Context, p peer.ID) error {
 	return nil
 }
 
+var sendcounter int64
+
 func (c *channel) Send(ctx context.Context, p peer.ID, data []byte) error {
+	sendcounter++
+	fmt.Printf("oneone counter send: %d - %s\n", sendcounter, string(data))
 	channelid := c.getOurChannelID(p)
 	err := c.ipfs.PubSub().Publish(ctx, channelid, data)
 	if err != nil {
@@ -122,6 +126,7 @@ func (c *channel) getOurChannelID(p peer.ID) string {
 
 func (c *channel) monitorTopic(sub coreapi.PubSubSubscription, p peer.ID) {
 	for {
+
 		msg, err := sub.Next(c.ctx)
 		switch err {
 		case nil:
@@ -144,6 +149,7 @@ func (c *channel) monitorTopic(sub coreapi.PubSubSubscription, p peer.ID) {
 			continue
 		}
 
+		fmt.Printf("oneone receive data: %s\n", string(msg.Data()))
 		if err := c.emitter.Emit(pubsub.NewEventPayload(msg.Data())); err != nil {
 			c.logger.Warn("unable to emit event payload", zap.Error(err))
 		}

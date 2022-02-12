@@ -193,7 +193,7 @@ type Store interface {
 	Sync(ctx context.Context, heads []ipfslog.Entry) error
 
 	// LoadMoreFrom Loads more entries from the given CIDs
-	LoadMoreFrom(ctx context.Context, amount uint, entries []cid.Cid)
+	LoadMoreFrom(ctx context.Context, amount uint, entries []ipfslog.Entry)
 
 	// LoadFromSnapshot Loads store content from a snapshot
 	LoadFromSnapshot(ctx context.Context) error
