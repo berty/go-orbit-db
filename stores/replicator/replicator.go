@@ -3,6 +3,7 @@ package replicator
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -80,7 +81,7 @@ func NewReplicator(store storeInterface, concurrency uint, opts *Options) (Repli
 	}
 
 	if concurrency == 0 {
-		concurrency = 1
+		concurrency = 32
 	}
 
 	muProcess := sync.RWMutex{}
@@ -208,9 +209,6 @@ func (r *replicator) processItems(ctx context.Context, items ...processItem) err
 
 func (r *replicator) processHash(ctx context.Context, item processItem) ([]cid.Cid, error) {
 	hash := item.GetHash()
-	if _, hasEntry := r.store.OpLog().Get(hash); hasEntry {
-		return nil, nil
-	}
 
 	// @FIXME(gfanton): chan progress should be created and close on ipfs-log
 	cprogress := make(chan iface.IPFSLogEntry)
@@ -234,7 +232,6 @@ func (r *replicator) processHash(ctx context.Context, item processItem) ([]cid.C
 		}
 	}()
 
-	// <-time.After(time.Duration(time.Duration(rand.Int63n(500) * int64(time.Millisecond))))
 	l, err := ipfslog.NewFromEntryHash(ctx, r.store.IPFS(), r.store.Identity(), hash, &ipfslog.LogOptions{
 		ID:               r.store.OpLog().GetID(),
 		AccessController: r.store.AccessController(),
@@ -300,6 +297,7 @@ func (r *replicator) waitForProcessSlot(ctx context.Context) (e processItem, err
 		r.taskInProgress--
 		r.condProcess.Signal()
 		err = ctx.Err()
+		fmt.Printf("context done - left in queue %d\n", r.queue.Len())
 	default:
 		// pop entry from queue
 		e = r.queue.Next()
@@ -319,13 +317,13 @@ func (r *replicator) processEntryDone(item processItem) {
 	// remove hash from queued list
 	r.tasks[item.GetHash()] = stateFetched
 
-	// signal that a process slot is available
-	r.condProcess.Signal()
-
 	// if there no more task to proceed, trigger idle method
 	if r.isIdle() {
 		r.idle()
 	}
+
+	// signal that a process slot is available
+	r.condProcess.Signal()
 
 	r.condProcess.L.Unlock()
 }
