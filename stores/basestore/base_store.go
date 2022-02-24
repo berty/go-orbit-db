@@ -210,8 +210,6 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 
 	atomic.StoreInt64(&b.stats.snapshot.bytesLoaded, -1)
 
-	options.ReplicationConcurrency = 10
-
 	b.replicator, err = replicator.NewReplicator(b, options.ReplicationConcurrency, &replicator.Options{
 		Logger: b.logger,
 		Tracer: b.tracer,

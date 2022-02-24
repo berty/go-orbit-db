@@ -26,6 +26,7 @@ require (
 	go.uber.org/goleak v1.1.11
 	go.uber.org/zap v1.19.1
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 )
 
 replace berty.tech/go-ipfs-log => github.com/gfanton/go-ipfs-log v0.0.0-20220222191845-0aaf600b5311

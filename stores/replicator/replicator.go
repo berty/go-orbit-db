@@ -17,6 +17,7 @@ import (
 	otkv "go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"golang.org/x/sync/semaphore"
 )
 
 var batchSize = 1
@@ -46,6 +47,7 @@ type replicator struct {
 
 	tasks map[cid.Cid]queuedState
 
+	sem         *semaphore.Weighted
 	queue       *processQueue
 	muProcess   *sync.RWMutex
 	condProcess *sync.Cond
@@ -94,6 +96,7 @@ func NewReplicator(store storeInterface, concurrency uint, opts *Options) (Repli
 		logger:      opts.Logger,
 		tracer:      opts.Tracer,
 		muProcess:   &muProcess,
+		sem:         semaphore.NewWeighted(int64(concurrency)),
 		condProcess: sync.NewCond(&muProcess),
 	}
 	if err := r.generateEmitter(opts.EventBus); err != nil {
@@ -141,7 +144,7 @@ func (r *replicator) Load(ctx context.Context, entries []ipfslog.Entry) {
 	defer span.End()
 
 	// process and wait the whole queue to complete
-	r.condProcess.L.Lock()
+	r.muProcess.Lock()
 	for i, entry := range entries {
 		if exist := r.AddEntryToQueue(entry); exist {
 			continue
@@ -159,7 +162,7 @@ func (r *replicator) Load(ctx context.Context, entries []ipfslog.Entry) {
 			}
 		}(i)
 	}
-	r.condProcess.L.Unlock()
+	r.muProcess.Unlock()
 }
 
 // processOne wait for a process slot then process one element of the queue
@@ -188,7 +191,7 @@ func (r *replicator) processItems(ctx context.Context, items ...processItem) err
 			return err
 		}
 
-		r.condProcess.L.Lock()
+		r.muProcess.Lock()
 		for _, hash := range next {
 			if exist := r.AddHashToQueue(hash); exist {
 				continue
@@ -201,7 +204,7 @@ func (r *replicator) processItems(ctx context.Context, items ...processItem) err
 				}
 			}()
 		}
-		r.condProcess.L.Unlock()
+		r.muProcess.Unlock()
 	}
 
 	return nil
@@ -246,8 +249,6 @@ func (r *replicator) processHash(ctx context.Context, item processItem) ([]cid.C
 		return nil, errors.Wrap(err, "unable to fetch log")
 	}
 
-	// entry := l.Values().At(0)
-
 	r.muBuffer.Lock()
 	r.buffer = append(r.buffer, l)
 	r.muBuffer.Unlock()
@@ -284,35 +285,24 @@ func (r *replicator) generateEmitter(bus event.Bus) error {
 }
 
 func (r *replicator) waitForProcessSlot(ctx context.Context) (e processItem, err error) {
-	r.condProcess.L.Lock()
-
-	for r.taskInProgress >= r.concurrency {
-		r.condProcess.Wait()
+	if err := r.sem.Acquire(ctx, 1); err != nil {
+		return nil, fmt.Errorf("failed to acquire process slot: %w", err)
 	}
+	r.muProcess.Lock()
 
 	r.taskInProgress++
 
-	select {
-	case <-ctx.Done():
-		r.taskInProgress--
-		r.condProcess.Signal()
-		err = ctx.Err()
-		fmt.Printf("context done - left in queue %d\n", r.queue.Len())
-	default:
-		// pop entry from queue
-		e = r.queue.Next()
-		r.tasks[e.GetHash()] = stateFetching
-	}
+	e = r.queue.Next()
+	r.tasks[e.GetHash()] = stateFetching
 
-	r.condProcess.L.Unlock()
+	r.muProcess.Unlock()
 	return
 }
 
 func (r *replicator) processEntryDone(item processItem) {
-	r.condProcess.L.Lock()
+	r.muProcess.Lock()
 
 	r.taskInProgress--
-	// fmt.Printf("process done: %d\n", r.taskInProgress)
 
 	// remove hash from queued list
 	r.tasks[item.GetHash()] = stateFetched
@@ -323,9 +313,9 @@ func (r *replicator) processEntryDone(item processItem) {
 	}
 
 	// signal that a process slot is available
-	r.condProcess.Signal()
+	r.sem.Release(1)
 
-	r.condProcess.L.Unlock()
+	r.muProcess.Unlock()
 }
 
 // AddHashToQueue is not thread safe
@@ -382,6 +372,7 @@ func (r *replicator) idle() {
 		}
 		r.buffer = []ipfslog.Log{}
 
+		// @FIXME: use better garbage collector here
 		// for h, s := range r.tasks {
 		// 	if s == stateFetched {
 		// 		delete(r.tasks, h)
