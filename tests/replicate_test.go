@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	log "github.com/ipfs/go-log"
+
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/enc"
 	orbitdb "berty.tech/go-orbit-db"
@@ -207,6 +209,9 @@ func TestLogAppendReplicateEncryptedWrongKey(t *testing.T) {
 }
 
 func TestReplication(t *testing.T) {
+	err := log.SetLogLevel("pubsub", "debug")
+	require.NoError(t, err)
+
 	if os.Getenv("WITH_GOLEAK") == "1" {
 		defer goleak.VerifyNone(t,
 			goleak.IgnoreTopFunction("github.com/syndtr/goleveldb/leveldb.(*DB).mpoolDrain"),           // inherited from one of the imports (init)
@@ -224,9 +229,9 @@ func TestReplication(t *testing.T) {
 		100,
 	} {
 		for nodeType, nodeGen := range map[string]func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func()){
-			"default":        testDefaultNodeGenerator,
+			// "default":        testDefaultNodeGenerator,
 			"direct-channel": testDirectChannelNodeGenerator,
-			"raw-pubsub":     testRawPubSubNodeGenerator,
+			// "raw-pubsub":     testRawPubSubNodeGenerator,
 		} {
 			t.Run(fmt.Sprintf("replicates database of %d entries with node type %s", amount, nodeType), func(t *testing.T) {
 				testLogAppendReplicate(t, amount, nodeGen)
@@ -352,6 +357,8 @@ func testLogAppendReplicate(t *testing.T, amount int, nodeGen func(t *testing.T,
 }
 
 func TestReplicationMultipeer(t *testing.T) {
+	err := log.SetLogLevel("pubsub", "debug")
+	require.NoError(t, err)
 	if os.Getenv("WITH_GOLEAK") == "1" {
 		defer goleak.VerifyNone(t,
 			goleak.IgnoreTopFunction("github.com/syndtr/goleveldb/leveldb.(*DB).mpoolDrain"),           // inherited from one of the imports (init)
@@ -368,12 +375,12 @@ func TestReplicationMultipeer(t *testing.T) {
 		5,
 		// 6, //FIXME: need increase test timeout
 		// 8,  //FIXME: need improve "github.com/libp2p/go-libp2p-pubsub to completely resolve problem + increase test timeout
-		// 10,
+		10,
 	} {
 		for nodeType, nodeGen := range map[string]func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func()){
-			"default":        testDefaultNodeGenerator,
+			// "default":        testDefaultNodeGenerator,
 			"direct-channel": testDirectChannelNodeGenerator,
-			"raw-pubsub":     testRawPubSubNodeGenerator,
+			// "raw-pubsub":     testRawPubSubNodeGenerator,
 		} {
 			t.Run(fmt.Sprintf("replicates database of %d entries with node type %s", amount, nodeType), func(t *testing.T) {
 				testLogAppendReplicateMultipeer(t, amount, nodeGen)
@@ -523,8 +530,9 @@ func testLogAppendReplicateMultipeer(t *testing.T, npeer int, nodeGen func(t *te
 	for i, peer := range received {
 		for _, payload := range payloads {
 			n, ok := peer[payload]
-			assert.Truef(t, ok, "peer %d missing entry `%s`", i, payload)
-			assert.Equalf(t, 1, n, "stores[%d] should be receive entry `%s` only once", i, payload)
+			if assert.Truef(t, ok, "peer %d missing entry `%s`", i, payload) {
+				assert.Equalf(t, 1, n, "stores[%d] should be receive entry `%s` only once", i, payload)
+			}
 		}
 
 		items, err := stores[i].List(ctx, &orbitdb.StreamOptions{Amount: &infinity})

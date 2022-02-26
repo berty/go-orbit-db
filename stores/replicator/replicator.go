@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/iface"
@@ -21,8 +20,6 @@ import (
 )
 
 var batchSize = 1
-
-var GCWatchdog = time.Second
 
 type queuedState int
 
@@ -47,10 +44,9 @@ type replicator struct {
 
 	tasks map[cid.Cid]queuedState
 
-	sem         *semaphore.Weighted
-	queue       *processQueue
-	muProcess   *sync.RWMutex
-	condProcess *sync.Cond
+	sem       *semaphore.Weighted
+	queue     *processQueue
+	muProcess sync.RWMutex
 
 	buffer   []ipfslog.Log
 	muBuffer sync.Mutex
@@ -86,7 +82,6 @@ func NewReplicator(store storeInterface, concurrency uint, opts *Options) (Repli
 		concurrency = 32
 	}
 
-	muProcess := sync.RWMutex{}
 	r := replicator{
 		eventBus:    opts.EventBus,
 		concurrency: int64(concurrency),
@@ -95,9 +90,7 @@ func NewReplicator(store storeInterface, concurrency uint, opts *Options) (Repli
 		queue:       &processQueue{},
 		logger:      opts.Logger,
 		tracer:      opts.Tracer,
-		muProcess:   &muProcess,
 		sem:         semaphore.NewWeighted(int64(concurrency)),
-		condProcess: sync.NewCond(&muProcess),
 	}
 	if err := r.generateEmitter(opts.EventBus); err != nil {
 		return nil, err
@@ -241,8 +234,9 @@ func (r *replicator) processHash(ctx context.Context, item processItem) ([]cid.C
 		SortFn:           r.store.SortFn(),
 		IO:               r.store.IO(),
 	}, &ipfslog.FetchOptions{
-		Length:       &batchSize,
-		ProgressChan: cprogress,
+		Length:        &batchSize,
+		ProgressChan:  cprogress,
+		ShouldExclude: r.shouldExclude,
 	})
 
 	if err != nil {
@@ -316,6 +310,21 @@ func (r *replicator) processEntryDone(item processItem) {
 	r.sem.Release(1)
 
 	r.muProcess.Unlock()
+}
+
+func (r *replicator) shouldExclude(hash cid.Cid) (exist bool) {
+	r.muProcess.RLock()
+	defer r.muProcess.RUnlock()
+
+	if _, inLog := r.store.OpLog().Get(hash); inLog {
+		return true
+	}
+
+	if task, queued := r.tasks[hash]; queued && task == stateFetched {
+		return true
+	}
+
+	return false
 }
 
 // AddHashToQueue is not thread safe

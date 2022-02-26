@@ -730,8 +730,9 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 		SortFn:           b.SortFn(),
 		IO:               b.options.IO,
 	}, &entry.FetchOptions{
-		Length:  intPtr(-1),
-		Timeout: time.Second,
+		Length: intPtr(-1),
+		// @FIXME(gfanton): should we increase this ?
+		Timeout: time.Minute,
 	})
 
 	if err != nil {
