@@ -1,9 +1,9 @@
 package oneonone
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -24,8 +24,13 @@ const (
 )
 
 type channel struct {
-	subs   map[peer.ID]coreapi.PubSubSubscription
-	muSubs sync.Mutex
+	id  string
+	sub coreapi.PubSubSubscription
+}
+
+type channels struct {
+	subs   map[peer.ID]*channel
+	muSubs sync.RWMutex
 
 	selfID  peer.ID
 	emitter iface.DirectChannelEmitter
@@ -35,46 +40,54 @@ type channel struct {
 	logger  *zap.Logger
 }
 
-func (c *channel) Connect(ctx context.Context, target peer.ID) error {
-	channelID := c.getOurChannelID(target)
+func (c *channels) Connect(ctx context.Context, target peer.ID) error {
+	id := c.getChannelID(target)
 
 	c.muSubs.Lock()
 	if _, ok := c.subs[target]; !ok {
-		c.logger.Debug(fmt.Sprintf("subscribing to %s", channelID))
+		c.logger.Debug("subscribing to", zap.String("topic", id))
 
-		sub, err := c.ipfs.PubSub().Subscribe(ctx, channelID, options.PubSub.Discover(true))
+		sub, err := c.ipfs.PubSub().Subscribe(ctx, id, options.PubSub.Discover(true))
 		if err != nil {
 			c.muSubs.Unlock()
 			return errors.Wrap(err, "unable to subscribe to pubsub")
 		}
 
-		// force to join other peer channel by sending an hello packet
-		if err := c.sendHelloPacket(ctx, target); err != nil {
-			c.muSubs.Unlock()
-			return errors.Wrap(err, "unable to send hello packet")
+		c.subs[target] = &channel{
+			sub: sub,
+			id:  id,
 		}
-		go c.monitorTopic(sub, target)
+		go func() {
+			c.monitorTopic(sub, target)
 
-		c.subs[target] = sub
+			// if monitor topic is done, remove target from cache
+			c.muSubs.Lock()
+			delete(c.subs, target)
+			c.muSubs.Unlock()
+		}()
 	}
 	c.muSubs.Unlock()
 
-	// @FIXME(gfanton): this is very bad
-	return c.waitForPeers(ctx, target, channelID)
-}
-
-func (c *channel) sendHelloPacket(ctx context.Context, p peer.ID) error {
-	theirChannelID := c.getTheirChannelID(p)
-	if err := c.ipfs.PubSub().Publish(ctx, theirChannelID, []byte(HelloPacket)); err != nil {
-		return errors.Wrap(err, "unable to publish to pubsub")
+	// try to run a connect first.
+	// if enable, it will use ipfs discovery in the background
+	if err := c.ipfs.Swarm().Connect(ctx, peer.AddrInfo{ID: target}); err != nil {
+		c.logger.Warn("unable to connect to remote peer", zap.String("peer", target.String()))
 	}
 
-	return nil
+	return c.waitForPeers(ctx, target, id)
 }
 
-func (c *channel) Send(ctx context.Context, p peer.ID, data []byte) error {
-	channelid := c.getOurChannelID(p)
-	err := c.ipfs.PubSub().Publish(ctx, channelid, data)
+func (c *channels) Send(ctx context.Context, p peer.ID, data []byte) error {
+	var id string
+	c.muSubs.RLock()
+	if ch, ok := c.subs[p]; ok {
+		id = ch.id
+	} else {
+		id = c.getChannelID(p)
+	}
+	c.muSubs.RUnlock()
+
+	err := c.ipfs.PubSub().Publish(ctx, id, data)
 	if err != nil {
 		return errors.Wrap(err, "unable to publish data on pubsub")
 	}
@@ -82,7 +95,7 @@ func (c *channel) Send(ctx context.Context, p peer.ID, data []byte) error {
 	return nil
 }
 
-func (c *channel) waitForPeers(ctx context.Context, otherPeer peer.ID, channelID string) error {
+func (c *channels) waitForPeers(ctx context.Context, otherPeer peer.ID, channelID string) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -106,21 +119,16 @@ func (c *channel) waitForPeers(ctx context.Context, otherPeer peer.ID, channelID
 	}
 }
 
-func (c *channel) getTheirChannelID(p peer.ID) string {
+func (c *channels) getChannelID(p peer.ID) string {
 	channelIDPeers := []string{c.selfID.String(), p.String()}
-
+	sort.Slice(channelIDPeers, func(i, j int) bool {
+		return strings.Compare(channelIDPeers[i], channelIDPeers[j]) < 0
+	})
 	// ID of the channel is "<peer1 id>/<peer 2 id>""
 	return fmt.Sprintf("/%s/%s", PROTOCOL, strings.Join(channelIDPeers, "/"))
 }
 
-func (c *channel) getOurChannelID(p peer.ID) string {
-	channelIDPeers := []string{p.String(), c.selfID.String()}
-
-	// ID of the channel is "<peer1 id>/<peer 2 id>""
-	return fmt.Sprintf("/%s/%s", PROTOCOL, strings.Join(channelIDPeers, "/"))
-}
-
-func (c *channel) monitorTopic(sub coreapi.PubSubSubscription, p peer.ID) {
+func (c *channels) monitorTopic(sub coreapi.PubSubSubscription, p peer.ID) {
 	for {
 
 		msg, err := sub.Next(c.ctx)
@@ -140,24 +148,18 @@ func (c *channel) monitorTopic(sub coreapi.PubSubSubscription, p peer.ID) {
 			continue
 		}
 
-		// skip hello packet
-		if bytes.Equal(msg.Data(), []byte(HelloPacket)) {
-			continue
-		}
-
-		fmt.Printf("oneone receive data: %s\n", string(msg.Data()))
 		if err := c.emitter.Emit(pubsub.NewEventPayload(msg.Data())); err != nil {
 			c.logger.Warn("unable to emit event payload", zap.Error(err))
 		}
 	}
 }
 
-func (c *channel) Close() error {
+func (c *channels) Close() error {
 	c.cancel()
 
 	c.muSubs.Lock()
-	for _, sub := range c.subs {
-		_ = sub.Close()
+	for _, ch := range c.subs {
+		_ = ch.sub.Close()
 	}
 	c.muSubs.Unlock()
 
@@ -185,9 +187,9 @@ func NewChannelFactory(ipfs coreapi.CoreAPI) iface.DirectChannelFactory {
 			return nil, errors.Wrap(err, "unable to get key for self")
 		}
 
-		ch := &channel{
+		ch := &channels{
 			emitter: emitter,
-			subs:    make(map[peer.ID]coreapi.PubSubSubscription),
+			subs:    make(map[peer.ID]*channel),
 			ctx:     ctx,
 			selfID:  selfKey.ID(),
 			cancel:  cancel,
@@ -199,4 +201,4 @@ func NewChannelFactory(ipfs coreapi.CoreAPI) iface.DirectChannelFactory {
 	}
 }
 
-var _ iface.DirectChannel = &channel{}
+var _ iface.DirectChannel = &channels{}

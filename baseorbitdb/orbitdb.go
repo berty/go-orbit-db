@@ -601,7 +601,7 @@ func (o *orbitDB) Open(ctx context.Context, dbAddress string, options *CreateDBO
 }
 
 func (o *orbitDB) monitorChannels(ctx context.Context, store Store) error {
-	sub, err := o.eventBus.Subscribe(new(iface.EventPubSubPayload))
+	sub, err := o.eventBus.Subscribe(new(iface.EventPubSubPayload), eventbus.BufSize(128))
 	if err != nil {
 		return fmt.Errorf("unable to init event bus: %w", err)
 	}
@@ -944,7 +944,6 @@ func (o *orbitDB) exchangeHeads(ctx context.Context, p peer.ID, store Store) err
 	sharedKey := store.SharedKey()
 
 	o.logger.Debug(fmt.Sprintf("connecting to %s", p))
-
 	if err := o.directConnections.Connect(ctx, p); err != nil {
 		return errors.Wrap(err, "unable to connect to peer")
 	}

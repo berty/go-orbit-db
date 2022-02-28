@@ -13,7 +13,6 @@ require (
 	github.com/ipfs/go-ipfs-config v0.18.0
 	github.com/ipfs/go-ipfs-files v0.0.9
 	github.com/ipfs/go-ipld-cbor v0.0.6
-	github.com/ipfs/go-log v1.0.5
 	github.com/ipfs/interface-go-ipfs-core v0.5.2
 	github.com/libp2p/go-eventbus v0.2.1
 	github.com/libp2p/go-libp2p v0.17.0
@@ -34,4 +33,4 @@ require (
 // replace berty.tech/go-ipfs-log => github.com/gfanton/go-ipfs-log v0.0.0-20220222191845-0aaf600b5311
 // replace berty.tech/go-ipfs-log => ../go-ipfs-log
 
-replace berty.tech/go-ipfs-log => github.com/gfanton/go-ipfs-log v0.0.0-20220227174936-868b6d148c2a
+replace berty.tech/go-ipfs-log => github.com/gfanton/go-ipfs-log v0.0.0-20220228235942-9efb3c9a00d4

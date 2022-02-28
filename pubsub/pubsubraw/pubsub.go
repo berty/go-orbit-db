@@ -66,7 +66,7 @@ func (p *psTopic) WatchMessages(ctx context.Context) (<-chan *iface.EventPubSubM
 		return nil, err
 	}
 
-	ch := make(chan *iface.EventPubSubMessage)
+	ch := make(chan *iface.EventPubSubMessage, 32)
 	go func() {
 		defer close(ch)
 		for {

@@ -356,6 +356,7 @@ func testLogAppendReplicate(t *testing.T, amount int, nodeGen func(t *testing.T,
 func TestReplicationMultipeer(t *testing.T) {
 	// err := log.SetLogLevel("pubsub", "debug")
 	// require.NoError(t, err)
+
 	if os.Getenv("WITH_GOLEAK") == "1" {
 		defer goleak.VerifyNone(t,
 			goleak.IgnoreTopFunction("github.com/syndtr/goleveldb/leveldb.(*DB).mpoolDrain"),           // inherited from one of the imports (init)
@@ -404,6 +405,7 @@ func testLogAppendReplicateMultipeer(t *testing.T, npeer int, nodeGen func(t *te
 	err := mn.LinkAll()
 	require.NoError(t, err)
 
+	// connect peers
 	err = mn.ConnectAllButSelf()
 	require.NoError(t, err)
 
@@ -551,17 +553,11 @@ func testDirectChannelNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (or
 	node1, clean := testingIPFSNode(ctx, t, mn)
 	closeOps = append(closeOps, clean)
 
-	// node1, clean := testingIPFSNodeWithoutPubsub(ctx, t, mn)
-	// closeOps = append(closeOps, clean)
-
-	// ps, err := pubsub.NewGossipSub(ctx, node1.PeerHost,
-	// 	pubsub.WithPeerOutboundQueueSize(128),
-	// 	pubsub.WithValidateQueueSize(128),
-	// )
-	// require.NoError(t, err)
+	// logger, _ := zap.NewDevelopment()
+	logger := zap.NewNop()
 
 	ipfs1 := testingCoreAPI(t, node1)
-	zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node%d is %s", i, node1.Identity.String()))
+	logger.Named("orbitdb.tests").Debug(fmt.Sprintf("node%d is %s", i, node1.Identity.String()))
 
 	orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{
 		Directory:            &dbPath1,
@@ -569,6 +565,7 @@ func testDirectChannelNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (or
 		// @NOTE(gfanton): use raw pubsub here, we need a higher buffer
 		// for subscribe to make the test works on CI
 		PubSub: pubsubraw.NewPubSub(node1.PubSub, node1.Identity, nil, nil),
+		Logger: logger,
 	})
 	require.NoError(t, err)
 
@@ -586,6 +583,9 @@ func testDefaultNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.
 		}
 	}
 
+	// logger, _ := zap.NewDevelopment()
+	logger := zap.NewNop()
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*70)
 	closeOps = append(closeOps, cancel)
 
@@ -595,25 +595,13 @@ func testDefaultNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.
 	node1, clean := testingIPFSNode(ctx, t, mn)
 	closeOps = append(closeOps, clean)
 
-	// node1, clean := testingIPFSNodeWithoutPubsub(ctx, t, mn)
-	// closeOps = append(closeOps, clean)
-
-	// ps, err := pubsub.NewGossipSub(ctx, node1.PeerHost,
-	// 	pubsub.WithPeerOutboundQueueSize(100),
-	// 	pubsub.WithValidateQueueSize(100),
-	// )
-	// require.NoError(t, err)
-
 	ipfs1 := testingCoreAPI(t, node1)
-	zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node%d is %s", i, node1.Identity.String()))
-
-	//logger, _ := zap.NewDevelopment()
-	logger := zap.NewNop()
+	logger.Named("orbitdb.tests").Debug(fmt.Sprintf("node%d is %s", i, node1.Identity.String()))
 
 	orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{
 		// @NOTE(gfanton): use raw pubsub here, we need a higher buffer
 		// for subscribe to make the test works on CI
-		PubSub:    pubsubraw.NewPubSub(node1.PubSub, node1.Identity, nil, nil),
+		PubSub:    pubsubraw.NewPubSub(node1.PubSub, node1.Identity, logger, nil),
 		Directory: &dbPath1,
 		Logger:    logger,
 	})

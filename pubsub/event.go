@@ -1,6 +1,7 @@
 package pubsub
 
 import (
+	"github.com/libp2p/go-eventbus"
 	"github.com/libp2p/go-libp2p-core/event"
 	"github.com/libp2p/go-libp2p-core/peer"
 
@@ -14,7 +15,7 @@ type PayloadEmitter struct {
 }
 
 func NewPayloadEmitter(bus event.Bus) (*PayloadEmitter, error) {
-	emitter, err := bus.Emitter(new(iface.EventPubSubPayload))
+	emitter, err := bus.Emitter(new(iface.EventPubSubPayload), eventbus.Stateful)
 	if err != nil {
 		return nil, err
 	}
