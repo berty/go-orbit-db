@@ -113,9 +113,9 @@ jobs:
         run: go test -i ./...
 
       - name: Run tests without options
-        run: go test ./... -v -test.timeout=12m
+        run: go test ./... -v -test.timeout=20m
       - name: Run tests with race and cover
-        run: go test ./... -race -covermode=atomic -coverpkg=all -coverprofile=coverage.txt -cover -v -test.timeout=12m
+        run: go test ./... -race -covermode=atomic -coverpkg=all -coverprofile=coverage.txt -cover -v -test.timeout=20m
 
       # temporarily disabled, because not stable enough
       #- name: Run tests with goleak

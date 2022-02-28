@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/ipfs/go-log"
+	// log "github.com/ipfs/go-log"
 
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/enc"
@@ -210,8 +210,8 @@ func TestLogAppendReplicateEncryptedWrongKey(t *testing.T) {
 }
 
 func TestReplication(t *testing.T) {
-	err := log.SetLogLevel("pubsub", "debug")
-	require.NoError(t, err)
+	// err := log.SetLogLevel("pubsub", "debug")
+	// require.NoError(t, err)
 
 	if os.Getenv("WITH_GOLEAK") == "1" {
 		defer goleak.VerifyNone(t,
@@ -230,7 +230,7 @@ func TestReplication(t *testing.T) {
 		100,
 	} {
 		for nodeType, nodeGen := range map[string]func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func()){
-			// "default":        testDefaultNodeGenerator,
+			"default":        testDefaultNodeGenerator,
 			"direct-channel": testDirectChannelNodeGenerator,
 			// "raw-pubsub":     testRawPubSubNodeGenerator,
 		} {
@@ -358,8 +358,8 @@ func testLogAppendReplicate(t *testing.T, amount int, nodeGen func(t *testing.T,
 }
 
 func TestReplicationMultipeer(t *testing.T) {
-	err := log.SetLogLevel("pubsub", "debug")
-	require.NoError(t, err)
+	// err := log.SetLogLevel("pubsub", "debug")
+	// require.NoError(t, err)
 	if os.Getenv("WITH_GOLEAK") == "1" {
 		defer goleak.VerifyNone(t,
 			goleak.IgnoreTopFunction("github.com/syndtr/goleveldb/leveldb.(*DB).mpoolDrain"),           // inherited from one of the imports (init)
@@ -379,7 +379,7 @@ func TestReplicationMultipeer(t *testing.T) {
 		10,
 	} {
 		for nodeType, nodeGen := range map[string]func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func()){
-			// "default":        testDefaultNodeGenerator,
+			"default":        testDefaultNodeGenerator,
 			"direct-channel": testDirectChannelNodeGenerator,
 			// "raw-pubsub":     testRawPubSubNodeGenerator,
 		} {
