@@ -22,6 +22,7 @@ import (
 	"berty.tech/go-orbit-db/stores/operation"
 	"github.com/libp2p/go-eventbus"
 	"github.com/libp2p/go-libp2p-core/event"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -393,8 +394,6 @@ func testLogAppendReplicateMultipeer(t *testing.T, npeer int, nodeGen func(t *te
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// @NOTE(gfanton): this works with 50 elements but it's too slow for now
-	// n items to send
 	const nitems = 5
 
 	dbs := make([]orbitdb.OrbitDB, npeer)
@@ -550,19 +549,26 @@ func testDirectChannelNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (or
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*70)
+	ctx, cancel := context.WithCancel(context.Background())
 	closeOps = append(closeOps, cancel)
 
 	dbPath1, clean := testingTempDir(t, fmt.Sprintf("db%d", i))
 	closeOps = append(closeOps, clean)
 
-	node1, clean := testingIPFSNode(ctx, t, mn)
+	node1, clean := testingIPFSNodeWithoutPubsub(ctx, t, mn)
 	closeOps = append(closeOps, clean)
+
+	ps, err := pubsub.NewGossipSub(ctx, node1.PeerHost,
+		pubsub.WithPeerOutboundQueueSize(128),
+		pubsub.WithValidateQueueSize(128),
+	)
+	require.NoError(t, err)
 
 	ipfs1 := testingCoreAPI(t, node1)
 	zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node%d is %s", i, node1.Identity.String()))
 
 	orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{
+		PubSub:               pubsubraw.NewPubSub(ps, node1.Identity, nil, nil),
 		Directory:            &dbPath1,
 		DirectChannelFactory: directchannel.InitDirectChannelFactory(zap.NewNop(), node1.PeerHost),
 	})
@@ -573,7 +579,7 @@ func testDirectChannelNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (or
 	return orbitdb1, dbPath1, performCloseOps
 }
 
-func testRawPubSubNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func()) {
+func testRawPubSubNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int, queue int) (orbitdb.OrbitDB, string, func()) {
 	t.Skip("skip unstable raw-pubsub test")
 
 	var closeOps []func()
@@ -584,14 +590,20 @@ func testRawPubSubNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (orbitd
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*70)
+	ctx, cancel := context.WithCancel(context.Background())
 	closeOps = append(closeOps, cancel)
 
 	dbPath1, clean := testingTempDir(t, fmt.Sprintf("db%d", i))
 	closeOps = append(closeOps, clean)
 
-	node1, clean := testingIPFSNode(ctx, t, mn)
+	node1, clean := testingIPFSNodeWithoutPubsub(ctx, t, mn)
 	closeOps = append(closeOps, clean)
+
+	ps, err := pubsub.NewGossipSub(ctx, node1.PeerHost,
+		pubsub.WithPeerOutboundQueueSize(128),
+		pubsub.WithValidateQueueSize(128),
+	)
+	require.NoError(t, err)
 
 	ipfs1 := testingCoreAPI(t, node1)
 	zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node%d is %s", i, node1.Identity.String()))
@@ -599,7 +611,7 @@ func testRawPubSubNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (orbitd
 	//loggger, _ := zap.NewDevelopment()
 	orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{
 		Directory: &dbPath1,
-		PubSub:    pubsubraw.NewPubSub(node1.PubSub, node1.Identity, nil, nil),
+		PubSub:    pubsubraw.NewPubSub(ps, node1.Identity, nil, nil),
 		//Logger:    loggger,
 	})
 	require.NoError(t, err)
@@ -624,8 +636,14 @@ func testDefaultNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.
 	dbPath1, clean := testingTempDir(t, fmt.Sprintf("db%d", i))
 	closeOps = append(closeOps, clean)
 
-	node1, clean := testingIPFSNode(ctx, t, mn)
+	node1, clean := testingIPFSNodeWithoutPubsub(ctx, t, mn)
 	closeOps = append(closeOps, clean)
+
+	ps, err := pubsub.NewGossipSub(ctx, node1.PeerHost,
+		pubsub.WithPeerOutboundQueueSize(100),
+		pubsub.WithValidateQueueSize(100),
+	)
+	require.NoError(t, err)
 
 	ipfs1 := testingCoreAPI(t, node1)
 	zap.L().Named("orbitdb.tests").Debug(fmt.Sprintf("node%d is %s", i, node1.Identity.String()))
@@ -634,6 +652,7 @@ func testDefaultNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.
 	logger := zap.NewNop()
 
 	orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{
+		PubSub:    pubsubraw.NewPubSub(ps, node1.Identity, nil, nil),
 		Directory: &dbPath1,
 		Logger:    logger,
 	})

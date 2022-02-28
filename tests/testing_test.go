@@ -98,6 +98,23 @@ func testingIPFSAPIsNonMocked(ctx context.Context, t *testing.T, count int) ([]i
 	}
 }
 
+func testingIPFSNodeWithoutPubsub(ctx context.Context, t *testing.T, m mocknet.Mocknet) (*ipfsCore.IpfsNode, func()) {
+	t.Helper()
+
+	core, err := ipfsCore.NewNode(ctx, &ipfsCore.BuildCfg{
+		Online: true,
+		Repo:   testingRepo(ctx, t),
+		Host:   mock.MockHostOption(m),
+		ExtraOpts: map[string]bool{
+			"pubsub": false,
+		},
+	})
+	require.NoError(t, err)
+
+	cleanup := func() { core.Close() }
+	return core, cleanup
+}
+
 func testingIPFSNode(ctx context.Context, t *testing.T, m mocknet.Mocknet) (*ipfsCore.IpfsNode, func()) {
 	t.Helper()
 

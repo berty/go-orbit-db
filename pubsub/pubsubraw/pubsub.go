@@ -61,7 +61,7 @@ func (p *psTopic) WatchPeers(ctx context.Context) (<-chan iface.Event, error) {
 }
 
 func (p *psTopic) WatchMessages(ctx context.Context) (<-chan *iface.EventPubSubMessage, error) {
-	sub, err := p.topic.Subscribe()
+	sub, err := p.topic.Subscribe(p2ppubsub.WithBufferSize(128))
 	if err != nil {
 		return nil, err
 	}
