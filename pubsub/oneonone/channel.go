@@ -42,7 +42,7 @@ func (c *channel) Connect(ctx context.Context, target peer.ID) error {
 	if _, ok := c.subs[target]; !ok {
 		c.logger.Debug(fmt.Sprintf("subscribing to %s", channelID))
 
-		sub, err := c.ipfs.PubSub().Subscribe(ctx, channelID)
+		sub, err := c.ipfs.PubSub().Subscribe(ctx, channelID, options.PubSub.Discover(true))
 		if err != nil {
 			c.muSubs.Unlock()
 			return errors.Wrap(err, "unable to subscribe to pubsub")
@@ -72,11 +72,7 @@ func (c *channel) sendHelloPacket(ctx context.Context, p peer.ID) error {
 	return nil
 }
 
-var sendcounter int64
-
 func (c *channel) Send(ctx context.Context, p peer.ID, data []byte) error {
-	sendcounter++
-	fmt.Printf("oneone counter send: %d - %s\n", sendcounter, string(data))
 	channelid := c.getOurChannelID(p)
 	err := c.ipfs.PubSub().Publish(ctx, channelid, data)
 	if err != nil {
