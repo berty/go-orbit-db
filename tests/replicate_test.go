@@ -293,7 +293,7 @@ func testLogAppendReplicate(t *testing.T, amount int, nodeGen func(t *testing.T,
 	sub, err := store1.EventBus().Subscribe([]interface{}{
 		new(orbitstores.EventReplicateProgress),
 		new(orbitstores.EventReplicated),
-	}, eventbus.BufSize(amount))
+	}, eventbus.BufSize(amount+32))
 
 	require.NoError(t, err)
 	defer sub.Close()

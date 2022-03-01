@@ -229,7 +229,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 
 	b.options = options
 
-	sub, err := b.replicator.EventBus().Subscribe(replicator.Events)
+	sub, err := b.replicator.EventBus().Subscribe(replicator.Events, eventbus.BufSize(128))
 	if err != nil {
 		return errors.Wrap(err, "unable to subscribe to replicator events")
 	}
@@ -264,7 +264,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 				span.AddEvent("replicator-load-end")
 
 				// @FIXME(gfanton): should we run this in a goroutine ?
-				b.replicationLoadComplete(ctx, evt.Logs)
+				go b.replicationLoadComplete(ctx, evt.Logs)
 
 			case replicator.EventLoadProgress:
 				span.AddEvent("replicator-load-progress")
