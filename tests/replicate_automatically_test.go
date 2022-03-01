@@ -237,6 +237,7 @@ func TestReplicateAutomatically(t *testing.T) {
 
 		infinity := -1
 		go func() {
+			defer cancel()
 			for event := range sub2.Out() {
 				switch e := event.(type) {
 				case stores.EventReplicateProgress:
@@ -264,7 +265,7 @@ func TestReplicateAutomatically(t *testing.T) {
 						require.Equal(t, string(result1[i].GetValue()), string(result2[i].GetValue()))
 					}
 
-					cancel()
+					return
 				}
 			}
 		}()
@@ -275,6 +276,7 @@ func TestReplicateAutomatically(t *testing.T) {
 		}
 
 		<-subCtx.Done()
+
 		require.True(t, hasAllResults)
 	})
 }
