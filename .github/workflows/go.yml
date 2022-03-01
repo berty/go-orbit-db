@@ -51,10 +51,6 @@ jobs:
           go mod tidy -v
           git --no-pager diff go.mod go.sum
           git --no-pager diff --quiet go.mod go.sum
-      - name: List packages
-        run: go list ./...
-      - name: Build tests
-        run: go test -i ./...
 
       - name: Run tests without options
         # if: false # see https://github.com/berty/go-orbit-db/issues/56
@@ -107,10 +103,6 @@ jobs:
           go mod tidy -v
           git --no-pager diff go.mod go.sum
           git --no-pager diff --quiet go.mod go.sum
-      - name: List packages
-        run: go list ./...
-      - name: Build tests
-        run: go test -i ./...
 
       - name: Run tests without options
         run: go test ./... -v -test.timeout=20m
