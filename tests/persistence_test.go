@@ -101,7 +101,7 @@ func TestPersistence(t *testing.T) {
 
 	t.Run("load and close several times", func(t *testing.T) {
 		defer setup(t)()
-		amount := 8
+		amount := 3
 		for i := 0; i < amount; i++ {
 			db, err := orbitdb1.Log(ctx, address.String(), nil)
 			require.NoError(t, err)
@@ -138,7 +138,7 @@ func TestPersistence(t *testing.T) {
 
 	t.Run("load, add one, close - several times", func(t *testing.T) {
 		defer setup(t)()
-		const amount = 8
+		const amount = 3
 		for i := 0; i < amount; i++ {
 			db, err := orbitdb1.Log(ctx, address.String(), nil)
 			require.NoError(t, err)
