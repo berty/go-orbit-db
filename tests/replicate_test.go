@@ -454,7 +454,7 @@ func testLogAppendReplicateMultipeer(t *testing.T, npeer int, nodeGen func(t *te
 
 				select {
 				case e = <-subChans[i].Out():
-				case <-time.After(time.Second * 10):
+				case <-time.After(time.Second * 20):
 					assert.Equal(t, nToReceive-nitems, replicated,
 						"didn't received enough replicated events")
 					assert.Equal(t, nToReceive-nitems, progress,
