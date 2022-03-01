@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	ipfslog "berty.tech/go-ipfs-log"
@@ -59,12 +58,7 @@ type BaseStore struct {
 	replicator        replicator.Replicator
 	index             iface.StoreIndex
 	replicationStatus replicator.ReplicationInfo
-	stats             struct {
-		snapshot struct {
-			bytesLoaded int64
-		}
-		syncRequestsReceived int64
-	}
+
 	referenceCount int
 	replicate      bool
 	directory      string
@@ -208,8 +202,6 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 	b.index = options.Index(b.Identity().PublicKey)
 	b.muIndex.Unlock()
 
-	atomic.StoreInt64(&b.stats.snapshot.bytesLoaded, -1)
-
 	b.replicator, err = replicator.NewReplicator(b, options.ReplicationConcurrency, &replicator.Options{
 		Logger: b.logger,
 		Tracer: b.tracer,
@@ -319,10 +311,6 @@ func (b *BaseStore) Close() error {
 
 	// Reset replication statistics
 	b.ReplicationStatus().Reset()
-
-	// Reset database statistics
-	atomic.StoreInt64(&b.stats.snapshot.bytesLoaded, -1)
-	atomic.StoreInt64(&b.stats.syncRequestsReceived, 0)
 
 	// close emitters
 	emitters := []event.Emitter{
@@ -551,7 +539,6 @@ func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
 	ctx, span := b.tracer.Start(ctx, "store-sync")
 	defer span.End()
 
-	atomic.AddInt64(&b.stats.syncRequestsReceived, 1)
 	if len(heads) == 0 {
 		return nil
 	}
