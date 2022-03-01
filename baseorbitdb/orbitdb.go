@@ -84,6 +84,8 @@ func boolPtr(val bool) *bool {
 	return &val
 }
 
+const CBORReadDefaultTimeout = time.Second * 30
+
 // NewOrbitDBOptions Options for a new OrbitDB instance
 type NewOrbitDBOptions struct {
 	ID                   *string
@@ -522,6 +524,10 @@ func (o *orbitDB) Open(ctx context.Context, dbAddress string, options *CreateDBO
 		options = &CreateDBOptions{}
 	}
 
+	if options.Timeout == 0 {
+		options.Timeout = CBORReadDefaultTimeout
+	}
+
 	if options.LocalOnly == nil {
 		options.LocalOnly = boolPtr(false)
 	}
@@ -578,7 +584,10 @@ func (o *orbitDB) Open(ctx context.Context, dbAddress string, options *CreateDBO
 		return nil, errors.New(fmt.Sprintf("database %s doesn't exist!", dbAddress))
 	}
 
-	manifestNode, err := io.ReadCBOR(ctx, o.IPFS(), parsedDBAddress.GetRoot())
+	readctx, cancel := context.WithTimeout(ctx, options.Timeout)
+	defer cancel()
+
+	manifestNode, err := io.ReadCBOR(readctx, o.IPFS(), parsedDBAddress.GetRoot())
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to fetch database manifest")
 	}

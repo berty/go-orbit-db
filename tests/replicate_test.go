@@ -424,6 +424,7 @@ func testLogAppendReplicateMultipeer(t *testing.T, npeer int, nodeGen func(t *te
 		store, err := dbs[i].Log(ctx, address, &orbitdb.CreateDBOptions{
 			Directory:        &dbPaths[i],
 			AccessController: access,
+			Timeout:          time.Second * 10,
 		})
 		require.NoError(t, err)
 

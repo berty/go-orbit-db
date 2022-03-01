@@ -2,6 +2,7 @@ package iface
 
 import (
 	"context"
+	"time"
 
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/enc"
@@ -37,6 +38,7 @@ type CreateDBOptions struct {
 	Identity                *identityprovider.Identity
 	SortFn                  ipfslog.SortFn
 	IO                      ipfslog.IO
+	Timeout                 time.Duration
 	SharedKey               enc.SharedKey
 	StoreSpecificOpts       interface{}
 }
