@@ -451,18 +451,16 @@ func testLogAppendReplicateMultipeer(t *testing.T, npeer int, nodeGen func(t *te
 			for replicated < (nToReceive-nitems) || write+progress < nToReceive {
 				var e interface{}
 
-				ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-				defer cancel()
-
 				select {
 				case e = <-subChans[i].Out():
-				case <-ctx.Done():
+				case <-time.After(time.Second * 10):
 					assert.Equal(t, nToReceive-nitems, replicated,
 						"didn't received enough replicated events")
 					assert.Equal(t, nToReceive-nitems, progress,
 						"didn't received enough progress events")
 					assert.Equal(t, nitems, write,
 						"didn't received enough write events")
+					cancel()
 					assert.NoError(t, ctx.Err())
 					return
 				}
