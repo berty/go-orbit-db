@@ -54,10 +54,11 @@ func NewEventReplicateProgress(addr address.Address, h cid.Cid, e ipfslog.Entry,
 type EventReplicated struct {
 	Address   address.Address
 	LogLength int
+	Entries   []ipfslog.Entry
 }
 
 // NewEventReplicated Creates a new EventReplicated event
-func NewEventReplicated(addr address.Address, logLength int) EventReplicated {
+func NewEventReplicated(addr address.Address, entries []ipfslog.Entry, logLength int) EventReplicated {
 	return EventReplicated{
 		Address:   addr,
 		LogLength: logLength,
