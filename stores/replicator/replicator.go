@@ -208,6 +208,7 @@ func (r *replicator) processHash(ctx context.Context, item processItem) ([]cid.C
 
 	// @FIXME(gfanton): chan progress should be created and close on ipfs-log
 	cprogress := make(chan iface.IPFSLogEntry)
+	defer close(cprogress)
 	go func() {
 		var entry iface.IPFSLogEntry
 		for {

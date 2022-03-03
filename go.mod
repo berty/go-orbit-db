@@ -33,4 +33,4 @@ require (
 // replace berty.tech/go-ipfs-log => github.com/gfanton/go-ipfs-log v0.0.0-20220222191845-0aaf600b5311
 // replace berty.tech/go-ipfs-log => ../go-ipfs-log
 
-replace berty.tech/go-ipfs-log => github.com/gfanton/go-ipfs-log v0.0.0-20220228235942-9efb3c9a00d4
+replace berty.tech/go-ipfs-log => github.com/gfanton/go-ipfs-log v0.0.0-20220303151350-1e0abed80c7c

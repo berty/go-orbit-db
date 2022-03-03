@@ -209,8 +209,8 @@ github.com/fsnotify/fsnotify v1.4.9/go.mod h1:znqG4EE+3YCdAaPaxE2ZRY/06pZUdp0tY4
 github.com/fsnotify/fsnotify v1.5.1 h1:mZcQUHVQUQWoPXXtuf9yuEXKudkV2sx1E06UadKWpgI=
 github.com/fsnotify/fsnotify v1.5.1/go.mod h1:T3375wBYaZdLLcVNkcVbzGHY7f1l/uK5T5Ai1i3InKU=
 github.com/gabriel-vasile/mimetype v1.4.0/go.mod h1:fA8fi6KUiG7MgQQ+mEWotXoEOvmxRtOJlERCzSmRvr8=
-github.com/gfanton/go-ipfs-log v0.0.0-20220228235942-9efb3c9a00d4 h1:j0BvpYLlBt85bkusRd7xTMtuAP3tE9N/351jGIcV/dU=
-github.com/gfanton/go-ipfs-log v0.0.0-20220228235942-9efb3c9a00d4/go.mod h1:J0T24JAh333q0ljTtIr7hgeeWxDNQb9ygY2aAxX6rYA=
+github.com/gfanton/go-ipfs-log v0.0.0-20220303151350-1e0abed80c7c h1:3wB85mnhmlJipL1NkGsDngIilczygbh+C5pDNFLr3Rw=
+github.com/gfanton/go-ipfs-log v0.0.0-20220303151350-1e0abed80c7c/go.mod h1:J0T24JAh333q0ljTtIr7hgeeWxDNQb9ygY2aAxX6rYA=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
 github.com/gliderlabs/ssh v0.1.1/go.mod h1:U7qILu1NlMHj9FlMhZLlkCdDnU1DBEAqr0aevW3Awn0=
 github.com/go-bindata/go-bindata/v3 v3.1.3/go.mod h1:1/zrpXsLD8YDIbhZRqXzm1Ghc7NhEvIN9+Z6R5/xH4I=

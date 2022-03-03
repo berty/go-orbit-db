@@ -449,20 +449,24 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 
 	// @FIXME(gfanton): chan progress should be created and close on ipfs-log
 	progress := make(chan ifacelog.IPFSLogEntry)
+	defer close(progress)
 	go func() {
 		for {
+			var entry ifacelog.IPFSLogEntry
 			select {
 			case <-ctx.Done():
-			case entry := <-progress:
+				return
+			case entry = <-progress:
 				if entry == nil {
-					continue
+					// should not happen
+					return
 				}
+			}
 
-				b.recalculateReplicationStatus(entry.GetClock().GetTime())
-				evt := stores.NewEventLoadProgress(b.Address(), entry.GetHash(), entry, b.replicationStatus.GetProgress(), b.replicationStatus.GetMax())
-				if err := b.emitters.evtLoadProgress.Emit(evt); err != nil {
-					b.logger.Warn("unable to emit event load", zap.Error(err))
-				}
+			b.recalculateReplicationStatus(entry.GetClock().GetTime())
+			evt := stores.NewEventLoadProgress(b.Address(), entry.GetHash(), entry, b.replicationStatus.GetProgress(), b.replicationStatus.GetMax())
+			if err := b.emitters.evtLoadProgress.Emit(evt); err != nil {
+				b.logger.Warn("unable to emit event load", zap.Error(err))
 			}
 		}
 	}()
@@ -865,12 +869,15 @@ func (b *BaseStore) replicationLoadComplete(ctx context.Context, logs []ipfslog.
 	oplog := b.OpLog()
 
 	b.Logger().Debug("replication load complete")
+	entries := []ipfslog.Entry{}
 	for _, log := range logs {
 		_, err := oplog.Join(log, -1)
 		if err != nil {
 			b.Logger().Error("unable to join logs", zap.Error(err))
 			return
 		}
+
+		entries = append(entries, log.GetEntries().Slice()...)
 	}
 
 	err := b.updateIndex(ctx)
@@ -901,7 +908,7 @@ func (b *BaseStore) replicationLoadComplete(ctx context.Context, logs []ipfslog.
 	b.Logger().Debug(fmt.Sprintf("Saved heads %d", heads.Len()))
 
 	// logger.debug(`<replicated>`)
-	if err := b.emitters.evtReplicated.Emit(stores.NewEventReplicated(b.Address(), len(logs))); err != nil {
+	if err := b.emitters.evtReplicated.Emit(stores.NewEventReplicated(b.Address(), entries, len(logs))); err != nil {
 		b.Logger().Warn("unable to emit event replicated", zap.Error(err))
 	}
 }
