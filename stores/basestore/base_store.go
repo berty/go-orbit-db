@@ -250,7 +250,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 			switch evt := e.(type) {
 			case replicator.EventLoadAdded:
 				maxTotal := 0
-				if evt.Entry != nil && evt.Entry.GetClock() != nil {
+				if evt.Entry != nil && evt.Entry.GetClock().Defined() {
 					maxTotal = evt.Entry.GetClock().GetTime()
 				}
 

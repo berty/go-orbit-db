@@ -213,7 +213,11 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 
 	o.kvStore = store
 
-	sub, err := o.kvStore.EventBus().Subscribe(stores.Events)
+	sub, err := o.kvStore.EventBus().Subscribe([]interface{}{
+		new(stores.EventWrite),
+		new(stores.EventReady),
+		new(stores.EventReplicated),
+	})
 	if err != nil {
 		return errors.Wrap(err, "unable subscribe to store events")
 	}
@@ -225,6 +229,7 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 		for {
 			select {
 			case <-ctx.Done():
+				return
 			case evt = <-sub.Out():
 			}
 
