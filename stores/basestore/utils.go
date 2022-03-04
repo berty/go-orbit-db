@@ -90,24 +90,3 @@ func SaveSnapshot(ctx context.Context, b iface.Store) (cid.Cid, error) {
 
 	return snapshotPath.Cid(), nil
 }
-
-// func Max(n ...int) (r int) {
-// 	if len(n) > 0 {
-// 		r = n[0]
-// 		for a := range
-// 		if a >= b {
-// 			return a
-// 		}
-
-// 		return b
-// 	}
-// }
-
-// func Min(n ...int) int {
-
-// 	if a >= b {
-// 		return a
-// 	}
-
-// 	return b
-// }
