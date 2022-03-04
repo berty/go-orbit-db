@@ -219,11 +219,14 @@ func TestReplication(t *testing.T) {
 		)
 	}
 
-	for _, amount := range []int{
-		1,
-		10,
-		100,
-	} {
+	var cases []int
+	if os.Getenv("SKIP_SLOW") == "1" {
+		cases = []int{1, 10}
+	} else {
+		cases = []int{1, 10, 100}
+	}
+
+	for _, amount := range cases {
 		for nodeType, nodeGen := range map[string]func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func()){
 			"default":        testDefaultNodeGenerator,
 			"direct-channel": testDirectChannelNodeGenerator,
@@ -366,11 +369,14 @@ func TestReplicationMultipeer(t *testing.T) {
 		)
 	}
 
-	for _, amount := range []int{
-		2,
-		5,
-		10,
-	} {
+	var cases []int
+	if os.Getenv("SKIP_SLOW") == "1" {
+		cases = []int{2, 3}
+	} else {
+		cases = []int{2, 5, 10}
+	}
+
+	for _, amount := range cases {
 		for nodeType, nodeGen := range map[string]func(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.OrbitDB, string, func()){
 			"default":        testDefaultNodeGenerator,
 			"direct-channel": testDirectChannelNodeGenerator,

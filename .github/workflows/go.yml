@@ -53,11 +53,9 @@ jobs:
           git --no-pager diff --quiet go.mod go.sum
 
       - name: Run tests without options
-        # if: false # see https://github.com/berty/go-orbit-db/issues/56
         run: go test ./... -v -test.timeout=20m
       - name: Run tests with race and cover
-        # if: false # see https://github.com/berty/go-orbit-db/issues/56
-        run: go test ./... -race -covermode=atomic -coverpkg=all -coverprofile=coverage.txt -cover -v -test.timeout=20m
+        run: SKIP_SLOW=1 go test ./... -race -covermode=atomic -coverpkg=all -coverprofile=coverage.txt -cover -v -test.timeout=20m
 
       # temporarily disabled, because not stable enough
       #- name: Run tests with goleak
@@ -107,7 +105,7 @@ jobs:
       - name: Run tests without options
         run: go test ./... -v -test.timeout=20m
       - name: Run tests with race and cover
-        run: go test ./... -race -covermode=atomic -coverpkg=all -coverprofile=coverage.txt -cover -v -test.timeout=30m
+        run: SKIP_SLOW=1 go test ./... -race -covermode=atomic -coverpkg=all -coverprofile=coverage.txt -cover -v -test.timeout=20m
 
       # temporarily disabled, because not stable enough
       #- name: Run tests with goleak
