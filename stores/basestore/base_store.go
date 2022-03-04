@@ -250,7 +250,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 			switch evt := e.(type) {
 			case replicator.EventLoadAdded:
 				maxTotal := 0
-				if evt.Entry != nil {
+				if evt.Entry != nil && evt.Entry.GetClock() != nil {
 					maxTotal = evt.Entry.GetClock().GetTime()
 				}
 
@@ -264,7 +264,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 				span.AddEvent("replicator-load-end")
 
 				// @FIXME(gfanton): should we run this in a goroutine ?
-				go b.replicationLoadComplete(ctx, evt.Logs)
+				b.replicationLoadComplete(ctx, evt.Logs)
 
 			case replicator.EventLoadProgress:
 				span.AddEvent("replicator-load-progress")
