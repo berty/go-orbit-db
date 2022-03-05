@@ -803,16 +803,16 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 		return nil, errors.Wrap(err, "unable to subscribe to pubsub")
 	}
 
-	if err := o.storeListener(ctx, store, topic); err != nil {
-		return nil, errors.Wrap(err, "unable to store listener")
-	}
-
 	o.setStore(parsedDBAddress.String(), store)
 
 	// Subscribe to pubsub to get updates from peers,
 	// this is what hooks us into the message propagation layer
 	// and the p2p network
 	if *options.Replicate {
+		if err := o.storeListener(ctx, store, topic); err != nil {
+			return nil, errors.Wrap(err, "unable to store listener")
+		}
+
 		if err := o.monitorChannels(ctx, store); err != nil {
 			return nil, errors.Wrap(err, "unable to monitor channel")
 		}
