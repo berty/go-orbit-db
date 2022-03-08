@@ -137,6 +137,8 @@ func (r *replicator) Load(ctx context.Context, entries []ipfslog.Entry) {
 	defer span.End()
 
 	// process and wait the whole queue to complete
+	wg := sync.WaitGroup{}
+
 	r.muProcess.Lock()
 	for i, entry := range entries {
 		if exist := r.AddEntryToQueue(entry); exist {
@@ -148,25 +150,30 @@ func (r *replicator) Load(ctx context.Context, entries []ipfslog.Entry) {
 			r.logger.Warn("unable to emit event load added", zap.Error(err))
 		}
 
+		wg.Add(1)
 		// add one process
 		go func(i int) {
-			if err := r.processOne(ctx); err != nil {
+			if err := r.processOne(ctx, &wg); err != nil {
 				r.logger.Warn("unable to process entry", zap.Error(err))
 			}
+
+			wg.Done()
 		}(i)
 	}
 	r.muProcess.Unlock()
+
+	wg.Wait()
 }
 
 // processOne wait for a process slot then process one element of the queue
-func (r *replicator) processOne(ctx context.Context) error {
+func (r *replicator) processOne(ctx context.Context, wg *sync.WaitGroup) error {
 	// wait for a process slot
 	e, err := r.waitForProcessSlot(ctx)
 	if err != nil {
 		return err
 	}
 
-	if err := r.processItems(ctx, e); err != nil {
+	if err := r.processItems(ctx, wg, e); err != nil {
 		r.logger.Warn("process item ended", zap.Error(err))
 	}
 
@@ -176,7 +183,7 @@ func (r *replicator) processOne(ctx context.Context) error {
 }
 
 // processItems process an entry then add to the queue every next entry
-func (r *replicator) processItems(ctx context.Context, items ...processItem) error {
+func (r *replicator) processItems(ctx context.Context, wg *sync.WaitGroup, items ...processItem) error {
 	// mark this entry has done
 	for _, item := range items {
 		next, err := r.processHash(ctx, item)
@@ -190,11 +197,15 @@ func (r *replicator) processItems(ctx context.Context, items ...processItem) err
 				continue
 			}
 
+			wg.Add(1)
+
 			// add process
 			go func() {
-				if err := r.processOne(ctx); err != nil {
+				if err := r.processOne(ctx, wg); err != nil {
 					r.logger.Warn("unable to process entry", zap.Error(err))
 				}
+
+				wg.Done()
 			}()
 		}
 		r.muProcess.Unlock()
