@@ -849,10 +849,19 @@ func (o *orbitDB) storeListener(ctx context.Context, store Store, topic iface.Pu
 			case e = <-sub.Out():
 			}
 
-			evt := e.(stores.EventWrite)
-			if err := o.handleEventWrite(ctx, &evt, store, topic); err != nil {
-				o.logger.Warn("unable to handle EventWrite", zap.Error(err))
-			}
+			go func() {
+				// @TODO(gfanton): HandleEventWrite trigger a
+				// publish that is a blocking call if no peers
+				// is found, add a deadline to avoid to be stuck
+				// here
+				ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+				defer cancel()
+
+				evt := e.(stores.EventWrite)
+				if err := o.handleEventWrite(ctx, &evt, store, topic); err != nil {
+					o.logger.Warn("unable to handle EventWrite", zap.Error(err))
+				}
+			}()
 		}
 	}()
 

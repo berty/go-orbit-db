@@ -58,24 +58,31 @@ func (o *orbitDB) handleEventWrite(ctx context.Context, e *stores.EventWrite, st
 	}
 
 	if topic != nil {
-		headsBytes, err := json.Marshal(e.Heads)
+		peer, err := topic.Peers(ctx)
 		if err != nil {
-			return fmt.Errorf("unable to serialize heads %w", err)
+			return fmt.Errorf("unable to get topic peers: %w", err)
 		}
 
-		if key := store.SharedKey(); key != nil {
-			headsBytes, err = key.Seal(headsBytes)
+		if len(peer) > 0 {
+			headsBytes, err := json.Marshal(e.Heads)
 			if err != nil {
-				return fmt.Errorf("unable to encrypt heads %w", err)
+				return fmt.Errorf("unable to serialize heads %w", err)
 			}
-		}
 
-		err = topic.Publish(ctx, headsBytes)
-		if err != nil {
-			return fmt.Errorf("unable to publish message on pubsub %w", err)
-		}
+			if key := store.SharedKey(); key != nil {
+				headsBytes, err = key.Seal(headsBytes)
+				if err != nil {
+					return fmt.Errorf("unable to encrypt heads %w", err)
+				}
+			}
 
-		o.logger.Debug("stores.write event: published event on pub sub")
+			err = topic.Publish(ctx, headsBytes)
+			if err != nil {
+				return fmt.Errorf("unable to publish message on pubsub %w", err)
+			}
+
+			o.logger.Debug("stores.write event: published event on pub sub")
+		}
 	}
 
 	return nil
