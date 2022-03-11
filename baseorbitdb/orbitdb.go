@@ -952,10 +952,9 @@ func (o *orbitDB) onNewPeerJoined(ctx context.Context, p peer.ID, store Store) {
 		return
 	}
 
-	// no useless
-	// if err := o.globalEmitter.Emit(stores.NewEventNewPeer(p)); err != nil {
-	// 	o.logger.Error("unable emit NewPeer event", zap.Error(err))
-	// }
+	if err := o.emitterNewPeer.Emit(stores.NewEventNewPeer(p)); err != nil {
+		o.logger.Error("unable emit NewPeer event", zap.Error(err))
+	}
 }
 
 func (o *orbitDB) exchangeHeads(ctx context.Context, p peer.ID, store Store) error {
