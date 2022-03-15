@@ -151,6 +151,7 @@ func (r *replicator) Load(ctx context.Context, entries []ipfslog.Entry) {
 		}
 
 		wg.Add(1)
+
 		// add one process
 		go func(i int) {
 			if err := r.processOne(ctx, &wg); err != nil {
@@ -217,7 +218,6 @@ func (r *replicator) processItems(ctx context.Context, wg *sync.WaitGroup, items
 func (r *replicator) processHash(ctx context.Context, item processItem) ([]cid.Cid, error) {
 	hash := item.GetHash()
 
-	// @FIXME(gfanton): chan progress should be created and close on ipfs-log
 	cprogress := make(chan iface.IPFSLogEntry)
 	defer close(cprogress)
 	go func() {

@@ -11,6 +11,7 @@ import (
 	"berty.tech/go-ipfs-log/keystore"
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/address"
+	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/stores/operation"
 	"berty.tech/go-orbit-db/stores/replicator"
 	cid "github.com/ipfs/go-cid"
@@ -56,8 +57,6 @@ type DetermineAddressOptions struct {
 	Replicate        *bool
 	AccessController accesscontroller.ManifestParams
 }
-
-type Event interface{}
 
 // BaseOrbitDB Provides the main OrbitDB interface used to open and create stores
 type BaseOrbitDB interface {
@@ -164,6 +163,9 @@ type StoreEvents interface {
 
 // Store Defines the operations common to all stores types
 type Store interface {
+	// Deprecated: use EventBus() instead
+	events.EmitterInterface
+
 	// Close Closes the store
 	Close() error
 
@@ -380,7 +382,7 @@ type PubSubTopic interface {
 	Peers(ctx context.Context) ([]peer.ID, error)
 
 	// WatchPeers subscribes to peers joining or leaving the topic
-	WatchPeers(ctx context.Context) (<-chan Event, error)
+	WatchPeers(ctx context.Context) (<-chan events.Event, error)
 
 	// WatchMessages Subscribes to new messages
 	WatchMessages(ctx context.Context) (<-chan *EventPubSubMessage, error)

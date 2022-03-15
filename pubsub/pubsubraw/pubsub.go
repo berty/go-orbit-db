@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/pubsub"
 )
@@ -27,13 +28,13 @@ func (p *psTopic) Peers(_ context.Context) ([]peer.ID, error) {
 	return p.topic.ListPeers(), nil
 }
 
-func (p *psTopic) WatchPeers(ctx context.Context) (<-chan iface.Event, error) {
+func (p *psTopic) WatchPeers(ctx context.Context) (<-chan events.Event, error) {
 	ph, err := p.topic.EventHandler()
 	if err != nil {
 		return nil, err
 	}
 
-	ch := make(chan iface.Event, 32)
+	ch := make(chan events.Event, 32)
 	go func() {
 		defer close(ch)
 		for {

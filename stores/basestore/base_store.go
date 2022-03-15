@@ -17,6 +17,7 @@ import (
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/accesscontroller/simple"
 	"berty.tech/go-orbit-db/address"
+	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/operation"
@@ -71,6 +72,9 @@ type BaseStore struct {
 	sortFn    ipfslog.SortFn
 	logger    *zap.Logger
 	tracer    trace.Tracer
+
+	// Deprecated: if possible don't use this, use EventBus() directly instead
+	events.EventEmitter
 }
 
 func (b *BaseStore) DBName() string {
@@ -136,7 +140,9 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 	}
 
 	if options.EventBus == nil {
-		options.EventBus = eventbus.NewBus()
+		options.EventBus = b.EventEmitter.GetBus()
+	} else if err := b.SetBus(options.EventBus); err != nil {
+		return fmt.Errorf("unable set event bus: %w", err)
 	}
 
 	if options.Logger == nil {
@@ -151,7 +157,6 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 		return errors.New("identity required")
 	}
 
-	b.eventBus = options.EventBus
 	if err := b.generateEmitter(options.EventBus); err != nil {
 		return err
 	}
