@@ -313,9 +313,6 @@ func (b *BaseStore) Close() error {
 	// Replicator teardown logic
 	b.Replicator().Stop()
 
-	// Reset replication statistics
-	b.ReplicationStatus().Reset()
-
 	// close emitters
 	emitters := []event.Emitter{
 		b.emitters.evtWrite, b.emitters.evtReady,
@@ -327,6 +324,9 @@ func (b *BaseStore) Close() error {
 			b.logger.Warn("unable to close emitter", zap.Error(err))
 		}
 	}
+
+	// Reset replication statistics
+	b.ReplicationStatus().Reset()
 
 	err := b.Cache().Close()
 	if err != nil {

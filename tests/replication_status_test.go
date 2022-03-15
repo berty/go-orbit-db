@@ -96,8 +96,8 @@ func TestReplicationStatus(t *testing.T) {
 		t.Run("has correct replication info after close", func(t *testing.T) {
 			defer subSetup(t)()
 			require.Nil(t, db.Close())
-			require.Equal(t, db.ReplicationStatus().GetProgress(), 0)
-			require.Equal(t, db.ReplicationStatus().GetMax(), 0)
+			require.Equal(t, 0, db.ReplicationStatus().GetProgress())
+			require.Equal(t, 0, db.ReplicationStatus().GetMax())
 		})
 
 		t.Run("has correct replication info after sync", func(t *testing.T) {
