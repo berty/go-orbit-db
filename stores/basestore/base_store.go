@@ -37,7 +37,6 @@ import (
 
 // BaseStore The base of other stores
 type BaseStore struct {
-	eventBus event.Bus
 	emitters struct {
 		evtWrite             event.Emitter
 		evtReady             event.Emitter

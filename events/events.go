@@ -13,7 +13,6 @@ import (
 type Event interface{}
 
 // EmitterInterface Root interface for events dispatch
-// Deprecated: use event bus directly
 type EmitterInterface interface {
 	// Deprecated: Emit Sends an event to the subscribed listeners
 	Emit(context.Context, Event)
@@ -28,8 +27,8 @@ type EmitterInterface interface {
 	UnsubscribeAll()
 }
 
-// EventEmitter Registers listeners and dispatches events to them
 // Deprecated: use event bus directly
+// EventEmitter Registers listeners and dispatches events to them
 type EventEmitter struct {
 	bus event.Bus
 
@@ -41,20 +40,12 @@ type EventEmitter struct {
 	cancels []context.CancelFunc
 }
 
-func (e *EventEmitter) Emitter(eventType interface{}) (em event.Emitter, err error) {
-	e.muEmitters.Lock()
-	bus := e.getBus()
-	em, err = bus.Emitter(eventType)
-	e.muEmitters.Unlock()
-	return
-}
-
 type eventBox struct {
 	evt interface{}
 }
 
-// Emit Sends an event to the subscribed listeners
 // Deprecated: use event bus directly
+// Emit Sends an event to the subscribed listeners
 func (e *EventEmitter) Emit(ctx context.Context, evt Event) {
 	e.muEmitters.Lock()
 
@@ -73,8 +64,8 @@ func (e *EventEmitter) Emit(ctx context.Context, evt Event) {
 	_ = e.emitter.Emit(box)
 }
 
+// Deprecated: use event Bus directly
 // Subscribe Returns a channel that receives emitted events
-// Deprecated: use event bus directly
 func (e *EventEmitter) Subscribe(ctx context.Context) <-chan Event {
 	e.muEmitters.Lock()
 
@@ -97,8 +88,8 @@ func (e *EventEmitter) Subscribe(ctx context.Context) <-chan Event {
 	return e.handleSubscriber(ctx, sub)
 }
 
-// UnsubscribeAll close all listeners channels
 // Deprecated: use event bus directly
+// UnsubscribeAll close all listeners channels
 func (e *EventEmitter) UnsubscribeAll() {
 	e.muEmitters.Lock()
 	for _, cancel := range e.cancels {
@@ -182,8 +173,8 @@ func (e *EventEmitter) handleSubscriber(ctx context.Context, sub event.Subscript
 	return cevent
 }
 
-// GlobalChannel returns a glocal channel that receives emitted events
 // Deprecated: use event bus directly
+// GlobalChannel returns a glocal channel that receives emitted events
 func (e *EventEmitter) GlobalChannel(ctx context.Context) (cc <-chan Event) {
 	e.muEmitters.Lock()
 	if e.cglobal == nil {
@@ -217,7 +208,7 @@ func (e *EventEmitter) GetBus() (bus event.Bus) {
 	return
 }
 
-// will panic if a bus is already set
+// set event bus, return an error if the bus is already set
 func (e *EventEmitter) SetBus(bus event.Bus) (err error) {
 	e.muEmitters.Lock()
 
