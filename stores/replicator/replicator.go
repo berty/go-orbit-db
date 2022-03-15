@@ -30,6 +30,9 @@ const (
 )
 
 type replicator struct {
+	rootCtx    context.Context
+	rootCancel context.CancelFunc
+
 	eventBus event.Bus
 	emitters struct {
 		evtLoadEnd      event.Emitter
@@ -82,7 +85,10 @@ func NewReplicator(store storeInterface, concurrency uint, opts *Options) (Repli
 		concurrency = 32
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	r := replicator{
+		rootCancel:  cancel,
+		rootCtx:     ctx,
 		eventBus:    opts.EventBus,
 		concurrency: int64(concurrency),
 		store:       store,
@@ -100,6 +106,9 @@ func NewReplicator(store storeInterface, concurrency uint, opts *Options) (Repli
 }
 
 func (r *replicator) Stop() {
+	// cancel all tasks in progress
+	r.rootCancel()
+
 	emitters := []event.Emitter{
 		r.emitters.evtLoadEnd,
 		r.emitters.evtLoadAdded,
@@ -111,6 +120,19 @@ func (r *replicator) Stop() {
 			r.logger.Warn("unable to close emitter", zap.Error(err))
 		}
 	}
+}
+
+func (r *replicator) rootContextWithCancel(ctx context.Context) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(ctx)
+	go func() {
+		select {
+		case <-r.rootCtx.Done():
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	return ctx, cancel
 }
 
 func (r *replicator) GetQueue() []cid.Cid {
@@ -136,9 +158,13 @@ func (r *replicator) Load(ctx context.Context, entries []ipfslog.Entry) {
 	ctx, span := r.tracer.Start(ctx, "replicator-load", trace.WithAttributes(otkv.String("cids", strings.Join(cidsStrings, ","))))
 	defer span.End()
 
-	// process and wait the whole queue to complete
+	// bind context with root ctx
+	ctx, cancel := r.rootContextWithCancel(ctx)
+	defer cancel()
+
 	wg := sync.WaitGroup{}
 
+	// process and wait the whole queue to complete
 	r.muProcess.Lock()
 	for i, entry := range entries {
 		if exist := r.AddEntryToQueue(entry); exist {
