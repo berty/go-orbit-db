@@ -9,14 +9,14 @@ import (
 )
 
 type baseIndex struct {
-	mu    sync.Mutex
+	mu    sync.RWMutex
 	id    []byte
 	index []ipfslog.Entry
 }
 
 func (b *baseIndex) Get(_ string) interface{} {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	return b.index
 }
 
