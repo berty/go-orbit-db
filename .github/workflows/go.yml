@@ -51,17 +51,11 @@ jobs:
           go mod tidy -v
           git --no-pager diff go.mod go.sum
           git --no-pager diff --quiet go.mod go.sum
-      - name: List packages
-        run: go list ./...
-      - name: Build tests
-        run: go test -i ./...
 
       - name: Run tests without options
-        if: false # see https://github.com/berty/go-orbit-db/issues/56
-        run: go test ./... -v -test.timeout=10m
+        run: go test ./... -v -test.timeout=20m
       - name: Run tests with race and cover
-        if: false # see https://github.com/berty/go-orbit-db/issues/56
-        run: go test ./... -race -covermode=atomic -coverpkg=all -coverprofile=coverage.txt -cover -v -test.timeout=10m
+        run: SKIP_SLOW=1 go test ./... -race -covermode=atomic -coverpkg=all -coverprofile=coverage.txt -cover -v -test.timeout=20m
 
       # temporarily disabled, because not stable enough
       #- name: Run tests with goleak
@@ -107,15 +101,11 @@ jobs:
           go mod tidy -v
           git --no-pager diff go.mod go.sum
           git --no-pager diff --quiet go.mod go.sum
-      - name: List packages
-        run: go list ./...
-      - name: Build tests
-        run: go test -i ./...
 
       - name: Run tests without options
-        run: go test ./... -v -test.timeout=12m
+        run: go test ./... -v -test.timeout=20m
       - name: Run tests with race and cover
-        run: go test ./... -race -covermode=atomic -coverpkg=all -coverprofile=coverage.txt -cover -v -test.timeout=12m
+        run: SKIP_SLOW=1 go test ./... -race -covermode=atomic -coverpkg=all -coverprofile=coverage.txt -cover -v -test.timeout=20m
 
       # temporarily disabled, because not stable enough
       #- name: Run tests with goleak

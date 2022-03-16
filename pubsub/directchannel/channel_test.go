@@ -1,16 +1,16 @@
 package directchannel
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"berty.tech/go-orbit-db/iface"
+	"berty.tech/go-orbit-db/pubsub"
+	"github.com/libp2p/go-eventbus"
+	"github.com/libp2p/go-libp2p-core/event"
 	"github.com/libp2p/go-libp2p-core/host"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
@@ -19,7 +19,7 @@ import (
 )
 
 func TestInitDirectChannelFactory(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	mn := mocknet.New(ctx)
@@ -27,13 +27,21 @@ func TestInitDirectChannelFactory(t *testing.T) {
 	var err error
 	count := 10
 	hosts := make([]host.Host, count)
-	directChannelsFactories := make([]iface.DirectChannelFactory, count)
+	eventBus := make([]event.Bus, count)
+	dc := make([]iface.DirectChannel, count)
 
 	for i := 0; i < count; i++ {
 		hosts[i], err = mn.GenPeer()
 		require.NoError(t, err)
 
-		directChannelsFactories[i] = InitDirectChannelFactory(ctx, zap.NewNop(), hosts[i])
+		f := InitDirectChannelFactory(zap.NewNop(), hosts[i])
+
+		eventBus[i] = eventbus.NewBus()
+		emitter, err := pubsub.NewPayloadEmitter(eventBus[i])
+		require.NoError(t, err)
+
+		dc[i], err = f(ctx, emitter, nil)
+		require.NoErrorf(t, err, "unable to init directChannelsFactories[%d]", i)
 	}
 
 	err = mn.LinkAll()
@@ -42,98 +50,69 @@ func TestInitDirectChannelFactory(t *testing.T) {
 	err = mn.ConnectAllButSelf()
 	require.NoError(t, err)
 
-	wg := sync.WaitGroup{}
-	require.GreaterOrEqual(t, count, 2)
+	ccbus := make([]chan interface{}, len(eventBus))
+	subs := make([]event.Subscription, len(eventBus))
+	for i, bus := range eventBus {
+		subs[i], err = bus.Subscribe(new(iface.EventPubSubPayload))
+		require.NoError(t, err)
 
-	var (
-		receivedMessages uint32 = 0
-		expectedMessages uint32 = 0
-	)
+		ccbus[i] = make(chan interface{}, len(hosts)-1)
+		go func(me host.Host, sub event.Subscription, cc chan<- interface{}) {
+			defer close(cc)
+			for _, h := range hosts {
+				if me.ID() == h.ID() {
+					continue
+				}
+
+				select {
+				case <-ctx.Done():
+					return
+				case e := <-sub.Out():
+					cc <- e
+				}
+			}
+		}(hosts[i], subs[i], ccbus[i])
+	}
+
+	msent := make(map[string]bool)
 
 	for i := 0; i < count; i++ {
-		for j := i + 1; j < count; j++ {
-			wg.Add(1)
-			expectedMessages++
+		for j := 0; j < count; j++ {
+			if i == j {
+				continue
+			}
 
-			go func(i, j int) {
-				ctx, cancel := context.WithCancel(ctx)
+			expectedMessage := fmt.Sprintf("test-%d-%d", i, j)
+			msent[expectedMessage] = false
 
-				subWg := sync.WaitGroup{}
-				subWg.Add(2)
-
-				expectedMessage := []byte(fmt.Sprintf("test-%d-%d", i, j))
-
-				ch1, err := directChannelsFactories[j](ctx, hosts[i].ID(), nil)
-				assert.NoError(t, err)
-
-				ch2, err := directChannelsFactories[i](ctx, hosts[j].ID(), nil)
-				assert.NoError(t, err)
-
-				go func() {
-					err := ch1.Connect(ctx)
-					assert.NoError(t, err)
-
-					subWg.Done()
-				}()
-
-				go func() {
-					err := ch2.Connect(ctx)
-					assert.NoError(t, err)
-
-					subWg.Done()
-				}()
-
-				subWg.Wait()
-
-				var valOK uint32 = 1
-
-				subWg.Add(1)
-
-				go func() {
-					defer cancel()
-
-					sub := ch2.GlobalChannel(ctx)
-					subWg.Done()
-
-					for evt := range sub {
-						if e, ok := evt.(*iface.EventPubSubPayload); ok {
-							if bytes.Equal(e.Payload, expectedMessage) {
-								count := atomic.AddUint32(&receivedMessages, 1)
-								t.Log(fmt.Sprintf("successfully received message from %d for %d (%d)", i, j, count))
-								atomic.StoreUint32(&valOK, 1)
-								return
-							}
-						}
-					}
-
-					t.Log(fmt.Sprintf("failed to receive message from %d for %d", i, j))
-					atomic.StoreUint32(&valOK, 1)
-				}()
-
-				subWg.Wait()
-
-				err = ch1.Send(ctx, expectedMessage)
-				if err != io.EOF {
-					assert.NoError(t, err)
-				}
-
-				<-ctx.Done()
-				wg.Done()
-
-				if atomic.LoadUint32(&valOK) == 0 {
-					t.Log(fmt.Sprintf("wtf from %d for %d", i, j))
-				}
-			}(i, j)
+			err = dc[i].Send(ctx, hosts[j].ID(), []byte(expectedMessage))
+			if err != io.EOF {
+				require.NoError(t, err)
+			}
 		}
 	}
 
-	go func() {
-		wg.Wait()
-		cancel()
-	}()
+	var evt interface{}
+	for i := 0; i < count; i++ {
+		for j := 0; j < count; j++ {
+			if j == i {
+				continue
+			}
 
-	<-ctx.Done()
-	if !assert.Equal(t, int(expectedMessages), int(atomic.LoadUint32(&receivedMessages))) {
-		time.Sleep(time.Second * 10)
+			select {
+			case evt = <-ccbus[j]:
+			case <-time.After(time.Second):
+				require.Failf(t, "waiting too long", "waiting to long for peer[%d]", i)
+			}
+
+			e, ok := evt.(iface.EventPubSubPayload)
+			require.True(t, ok)
+			expectedMessage := string(e.Payload)
+
+			hasReceive, ok := msent[expectedMessage]
+			require.True(t, ok)
+			assert.False(t, hasReceive, string(expectedMessage))
+			msent[string(expectedMessage)] = true
+		}
 	}
 }

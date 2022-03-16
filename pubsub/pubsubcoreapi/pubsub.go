@@ -7,7 +7,6 @@ import (
 
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	options "github.com/ipfs/interface-go-ipfs-core/options"
-	p2pcore "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -28,7 +27,7 @@ func (p *psTopic) Publish(ctx context.Context, message []byte) error {
 	return p.ps.api.PubSub().Publish(ctx, p.topic, message)
 }
 
-func (p *psTopic) Peers(_ context.Context) ([]p2pcore.PeerID, error) {
+func (p *psTopic) Peers(_ context.Context) ([]peer.ID, error) {
 	p.muMembers.RLock()
 	members := p.members
 	p.muMembers.RUnlock()
@@ -36,7 +35,7 @@ func (p *psTopic) Peers(_ context.Context) ([]p2pcore.PeerID, error) {
 	return members, nil
 }
 
-func (p *psTopic) peersDiff(ctx context.Context) (joining, leaving []p2pcore.PeerID, err error) {
+func (p *psTopic) peersDiff(ctx context.Context) (joining, leaving []peer.ID, err error) {
 	p.muMembers.RLock()
 	oldMembers := map[peer.ID]struct{}{}
 

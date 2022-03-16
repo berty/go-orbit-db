@@ -162,6 +162,7 @@ func testingDocsStore(t *testing.T, dir string) {
 			require.NoError(t, err)
 
 			fetchedDocs, err := db.Get(ctx, "hello", &iface.DocumentStoreGetOptions{PartialMatches: true})
+			require.NoError(t, err)
 			require.Equal(t, 2, len(fetchedDocs))
 			require.Contains(t, fetchedDocs, doc1)
 			require.Contains(t, fetchedDocs, doc2)
@@ -182,6 +183,8 @@ func testingDocsStore(t *testing.T, dir string) {
 			require.NoError(t, err)
 
 			fetchedDocs, err := db.Get(ctx, "hello", &iface.DocumentStoreGetOptions{PartialMatches: false})
+			require.NoError(t, err)
+
 			require.Equal(t, 0, len(fetchedDocs))
 		})
 

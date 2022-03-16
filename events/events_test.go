@@ -13,7 +13,7 @@ func TestSequentialWrite(t *testing.T) {
 
 	e := EventEmitter{}
 	expectedClients := 10
-	expectedEvents := 10
+	expectedEvents := 100
 
 	chs := make([]<-chan Event, expectedClients)
 
@@ -29,9 +29,15 @@ func TestSequentialWrite(t *testing.T) {
 
 	for i := 0; i < expectedClients; i++ {
 		for j := 0; j < expectedEvents; j++ {
-			item := <-chs[i]
-			if fmt.Sprintf("%s", item) != fmt.Sprintf("%d", j) {
-				t.Fatalf("%s should be equal to %d", item, j)
+			var item interface{}
+			select {
+			case item = <-chs[i]:
+			case <-time.After(time.Second * 2):
+				t.Fatalf("timeout while waiting for event: %d %d", i, j)
+			}
+			s := item.(string)
+			if s != fmt.Sprintf("%d", j) {
+				t.Fatalf("%s should be equal to %d", s, j)
 			}
 		}
 	}

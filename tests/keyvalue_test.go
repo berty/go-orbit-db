@@ -54,7 +54,7 @@ func testingKeyValueStore(t *testing.T, dir string) {
 	defer cancel()
 
 	t.Run("creates and opens a database", func(t *testing.T) {
-		odb, db, cleanup := setupTestingKeyValueStore(ctx, t, dir)
+		odb, _, cleanup := setupTestingKeyValueStore(ctx, t, dir)
 		defer cleanup()
 
 		db, err := odb.KeyValue(ctx, "first kv database", nil)

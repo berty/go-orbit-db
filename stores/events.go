@@ -5,16 +5,25 @@ import (
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/stores/replicator"
 	cid "github.com/ipfs/go-cid"
-	p2pcore "github.com/libp2p/go-libp2p-core"
+	peer "github.com/libp2p/go-libp2p-core/peer"
 )
+
+var Events = []interface{}{
+	new(EventWrite),
+	new(EventReady),
+	new(EventReplicateProgress),
+	new(EventLoad),
+	new(EventReplicated),
+	new(EventReplicate),
+}
 
 type EventReplicate struct {
 	Address address.Address
 	Hash    cid.Cid
 }
 
-func NewEventReplicate(addr address.Address, c cid.Cid) *EventReplicate {
-	return &EventReplicate{
+func NewEventReplicate(addr address.Address, c cid.Cid) EventReplicate {
+	return EventReplicate{
 		Address: addr,
 		Hash:    c,
 	}
@@ -22,6 +31,8 @@ func NewEventReplicate(addr address.Address, c cid.Cid) *EventReplicate {
 
 // EventReplicateProgress An event containing the current replication progress.
 type EventReplicateProgress struct {
+	Max               int
+	Progress          int
 	Address           address.Address
 	Hash              cid.Cid
 	Entry             ipfslog.Entry
@@ -29,12 +40,13 @@ type EventReplicateProgress struct {
 }
 
 // NewEventReplicateProgress Creates a new EventReplicateProgress event
-func NewEventReplicateProgress(addr address.Address, h cid.Cid, e ipfslog.Entry, replicationStatus replicator.ReplicationInfo) *EventReplicateProgress {
-	return &EventReplicateProgress{
-		Address:           addr,
-		Hash:              h,
-		Entry:             e,
-		ReplicationStatus: replicationStatus,
+func NewEventReplicateProgress(addr address.Address, h cid.Cid, e ipfslog.Entry, replicationStatus replicator.ReplicationInfo) EventReplicateProgress {
+	return EventReplicateProgress{
+		Max:      replicationStatus.GetMax(),
+		Progress: replicationStatus.GetProgress(),
+		Address:  addr,
+		Hash:     h,
+		Entry:    e,
 	}
 }
 
@@ -42,11 +54,12 @@ func NewEventReplicateProgress(addr address.Address, h cid.Cid, e ipfslog.Entry,
 type EventReplicated struct {
 	Address   address.Address
 	LogLength int
+	Entries   []ipfslog.Entry
 }
 
 // NewEventReplicated Creates a new EventReplicated event
-func NewEventReplicated(addr address.Address, logLength int) *EventReplicated {
-	return &EventReplicated{
+func NewEventReplicated(addr address.Address, entries []ipfslog.Entry, logLength int) EventReplicated {
+	return EventReplicated{
 		Address:   addr,
 		LogLength: logLength,
 	}
@@ -59,28 +72,28 @@ type EventLoad struct {
 }
 
 // NewEventLoad Creates a new EventLoad event
-func NewEventLoad(addr address.Address, heads []ipfslog.Entry) *EventLoad {
-	return &EventLoad{
+func NewEventLoad(addr address.Address, heads []ipfslog.Entry) EventLoad {
+	return EventLoad{
 		Address: addr,
 		Heads:   heads,
 	}
 }
 
-//type EventLoadProgress struct {
-//	Address           address.Address
-//	Hash              cid.Cid
-//	Entry             ipfslog.Entry
-//	ReplicationStatus replicator.ReplicationInfo
-//}
-//
-//func NewEventLoadProgress(addr address.Address, h cid.Cid, e ipfslog.Entry, replicationStatus replicator.ReplicationInfo) *EventLoadProgress {
-//	return &EventLoadProgress{
-//		Address:           addr,
-//		Hash:              h,
-//		Entry:             e,
-//		ReplicationStatus: replicationStatus,
-//	}
-//}
+type EventLoadProgress struct {
+	Address       address.Address
+	Hash          cid.Cid
+	Entry         ipfslog.Entry
+	progress, max int
+}
+
+func NewEventLoadProgress(addr address.Address, h cid.Cid, e ipfslog.Entry, progress, max int) EventLoadProgress {
+	return EventLoadProgress{
+		Address:  addr,
+		Hash:     h,
+		Entry:    e,
+		progress: progress, max: max,
+	}
+}
 
 // EventReady An event sent when the store is ready
 type EventReady struct {
@@ -89,8 +102,8 @@ type EventReady struct {
 }
 
 // NewEventReady Creates a new EventReady event
-func NewEventReady(addr address.Address, heads []ipfslog.Entry) *EventReady {
-	return &EventReady{
+func NewEventReady(addr address.Address, heads []ipfslog.Entry) EventReady {
+	return EventReady{
 		Address: addr,
 		Heads:   heads,
 	}
@@ -104,8 +117,8 @@ type EventWrite struct {
 }
 
 // NewEventWrite Creates a new EventWrite event
-func NewEventWrite(addr address.Address, e ipfslog.Entry, heads []ipfslog.Entry) *EventWrite {
-	return &EventWrite{
+func NewEventWrite(addr address.Address, e ipfslog.Entry, heads []ipfslog.Entry) EventWrite {
+	return EventWrite{
 		Address: addr,
 		Entry:   e,
 		Heads:   heads,
@@ -114,12 +127,12 @@ func NewEventWrite(addr address.Address, e ipfslog.Entry, heads []ipfslog.Entry)
 
 // EventNewPeer An event sent when a new peer is discovered on the pubsub channel
 type EventNewPeer struct {
-	Peer p2pcore.PeerID
+	Peer peer.ID
 }
 
 // NewEventNewPeer Creates a new EventNewPeer event
-func NewEventNewPeer(p p2pcore.PeerID) *EventNewPeer {
-	return &EventNewPeer{
+func NewEventNewPeer(p peer.ID) EventNewPeer {
+	return EventNewPeer{
 		Peer: p,
 	}
 }

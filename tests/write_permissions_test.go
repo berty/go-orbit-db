@@ -119,10 +119,15 @@ func TestWritePermissions(t *testing.T) {
 
 			require.Equal(t, db1.OpLog().Len(), 0)
 
+			sub, err := db1.EventBus().Subscribe(new(stores.EventReplicated))
+			require.NoError(t, err)
+			defer sub.Close()
+
 			err = db1.Sync(ctx, db2.OpLog().Heads().Slice())
 			require.NoError(t, err)
 
-			<-time.After(time.Millisecond * 300)
+			// wait for replicated event
+			<-sub.Out()
 
 			values, err := db1.List(ctx, nil)
 			require.NoError(t, err)
@@ -161,10 +166,15 @@ func TestWritePermissions(t *testing.T) {
 
 			require.Equal(t, db1.OpLog().Len(), 0)
 
+			sub, err := db1.EventBus().Subscribe(new(stores.EventReplicated))
+			require.NoError(t, err)
+			defer sub.Close()
+
 			err = db1.Sync(ctx, db2.OpLog().Heads().Slice())
 			require.NoError(t, err)
 
-			<-time.After(time.Millisecond * 300)
+			e := <-sub.Out()
+			require.NotNil(t, e)
 
 			values, err := db1.List(ctx, nil)
 			require.NoError(t, err)
@@ -196,45 +206,50 @@ func TestWritePermissions(t *testing.T) {
 			require.NoError(t, err)
 			defer db2.Close()
 
-			subCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-			defer cancel()
+			{
+				sub, err := db2.EventBus().Subscribe(new(stores.EventReplicated))
+				require.NoError(t, err)
 
-			sub := db1.Subscribe(ctx)
-			go func() {
-				for evt := range sub {
-					switch evt.(type) {
-					case *stores.EventReplicated:
-						require.Equal(t, "this", "should not occur")
-					}
+				_, err = db2.Add(ctx, []byte("hello"))
+				require.Error(t, err)
+
+				err = db1.Sync(ctx, db2.OpLog().Heads().Slice())
+				require.NoError(t, err)
+
+				select {
+				case e := <-sub.Out():
+					require.Nil(t, e, "we should not receive an event here")
+				case <-time.After(time.Second * 2):
 				}
 
-			}()
+				sub.Close()
 
-			_, err = db2.Add(ctx, []byte("hello"))
-			require.Error(t, err)
+				require.Equal(t, db1.OpLog().Len(), 0)
+				require.Equal(t, db2.OpLog().Len(), 0)
+			}
 
-			<-subCtx.Done()
+			{
+				sub, err := db2.EventBus().Subscribe(new(stores.EventReplicated))
+				require.NoError(t, err)
 
-			err = db1.Sync(ctx, db2.OpLog().Heads().Slice())
-			require.NoError(t, err)
+				_, err = db1.Add(ctx, []byte("hello"))
+				require.NoError(t, err)
 
-			<-time.After(300 * time.Millisecond)
+				err = db2.Sync(ctx, db1.OpLog().Heads().Slice())
+				require.NoError(t, err)
 
-			require.Equal(t, db1.OpLog().Len(), 0)
-			require.Equal(t, db2.OpLog().Len(), 0)
+				select {
+				case e := <-sub.Out():
+					require.NotNil(t, e)
+				case <-time.After(time.Second * 10):
+					require.Fail(t, "timeout while waiting for event")
+				}
 
-			_, err = db1.Add(ctx, []byte("hello"))
-			require.NoError(t, err)
+				sub.Close()
 
-			<-subCtx.Done()
-
-			err = db2.Sync(ctx, db1.OpLog().Heads().Slice())
-			require.NoError(t, err)
-
-			<-time.After(300 * time.Millisecond)
-
-			require.Equal(t, db1.OpLog().Len(), 1)
-			require.Equal(t, db2.OpLog().Len(), 1)
+				require.Equal(t, db1.OpLog().Len(), 1)
+				require.Equal(t, db2.OpLog().Len(), 1)
+			}
 		})
 	})
 

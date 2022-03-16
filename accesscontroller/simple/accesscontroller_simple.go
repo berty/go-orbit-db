@@ -8,7 +8,6 @@ import (
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/address"
-	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/iface"
 	cid "github.com/ipfs/go-cid"
 	"github.com/pkg/errors"
@@ -16,7 +15,6 @@ import (
 )
 
 type simpleAccessController struct {
-	events.EventEmitter
 	allowedKeys map[string][]string
 	lock        sync.RWMutex
 	logger      *zap.Logger

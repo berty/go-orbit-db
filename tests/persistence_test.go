@@ -74,6 +74,8 @@ func TestPersistence(t *testing.T) {
 		require.NoError(t, err)
 
 		items, err := db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
+		require.NoError(t, err)
+
 		require.Equal(t, len(items), entryCount)
 		require.Equal(t, string(items[0].GetValue()), "hello0")
 		require.Equal(t, string(items[len(items)-1].GetValue()), fmt.Sprintf("hello%d", entryCount-1))
@@ -99,7 +101,7 @@ func TestPersistence(t *testing.T) {
 
 	t.Run("load and close several times", func(t *testing.T) {
 		defer setup(t)()
-		amount := 8
+		amount := 3
 		for i := 0; i < amount; i++ {
 			db, err := orbitdb1.Log(ctx, address.String(), nil)
 			require.NoError(t, err)
@@ -136,7 +138,7 @@ func TestPersistence(t *testing.T) {
 
 	t.Run("load, add one, close - several times", func(t *testing.T) {
 		defer setup(t)()
-		const amount = 8
+		const amount = 3
 		for i := 0; i < amount; i++ {
 			db, err := orbitdb1.Log(ctx, address.String(), nil)
 			require.NoError(t, err)
@@ -169,11 +171,16 @@ func TestPersistence(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 		defer cancel()
-		sub := db.Subscribe(ctx)
+
+		sub, err := db.EventBus().Subscribe(new(stores.EventReady))
+		require.NoError(t, err)
+
+		defer sub.Close()
+
 		go func() {
-			for evt := range sub {
+			for evt := range sub.Out() {
 				switch evt.(type) {
-				case *stores.EventReady:
+				case stores.EventReady:
 					l.Lock()
 					items, err = db.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
 					l.Unlock()
@@ -230,7 +237,6 @@ func TestPersistence(t *testing.T) {
 			setupCleanup := setup(t)
 
 			dbName := fmt.Sprintf("%d", time.Now().UnixNano())
-			var entryArr []operation.Operation
 
 			db, err := orbitdb1.Log(ctx, dbName, nil)
 			require.NoError(t, err)
@@ -238,10 +244,8 @@ func TestPersistence(t *testing.T) {
 			address = db.Address()
 
 			for i := 0; i < entryCount; i++ {
-				op, err := db.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
+				_, err := db.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
 				require.NoError(t, err)
-
-				entryArr = append(entryArr, op)
 			}
 
 			_, err = basestore.SaveSnapshot(ctx, db)
