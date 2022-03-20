@@ -36,22 +36,25 @@ func NewEventMessage(content []byte) *iface.EventPubSubMessage {
 }
 
 // NewEventPayload Creates a new Message event
-func NewEventPayload(payload []byte) *iface.EventPubSubPayload {
+func NewEventPayload(payload []byte, peerid peer.ID) *iface.EventPubSubPayload {
 	return &iface.EventPubSubPayload{
 		Payload: payload,
+		Peer:    peerid,
 	}
 }
 
 // NewEventPeerJoin creates a new EventPubSubJoin event
-func NewEventPeerJoin(p peer.ID) Event {
+func NewEventPeerJoin(p peer.ID, topic string) Event {
 	return &iface.EventPubSubJoin{
-		Peer: p,
+		Peer:  p,
+		Topic: topic,
 	}
 }
 
 // NewEventPeerLeave creates a new EventPubSubLeave event
-func NewEventPeerLeave(p peer.ID) Event {
+func NewEventPeerLeave(p peer.ID, topic string) Event {
 	return &iface.EventPubSubLeave{
-		Peer: p,
+		Peer:  p,
+		Topic: topic,
 	}
 }

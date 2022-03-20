@@ -348,7 +348,7 @@ type DirectChannel interface {
 	Connect(context.Context, peer.ID) error
 
 	// Send Sends a message to the other peer
-	Send(context.Context, peer.ID, []byte) error
+	Send(ctx context.Context, peer peer.ID, data []byte) error
 
 	// Close Closes the connection
 	Close() error
@@ -409,14 +409,17 @@ type EventPubSubMessage struct {
 // EventPubSubPayload An event received on new messages
 type EventPubSubPayload struct {
 	Payload []byte
+	Peer    peer.ID
 }
 
 // EventPubSubJoin Is an event triggered when a peer joins the channel
 type EventPubSubJoin struct {
-	Peer peer.ID
+	Topic string
+	Peer  peer.ID
 }
 
 // EventPubSubLeave Is an event triggered when a peer leave the channel
 type EventPubSubLeave struct {
-	Peer peer.ID
+	Topic string
+	Peer  peer.ID
 }

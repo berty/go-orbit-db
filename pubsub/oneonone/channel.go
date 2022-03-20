@@ -77,7 +77,7 @@ func (c *channels) Connect(ctx context.Context, target peer.ID) error {
 	return c.waitForPeers(ctx, target, id)
 }
 
-func (c *channels) Send(ctx context.Context, p peer.ID, data []byte) error {
+func (c *channels) Send(ctx context.Context, p peer.ID, head []byte) error {
 	var id string
 	c.muSubs.RLock()
 	if ch, ok := c.subs[p]; ok {
@@ -87,7 +87,7 @@ func (c *channels) Send(ctx context.Context, p peer.ID, data []byte) error {
 	}
 	c.muSubs.RUnlock()
 
-	err := c.ipfs.PubSub().Publish(ctx, id, data)
+	err := c.ipfs.PubSub().Publish(ctx, id, head)
 	if err != nil {
 		return errors.Wrap(err, "unable to publish data on pubsub")
 	}
@@ -130,7 +130,6 @@ func (c *channels) getChannelID(p peer.ID) string {
 
 func (c *channels) monitorTopic(sub coreapi.PubSubSubscription, p peer.ID) {
 	for {
-
 		msg, err := sub.Next(c.ctx)
 		switch err {
 		case nil:
@@ -148,7 +147,7 @@ func (c *channels) monitorTopic(sub coreapi.PubSubSubscription, p peer.ID) {
 			continue
 		}
 
-		if err := c.emitter.Emit(pubsub.NewEventPayload(msg.Data())); err != nil {
+		if err := c.emitter.Emit(pubsub.NewEventPayload(msg.Data(), p)); err != nil {
 			c.logger.Warn("unable to emit event payload", zap.Error(err))
 		}
 	}

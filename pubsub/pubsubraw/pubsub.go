@@ -51,9 +51,9 @@ func (p *psTopic) WatchPeers(ctx context.Context) (<-chan events.Event, error) {
 
 			switch evt.Type {
 			case p2ppubsub.PeerJoin:
-				ch <- pubsub.NewEventPeerJoin(evt.Peer)
+				ch <- pubsub.NewEventPeerJoin(evt.Peer, p.Topic())
 			case p2ppubsub.PeerLeave:
-				ch <- pubsub.NewEventPeerLeave(evt.Peer)
+				ch <- pubsub.NewEventPeerLeave(evt.Peer, p.Topic())
 			}
 		}
 	}()

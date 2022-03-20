@@ -79,12 +79,12 @@ func (p *psTopic) WatchPeers(ctx context.Context) (<-chan events.Event, error) {
 				return
 			}
 
-			for _, p := range joining {
-				ch <- pubsub.NewEventPeerJoin(p)
+			for _, pid := range joining {
+				ch <- pubsub.NewEventPeerJoin(pid, p.Topic())
 			}
 
-			for _, p := range leaving {
-				ch <- pubsub.NewEventPeerLeave(p)
+			for _, pid := range leaving {
+				ch <- pubsub.NewEventPeerLeave(pid, p.Topic())
 			}
 
 			select {

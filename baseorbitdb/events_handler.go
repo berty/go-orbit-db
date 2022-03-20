@@ -7,42 +7,54 @@ import (
 
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/enc"
+	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores"
-	"go.uber.org/zap"
 )
 
-func (o *orbitDB) handleEventPubSubPayload(ctx context.Context, e *iface.EventPubSubPayload, sharedKey enc.SharedKey) error {
-	heads := &exchangedHeads{}
-	payload := e.Payload
+func (o *orbitDB) handleEventExchangeHeads(ctx context.Context, e *EventExchangeHeads, sharedKey enc.SharedKey) error {
+	message := e.Message
+
+	var (
+		address  string
+		rawHeads []byte
+	)
 
 	if sharedKey != nil {
-		var err error
-
-		payload, err = sharedKey.Open(payload)
+		// open address
+		rawAddress, err := sharedKey.Open(message.Address)
 		if err != nil {
-			return fmt.Errorf("unable to decrypt payload: %w", err)
+			return fmt.Errorf("unable to decrypt address: %w", err)
 		}
+		address = string(rawAddress)
+
+		// open heads
+		if rawHeads, err = sharedKey.Open(message.Heads); err != nil {
+			return fmt.Errorf("unable to decrypt heads: %w", err)
+		}
+	} else {
+		address = string(message.Address)
+		rawHeads = message.Heads
 	}
 
-	err := json.Unmarshal(payload, &heads)
-	if err != nil {
-		o.logger.Error("unable to unmarshal heads", zap.Error(err))
-	}
-
-	o.logger.Debug(fmt.Sprintf("%s: Received %d heads for '%s':", o.PeerID().String(), len(heads.Heads), heads.Address))
-	store, ok := o.getStore(heads.Address)
-
+	store, ok := o.getStore(address)
 	if !ok {
-		return fmt.Errorf("heads from unknown store, skipping")
+		return fmt.Errorf("receiving heads from unknown store")
 	}
 
-	if len(heads.Heads) > 0 {
-		untypedHeads := make([]ipfslog.Entry, len(heads.Heads))
-		for i := range heads.Heads {
-			untypedHeads[i] = heads.Heads[i]
-		}
+	heads := []*entry.Entry{}
+	if err := json.Unmarshal(rawHeads, &heads); err != nil {
+		return fmt.Errorf("unable to parse heads: %w", err)
+	}
 
+	untypedHeads := make([]ipfslog.Entry, len(heads))
+	for i, h := range heads {
+		untypedHeads[i] = h
+	}
+
+	o.logger.Debug(fmt.Sprintf("%s: Received %d heads for '%s':", o.PeerID().String(), len(heads), address))
+
+	if len(heads) > 0 {
 		if err := store.Sync(ctx, untypedHeads); err != nil {
 			return fmt.Errorf("unable to sync heads: %w", err)
 		}

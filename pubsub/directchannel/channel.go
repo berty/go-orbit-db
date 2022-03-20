@@ -75,7 +75,7 @@ func (d *directChannel) handleNewPeer(s network.Stream) {
 		return
 	}
 
-	if err := d.emitter.Emit(pubsub.NewEventPayload(data)); err != nil {
+	if err := d.emitter.Emit(pubsub.NewEventPayload(data, s.Conn().RemotePeer())); err != nil {
 		d.logger.Error("unable to emit on emitter", zap.Error(err))
 	}
 }
@@ -112,7 +112,7 @@ func (c *holderChannels) NewChannel(ctx context.Context, emitter iface.DirectCha
 		emitter: emitter,
 	}
 
-	c.host.SetStreamHandler(PROTOCOL, dc.handleNewPeer)
+	c.host.SetStreamHandlerMatch(PROTOCOL, func(proto string) bool { return true }, dc.handleNewPeer)
 	return dc, nil
 
 }
