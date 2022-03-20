@@ -113,7 +113,6 @@ type orbitDB struct {
 	logger                *zap.Logger
 	tracer                trace.Tracer
 	directChannel         iface.DirectChannel
-	directChannelHandlers []func(*MessageExchangeHeads)
 
 	// emitters
 	emitters struct {
