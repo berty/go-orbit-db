@@ -979,9 +979,18 @@ func (o *orbitDB) exchangeHeads(ctx context.Context, p peer.ID, store Store) err
 		}
 	}
 
+	var remoteHeads []*entry.Entry
+	remoteHeadsBytes, err := store.Cache().Get(ctx, datastore.NewKey("_remoteHeads"))
+	if remoteHeadsBytes != nil {
+		err = json.Unmarshal(remoteHeadsBytes, &remoteHeads)
+		if err != nil {
+			o.logger.Warn("unable to unmarshal cached remote heads", zap.Error(err))
+		}
+	}
+
 	exchangedHeads := &exchangedHeads{
 		Address: store.Address().String(),
-		Heads:   heads,
+		Heads:   append(heads, remoteHeads...),
 	}
 
 	exchangedHeadsBytes, err := json.Marshal(exchangedHeads)
@@ -995,6 +1004,10 @@ func (o *orbitDB) exchangeHeads(ctx context.Context, p peer.ID, store Store) err
 			return errors.Wrap(err, "unable to encrypt payload")
 		}
 	}
+
+	o.logger.Debug("sending heads",
+		zap.String("addr", exchangedHeads.Address),
+		zap.Int("heads", len(exchangedHeads.Heads)))
 
 	if err = o.directConnections.Send(ctx, p, exchangedHeadsBytes); err != nil {
 		return errors.Wrap(err, "unable to send heads on direct channel")
