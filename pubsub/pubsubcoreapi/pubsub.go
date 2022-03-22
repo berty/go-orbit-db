@@ -129,7 +129,7 @@ func (p *psTopic) WatchMessages(ctx context.Context) (<-chan *iface.EventPubSubM
 				continue
 			}
 
-			ch <- pubsub.NewEventMessage(msg.Data())
+			ch <- pubsub.NewEventMessage(msg.Data(), msg.From())
 		}
 	}()
 

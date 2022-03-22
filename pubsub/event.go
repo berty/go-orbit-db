@@ -29,16 +29,18 @@ func (e *PayloadEmitter) Emit(evt *iface.EventPubSubPayload) error {
 }
 
 // Creates a new Message event
-func NewEventMessage(content []byte) *iface.EventPubSubMessage {
+func NewEventMessage(content []byte, p peer.ID) *iface.EventPubSubMessage {
 	return &iface.EventPubSubMessage{
 		Content: content,
+		From:    p,
 	}
 }
 
 // NewEventPayload Creates a new Message event
-func NewEventPayload(payload []byte) *iface.EventPubSubPayload {
+func NewEventPayload(payload []byte, p peer.ID) *iface.EventPubSubPayload {
 	return &iface.EventPubSubPayload{
 		Payload: payload,
+		From:    p,
 	}
 }
 

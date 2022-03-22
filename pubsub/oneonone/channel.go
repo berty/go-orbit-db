@@ -148,7 +148,7 @@ func (c *channels) monitorTopic(sub coreapi.PubSubSubscription, p peer.ID) {
 			continue
 		}
 
-		if err := c.emitter.Emit(pubsub.NewEventPayload(msg.Data())); err != nil {
+		if err := c.emitter.Emit(pubsub.NewEventPayload(msg.Data(), msg.From())); err != nil {
 			c.logger.Warn("unable to emit event payload", zap.Error(err))
 		}
 	}

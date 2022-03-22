@@ -404,11 +404,13 @@ type PubSubSubscriptionOptions struct {
 // EventPubSubMessage Indicates a new message posted on a pubsub topic
 type EventPubSubMessage struct {
 	Content []byte
+	From    peer.ID
 }
 
 // EventPubSubPayload An event received on new messages
 type EventPubSubPayload struct {
 	Payload []byte
+	From    peer.ID
 }
 
 // EventPubSubJoin Is an event triggered when a peer joins the channel

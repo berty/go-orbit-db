@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (o *orbitDB) handleEventPubSubPayload(ctx context.Context, e *iface.EventPubSubPayload, sharedKey enc.SharedKey) error {
+func (o *orbitDB) handleEventPubSubPayload(ctx context.Context, e *iface.EventPubSubPayload, sharedKey enc.SharedKey, topic iface.PubSubTopic) error {
 	heads := &exchangedHeads{}
 	payload := e.Payload
 
@@ -30,7 +30,7 @@ func (o *orbitDB) handleEventPubSubPayload(ctx context.Context, e *iface.EventPu
 		o.logger.Error("unable to unmarshal heads", zap.Error(err))
 	}
 
-	o.logger.Debug(fmt.Sprintf("%s: Received %d heads for '%s':", o.PeerID().String(), len(heads.Heads), heads.Address))
+	o.logger.Debug(fmt.Sprintf("%s: Received %d heads for '%s' from %s:", o.PeerID().String(), len(heads.Heads), heads.Address, e.From))
 	store, ok := o.getStore(heads.Address)
 
 	if !ok {
@@ -45,6 +45,24 @@ func (o *orbitDB) handleEventPubSubPayload(ctx context.Context, e *iface.EventPu
 
 		if err := store.Sync(ctx, untypedHeads); err != nil {
 			return fmt.Errorf("unable to sync heads: %w", err)
+		}
+
+		peers, err := topic.Peers(ctx)
+		if err != nil {
+			o.logger.Debug(fmt.Sprintf("Error while getting peers for topic  %s:", topic.Topic()))
+		}
+		if heads.ttl > 0 {
+			for _, peer := range peers {
+				if e.From == peer {
+					continue
+				}
+				//o.logger.Debug("sharing heads",
+				//	zap.String("to > ", peer.String()),
+				//	zap.String("from < ", e.From.String()),
+				//	zap.String("store ", store.Address().String()),
+				//)
+				o.sendHeads(ctx, peer, store, heads.Heads, heads.ttl-1)
+			}
 		}
 	}
 
