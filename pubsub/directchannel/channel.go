@@ -1,11 +1,11 @@
 package directchannel
 
 import (
+	"bufio"
 	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
-	"math"
 
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/pubsub"
@@ -15,7 +15,8 @@ import (
 	"go.uber.org/zap"
 )
 
-const PROTOCOL = "/go-orbit-db/direct-channel/1.1.0"
+const PROTOCOL = "/go-orbit-db/direct-channel/1.2.0"
+const DelimitedReadMaxSize = 2048
 
 type directChannel struct {
 	logger  *zap.Logger
@@ -30,48 +31,40 @@ func (d *directChannel) Send(ctx context.Context, pid peer.ID, bytes []byte) err
 		return fmt.Errorf("unable to create stream: %w", err)
 	}
 
-	if len(bytes) > math.MaxUint16 {
-		return fmt.Errorf("payload is too large")
+	defer stream.Close()
+
+	length := uint64(len(bytes))
+	lenbuf := make([]byte, binary.MaxVarintLen64)
+	n := binary.PutUvarint(lenbuf, length)
+	_, err = stream.Write(lenbuf[:n])
+	if err != nil {
+		return fmt.Errorf("unable to write buflen: %w", err)
 	}
-
-	if len(bytes) > math.MaxUint16 {
-		return fmt.Errorf("payload is too large")
-	}
-
-	b := make([]byte, 2)
-	binary.LittleEndian.PutUint16(b, uint16(len(bytes)))
-
-	if _, err := stream.Write(b); err != nil {
-		return err
-	}
-
 	_, err = stream.Write(bytes)
 	return err
 }
 
 func (d *directChannel) handleNewPeer(s network.Stream) {
-	b := make([]byte, 2)
 	defer func() {
 		_ = s.Reset()
 	}()
 
-	if _, err := s.Read(b); err != nil {
-		if err == io.EOF {
-			return
-		}
-
-		d.logger.Error("unable to read", zap.Error(err))
+	reader := bufio.NewReader(s)
+	length64, err := binary.ReadUvarint(reader)
+	if err != nil {
+		d.logger.Error("unable to read length", zap.Error(err))
 		return
 	}
 
-	data := make([]byte, binary.LittleEndian.Uint16(b))
-	_, err := s.Read(data)
-	if err != nil {
-		if err == io.EOF {
-			return
-		}
+	length := int(length64)
+	if length < 0 || length > DelimitedReadMaxSize {
+		d.logger.Error("invalid buffer length", zap.Error(io.ErrShortBuffer))
+		return
+	}
 
-		d.logger.Error("unable to read", zap.Error(err))
+	data := make([]byte, length)
+	if _, err := io.ReadFull(reader, data); err != nil {
+		d.logger.Error("unable to read buffer", zap.Error(err))
 		return
 	}
 
@@ -112,7 +105,7 @@ func (c *holderChannels) NewChannel(ctx context.Context, emitter iface.DirectCha
 		emitter: emitter,
 	}
 
-	c.host.SetStreamHandlerMatch(PROTOCOL, func(proto string) bool { return true }, dc.handleNewPeer)
+	c.host.SetStreamHandler(PROTOCOL, dc.handleNewPeer)
 	return dc, nil
 
 }

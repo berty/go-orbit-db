@@ -1,13 +1,16 @@
 package baseorbitdb
 
-import "github.com/libp2p/go-libp2p-core/peer"
+import (
+	"berty.tech/go-orbit-db/iface"
+	"github.com/libp2p/go-libp2p-core/peer"
+)
 
 type EventExchangeHeads struct {
 	Peer    peer.ID
-	Message *MessageExchangeHeads
+	Message *iface.MessageExchangeHeads
 }
 
-func NewEventExchangeHeads(p peer.ID, msg *MessageExchangeHeads) EventExchangeHeads {
+func NewEventExchangeHeads(p peer.ID, msg *iface.MessageExchangeHeads) EventExchangeHeads {
 	return EventExchangeHeads{
 		Peer:    p,
 		Message: msg,
