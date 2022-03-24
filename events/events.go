@@ -212,7 +212,7 @@ func (e *EventEmitter) GetBus() (bus event.Bus) {
 func (e *EventEmitter) SetBus(bus event.Bus) (err error) {
 	e.muEmitters.Lock()
 
-	if bus == nil {
+	if e.bus == nil {
 		e.bus = bus
 	} else {
 		err = fmt.Errorf("bus is already init")
