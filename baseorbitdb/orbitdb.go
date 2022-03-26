@@ -620,38 +620,6 @@ func (o *orbitDB) Open(ctx context.Context, dbAddress string, options *CreateDBO
 	return store, nil
 }
 
-// func (o *orbitDB) monitorChannels(ctx context.Context, store Store, topic iface.PubSubTopic) error {
-// 	sub, err := o.eventBus.Subscribe(new(EventExchangeHeads), eventbus.BufSize(128))
-// 	if err != nil {
-// 		return fmt.Errorf("unable to init event bus: %w", err)
-// 	}
-
-// 	go func() {
-// 		defer sub.Close()
-// 		for {
-// 			var e interface{}
-
-// 			select {
-// 			case <-ctx.Done():
-// 				return
-// 			case e = <-sub.Out():
-// 			}
-
-// 			evt := e.(EventExchangeHeads)
-// 			if !bytes.Equal(evt.Message.Topic, []byte(topic.Topic())) ||
-// 				len(evt.Message.Heads) == 0 {
-// 				continue // skip unwanted topic
-// 			}
-
-// 			if err := o.handleEventExchangeHeads(ctx, &evt); err != nil {
-// 				o.logger.Error("unable to handle pubsub payload", zap.Error(err))
-// 			}
-// 		}
-// 	}()
-
-// 	return nil
-// }
-
 func (o *orbitDB) DetermineAddress(ctx context.Context, name string, storeType string, options *DetermineAddressOptions) (address.Address, error) {
 	var err error
 
