@@ -852,6 +852,7 @@ func (o *orbitDB) storeListener(ctx context.Context, store Store, topic iface.Pu
 			case e = <-sub.Out():
 			}
 
+			evt := e.(stores.EventWrite)
 			go func() {
 				// @TODO(gfanton): HandleEventWrite trigger a
 				// publish that is a blocking call if no peers
@@ -860,7 +861,6 @@ func (o *orbitDB) storeListener(ctx context.Context, store Store, topic iface.Pu
 				ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 				defer cancel()
 
-				evt := e.(stores.EventWrite)
 				if err := o.handleEventWrite(ctx, &evt, topic, store); err != nil {
 					o.logger.Warn("unable to handle EventWrite", zap.Error(err))
 				}
@@ -962,14 +962,15 @@ func (o *orbitDB) exchangeHeads(ctx context.Context, p peer.ID, store Store) err
 		return errors.Wrap(err, "unable to get local heads from cache")
 	}
 
-	rawRemoteHeads, err := store.Cache().Get(ctx, datastore.NewKey("_remoteHeads"))
-	if err != nil && err != datastore.ErrNotFound {
-		return errors.Wrap(err, "unable to get data from cache")
-	}
+	// @FIXME(gfanton): looks like activate this break the exchange
+	// rawRemoteHeads, err := store.Cache().Get(ctx, datastore.NewKey("_remoteHeads"))
+	// if err != nil && err != datastore.ErrNotFound {
+	// 	return errors.Wrap(err, "unable to get data from cache")
+	// }
 
 	heads := []*entry.Entry{}
 
-	for _, rawHeads := range [][]byte{rawLocalHeads, rawRemoteHeads} {
+	for _, rawHeads := range [][]byte{rawLocalHeads} {
 		if len(rawLocalHeads) > 0 {
 			var dHeads []*entry.Entry
 			err = json.Unmarshal(rawHeads, &dHeads)
