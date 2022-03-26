@@ -957,7 +957,7 @@ func (o *orbitDB) exchangeHeads(ctx context.Context, p peer.ID, store Store) err
 	}
 	o.logger.Debug(fmt.Sprintf("connected to %s", p))
 
-	rawLocalHeads, err := store.Cache().Get(ctx, datastore.NewKey("_Heads"))
+	rawLocalHeads, err := store.Cache().Get(ctx, datastore.NewKey("_localHeads"))
 	if err != nil && err != datastore.ErrNotFound {
 		return errors.Wrap(err, "unable to get local heads from cache")
 	}
