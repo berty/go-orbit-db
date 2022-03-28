@@ -10,7 +10,6 @@ import (
 
 	ipfslog "berty.tech/go-ipfs-log"
 	logac "berty.tech/go-ipfs-log/accesscontroller"
-	"berty.tech/go-ipfs-log/enc"
 	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
 	ifacelog "berty.tech/go-ipfs-log/iface"
@@ -120,10 +119,6 @@ func (b *BaseStore) Tracer() trace.Tracer {
 
 func (b *BaseStore) IO() ipfslog.IO {
 	return b.options.IO
-}
-
-func (b *BaseStore) SharedKey() enc.SharedKey {
-	return b.options.SharedKey
 }
 
 func (b *BaseStore) EventBus() event.Bus {

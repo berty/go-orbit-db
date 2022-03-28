@@ -5,7 +5,7 @@ import (
 	"time"
 
 	ipfslog "berty.tech/go-ipfs-log"
-	"berty.tech/go-ipfs-log/enc"
+	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/iface"
 	"berty.tech/go-ipfs-log/keystore"
@@ -22,6 +22,18 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
+
+// Message Marshaler
+
+type MessageExchangeHeads struct {
+	Address string         `json:"address"`
+	Heads   []*entry.Entry `json:"heads"`
+}
+
+type MessageMarshaler interface {
+	Marshal(msg *MessageExchangeHeads) ([]byte, error)
+	Unmarshal(data []byte, msg *MessageExchangeHeads) error
+}
 
 // CreateDBOptions lists the arguments to create a store
 type CreateDBOptions struct {
@@ -40,7 +52,7 @@ type CreateDBOptions struct {
 	SortFn                  ipfslog.SortFn
 	IO                      ipfslog.IO
 	Timeout                 time.Duration
-	SharedKey               enc.SharedKey
+	MessageMarshaler        MessageMarshaler
 	StoreSpecificOpts       interface{}
 }
 
@@ -230,8 +242,6 @@ type Store interface {
 
 	// subscribe to events on this store
 	EventBus() event.Bus
-
-	SharedKey() enc.SharedKey
 }
 
 // EventLogStore A type of store that provides an append only log
@@ -335,7 +345,6 @@ type NewStoreOptions struct {
 	Logger                 *zap.Logger
 	Tracer                 trace.Tracer
 	IO                     ipfslog.IO
-	SharedKey              enc.SharedKey
 	StoreSpecificOpts      interface{}
 }
 
@@ -348,7 +357,7 @@ type DirectChannel interface {
 	Connect(context.Context, peer.ID) error
 
 	// Send Sends a message to the other peer
-	Send(context.Context, peer.ID, []byte) error
+	Send(ctx context.Context, peer peer.ID, data []byte) error
 
 	// Close Closes the connection
 	Close() error
@@ -409,14 +418,17 @@ type EventPubSubMessage struct {
 // EventPubSubPayload An event received on new messages
 type EventPubSubPayload struct {
 	Payload []byte
+	Peer    peer.ID
 }
 
 // EventPubSubJoin Is an event triggered when a peer joins the channel
 type EventPubSubJoin struct {
-	Peer peer.ID
+	Topic string
+	Peer  peer.ID
 }
 
 // EventPubSubLeave Is an event triggered when a peer leave the channel
 type EventPubSubLeave struct {
-	Peer peer.ID
+	Topic string
+	Peer  peer.ID
 }
