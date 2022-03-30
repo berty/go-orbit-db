@@ -62,6 +62,7 @@ func NewEventReplicated(addr address.Address, entries []ipfslog.Entry, logLength
 	return EventReplicated{
 		Address:   addr,
 		LogLength: logLength,
+		Entries:   entries,
 	}
 }
 
