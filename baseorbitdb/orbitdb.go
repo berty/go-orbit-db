@@ -117,7 +117,6 @@ type orbitDB struct {
 
 	// emitters
 	emitters struct {
-		newPeer  event.Emitter
 		newHeads event.Emitter
 	}
 
@@ -393,11 +392,6 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 		logger:                options.Logger,
 		tracer:                options.Tracer,
 		messageMarshaler:      options.MessageMarshaler,
-	}
-
-	odb.emitters.newPeer, err = eventBus.Emitter(new(stores.EventNewPeer))
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to create global emitter")
 	}
 
 	// set new heads as stateful, so newly subscriber can replay last event in case they missed it
@@ -850,10 +844,23 @@ func (o *orbitDB) pubSubChanListener(ctx context.Context, store Store, topic ifa
 		return err
 	}
 
+	newPeerEmitter, err := store.EventBus().Emitter(new(stores.EventNewPeer))
+	if err != nil {
+		return fmt.Errorf("unable to init emitter: %w", err)
+	}
+
 	go func() {
+		defer newPeerEmitter.Close()
+
 		for e := range chPeers {
 			switch evt := e.(type) {
 			case *iface.EventPubSubJoin:
+				// notify store that we have a new peers
+				if err := newPeerEmitter.Emit(stores.NewEventNewPeer(evt.Peer)); err != nil {
+					o.logger.Error("unable to emit event new peer", zap.Error(err))
+				}
+
+				// handle new peers
 				go o.onNewPeerJoined(ctx, evt.Peer, store)
 				o.logger.Debug(fmt.Sprintf("peer %s joined from %s self is %s", evt.Peer.String(), addr, o.PeerID()))
 
@@ -911,10 +918,6 @@ func (o *orbitDB) onNewPeerJoined(ctx context.Context, p peer.ID, store Store) {
 			o.logger.Error("unable to exchange heads", zap.Error(err))
 		}
 		return
-	}
-
-	if err := o.emitters.newPeer.Emit(stores.NewEventNewPeer(p)); err != nil {
-		o.logger.Error("unable emit NewPeer event", zap.Error(err))
 	}
 }
 
