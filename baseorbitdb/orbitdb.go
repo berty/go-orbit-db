@@ -844,7 +844,7 @@ func (o *orbitDB) pubSubChanListener(ctx context.Context, store Store, topic ifa
 		return err
 	}
 
-	newPeerEmitter, err := store.EventBus().Emitter(new(stores.EventNewPeer))
+	newPeerEmitter, err := store.EventBus().Emitter(new(stores.EventNewPeer), eventbus.Stateful)
 	if err != nil {
 		return fmt.Errorf("unable to init emitter: %w", err)
 	}
