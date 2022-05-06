@@ -9,14 +9,24 @@ on:
 
 jobs:
   golangci-lint:
+    name: "GolangCI-lint"
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        golang:
+          - 1.17.x
     steps:
-      - uses: actions/checkout@v2
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2.5.2
+      - uses: actions/checkout@v3
+      - name: Set up Go
+        uses: actions/setup-go@v2
         with:
-          version: v1.31
-          args: --timeout=2m
+          go-version: ${{ matrix.golang }}
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3.1.0
+        with:
+          go-version: ${{ matrix.golang }}
+          version: v1.44.2
+          args: --timeout=10m
           # only-new-issues: true
 
   go-tests-on-linux:
