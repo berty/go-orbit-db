@@ -1,0 +1,65 @@
+name: "Bug report"
+description: Report a bug for this project.
+labels: ["bug", "🔍 Ready for Review"]
+assignees:
+- peletron
+body:
+  - type: checkboxes
+    attributes:
+      label: Is there an existing issue for this?
+      description: Please search to see if an issue already exists for the bug you encountered.
+      options:
+      - label: I have searched the existing issues
+        required: true
+  - type: input
+    id: package-version
+    attributes:
+      label: Package version
+      description: What version of go-ipfs-db package are you using?
+      placeholder: v1.8.0
+    validations:
+      required: true
+  - type: input
+    id: go-version
+    attributes:
+      label: Golang version
+      description: What version of Golang are you using?
+      placeholder: go1.18.4
+    validations:
+      required: true
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Bug description
+      description: Provide a bug description and a code snippet if applicable.
+    validations:
+      required: true
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: Current behavior
+      description: A output after code execution including stack traces, debug logs, etc.
+      placeholder: Currently ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: Please provide what would be your expectation to happen.
+      placeholder: In this situation, the output of the code should ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: What is your development environment?
+      placeholder: Linux Ubuntu v20.04
+    validations:
+      required: true
+  - type: textarea
+    id: other
+    attributes:
+      label: Other
+      placeholder: Any other detail?
