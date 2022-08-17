@@ -13,7 +13,7 @@ import (
 
 	ds "github.com/ipfs/go-datastore"
 	dsync "github.com/ipfs/go-datastore/sync"
-	cfg "github.com/ipfs/go-ipfs-config"
+	cfg "github.com/ipfs/go-ipfs/config"
 	ipfsCore "github.com/ipfs/go-ipfs/core"
 	"github.com/ipfs/go-ipfs/core/coreapi"
 	mock "github.com/ipfs/go-ipfs/core/mock"
@@ -157,7 +157,7 @@ func testingCoreAPI(t *testing.T, core *ipfsCore.IpfsNode) iface.CoreAPI {
 }
 
 func testingMockNet(ctx context.Context) mocknet.Mocknet {
-	return mocknet.New(ctx)
+	return mocknet.New()
 }
 
 func testingTempDir(t *testing.T, name string) (string, func()) {

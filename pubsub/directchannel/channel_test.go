@@ -22,7 +22,7 @@ func TestInitDirectChannelFactory(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mn := mocknet.New(ctx)
+	mn := mocknet.New()
 
 	var err error
 	count := 10
