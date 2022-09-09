@@ -70,6 +70,8 @@ type BaseStore struct {
 	sortFn    ipfslog.SortFn
 	logger    *zap.Logger
 	tracer    trace.Tracer
+	ctx       context.Context
+	cancel    context.CancelFunc
 
 	// Deprecated: if possible don't use this, use EventBus() directly instead
 	events.EventEmitter
@@ -125,16 +127,31 @@ func (b *BaseStore) EventBus() event.Bus {
 	return b.options.EventBus
 }
 
+func (b *BaseStore) Context() context.Context {
+	return b.ctx
+}
+
+func (b *BaseStore) IsClosed() bool {
+	select {
+	case <-b.ctx.Done():
+		return true
+	default:
+		return false
+	}
+}
+
 // InitBaseStore Initializes the store base
-func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) error {
+func (b *BaseStore) InitBaseStore(ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) error {
 	var err error
+
+	b.ctx, b.cancel = context.WithCancel(context.Background())
 
 	if options == nil {
 		options = &iface.NewStoreOptions{}
 	}
 
 	if options.EventBus == nil {
-		options.EventBus = b.EventEmitter.GetBus()
+		options.EventBus = eventbus.NewBus()
 	} else if err := b.SetBus(options.EventBus); err != nil {
 		return fmt.Errorf("unable set event bus: %w", err)
 	}
@@ -165,7 +182,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 	} else {
 		manifestParams := accesscontroller.NewManifestParams(cid.Cid{}, true, "simple")
 		manifestParams.SetAccess("write", []string{identity.ID})
-		b.access, err = simple.NewSimpleAccessController(ctx, nil, manifestParams)
+		b.access, err = simple.NewSimpleAccessController(b.ctx, nil, manifestParams)
 
 		if err != nil {
 			return fmt.Errorf("unable to create simple access controller: %w", err)
@@ -202,8 +219,9 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 	b.muIndex.Unlock()
 
 	b.replicator, err = replicator.NewReplicator(b, options.ReplicationConcurrency, &replicator.Options{
-		Logger: b.logger,
-		Tracer: b.tracer,
+		Logger:   b.logger,
+		EventBus: options.EventBus,
+		Tracer:   b.tracer,
 	})
 	if err != nil {
 		return fmt.Errorf("unable to init error: %w", err)
@@ -235,7 +253,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 
 	go func() {
 		defer sub.Close()
-		ctx, span := b.tracer.Start(ctx, "base-store-main-loop", trace.WithAttributes(otkv.String("store-address", b.Address().String())))
+		ctx, span := b.tracer.Start(b.ctx, "base-store-main-loop", trace.WithAttributes(otkv.String("store-address", b.Address().String())))
 		defer span.End()
 
 		var e interface{}
@@ -305,6 +323,10 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 }
 
 func (b *BaseStore) Close() error {
+	if b.IsClosed() {
+		return nil
+	}
+
 	// Replicator teardown logic
 	b.Replicator().Stop()
 
@@ -327,6 +349,8 @@ func (b *BaseStore) Close() error {
 	if err != nil {
 		return fmt.Errorf("unable to close cache: %w", err)
 	}
+
+	b.cancel()
 
 	return nil
 }

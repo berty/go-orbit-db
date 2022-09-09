@@ -201,11 +201,12 @@ func (o *orbitDBEventLogStore) Type() string {
 }
 
 // NewOrbitDBEventLogStore Instantiates a new EventLogStore
-func NewOrbitDBEventLogStore(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) (i iface.Store, e error) {
+func NewOrbitDBEventLogStore(ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) (i iface.Store, e error) {
+
 	store := &orbitDBEventLogStore{}
 	options.Index = NewEventIndex
 
-	err := store.InitBaseStore(ctx, ipfs, identity, addr, options)
+	err := store.InitBaseStore(ipfs, identity, addr, options)
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize base store: %w", err)
 	}

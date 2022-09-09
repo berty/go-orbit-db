@@ -242,7 +242,7 @@ func DefaultStoreOptsForMap(keyField string) *iface.CreateDocumentDBOptions {
 }
 
 // NewOrbitDBDocumentStore Instantiates a new DocumentStore
-func NewOrbitDBDocumentStore(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) (iface.Store, error) {
+func NewOrbitDBDocumentStore(ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) (iface.Store, error) {
 	if options.StoreSpecificOpts == nil {
 		options.StoreSpecificOpts = DefaultStoreOptsForMap("_id")
 	}
@@ -271,7 +271,7 @@ func NewOrbitDBDocumentStore(ctx context.Context, ipfs coreapi.CoreAPI, identity
 	store := &orbitDBDocumentStore{docOpts: docOpts}
 	options.Index = func(_ []byte) iface.StoreIndex { return newDocumentIndex(docOpts) }
 
-	err := store.InitBaseStore(ctx, ipfs, identity, addr, options)
+	err := store.InitBaseStore(ipfs, identity, addr, options)
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize document store: %w", err)
 	}

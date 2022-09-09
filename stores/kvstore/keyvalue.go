@@ -85,12 +85,12 @@ func (o *orbitDBKeyValue) Type() string {
 }
 
 // NewOrbitDBKeyValue Instantiates a new KeyValueStore
-func NewOrbitDBKeyValue(ctx context.Context, ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) (i iface.Store, e error) {
+func NewOrbitDBKeyValue(ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) (i iface.Store, e error) {
 	store := &orbitDBKeyValue{}
 
 	options.Index = NewKVIndex
 
-	err := store.InitBaseStore(ctx, ipfs, identity, addr, options)
+	err := store.InitBaseStore(ipfs, identity, addr, options)
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize base store: %w", err)
 	}

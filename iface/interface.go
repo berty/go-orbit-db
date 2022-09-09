@@ -181,6 +181,9 @@ type Store interface {
 	// Close Closes the store
 	Close() error
 
+	// IsClosed returns true if the store is closed
+	IsClosed() bool
+
 	// Address Returns the address for the current store
 	Address() address.Address
 
@@ -242,6 +245,9 @@ type Store interface {
 
 	// subscribe to events on this store
 	EventBus() event.Bus
+
+	// Get the context of the store
+	Context() context.Context
 }
 
 // EventLogStore A type of store that provides an append only log
@@ -371,7 +377,7 @@ type DirectChannelEmitter interface {
 type DirectChannelFactory func(ctx context.Context, emitter DirectChannelEmitter, opts *DirectChannelOptions) (DirectChannel, error)
 
 // StoreConstructor Defines the expected constructor for a custom store
-type StoreConstructor func(context.Context, coreapi.CoreAPI, *identityprovider.Identity, address.Address, *NewStoreOptions) (Store, error)
+type StoreConstructor func(coreapi.CoreAPI, *identityprovider.Identity, address.Address, *NewStoreOptions) (Store, error)
 
 // IndexConstructor Defines the expected constructor for a custom index
 type IndexConstructor func(publicKey []byte) StoreIndex
