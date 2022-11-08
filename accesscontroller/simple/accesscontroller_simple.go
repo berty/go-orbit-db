@@ -2,6 +2,7 @@ package simple
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	logac "berty.tech/go-ipfs-log/accesscontroller"
@@ -10,7 +11,6 @@ import (
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/iface"
 	cid "github.com/ipfs/go-cid"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -73,13 +73,13 @@ func (o *simpleAccessController) CanAppend(e logac.LogEntry, p identityprovider.
 		}
 	}
 
-	return errors.New("not allowed to write entry")
+	return fmt.Errorf("not allowed to write entry")
 }
 
 // NewSimpleAccessController Returns a non configurable access controller
 func NewSimpleAccessController(_ context.Context, _ iface.BaseOrbitDB, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (accesscontroller.Interface, error) {
 	if params == nil {
-		return &simpleAccessController{}, errors.New("an options object is required")
+		return &simpleAccessController{}, fmt.Errorf("an options object is required")
 	}
 
 	ac := &simpleAccessController{

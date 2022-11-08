@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 
 	"berty.tech/go-ipfs-log/entry"
 	"berty.tech/go-orbit-db/iface"
 	cid "github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
 	files "github.com/ipfs/go-ipfs-files"
-	"github.com/pkg/errors"
 )
 
 func SaveSnapshot(ctx context.Context, b iface.Store) (cid.Cid, error) {
@@ -27,7 +27,7 @@ func SaveSnapshot(ctx context.Context, b iface.Store) (cid.Cid, error) {
 	for i := range untypedEntries {
 		castedEntry, ok := untypedEntries[i].(*entry.Entry)
 		if !ok {
-			return cid.Cid{}, errors.New("unable to downcast entry")
+			return cid.Cid{}, fmt.Errorf("unable to downcast entry")
 		}
 
 		entries[i] = castedEntry
@@ -41,7 +41,7 @@ func SaveSnapshot(ctx context.Context, b iface.Store) (cid.Cid, error) {
 	})
 
 	if err != nil {
-		return cid.Cid{}, errors.Wrap(err, "unable to serialize snapshot")
+		return cid.Cid{}, fmt.Errorf("unable to serialize snapshot: %w", err)
 	}
 
 	headerSize := len(header)
@@ -54,7 +54,7 @@ func SaveSnapshot(ctx context.Context, b iface.Store) (cid.Cid, error) {
 		entryJSON, err := json.Marshal(e)
 
 		if err != nil {
-			return cid.Cid{}, errors.Wrap(err, "unable to serialize entry as JSON")
+			return cid.Cid{}, fmt.Errorf("unable to serialize entry as JSON: %w", err)
 		}
 
 		size := make([]byte, 2)
@@ -70,22 +70,22 @@ func SaveSnapshot(ctx context.Context, b iface.Store) (cid.Cid, error) {
 
 	snapshotPath, err := b.IPFS().Unixfs().Add(ctx, rsFileNode)
 	if err != nil {
-		return cid.Cid{}, errors.Wrap(err, "unable to save log data on store")
+		return cid.Cid{}, fmt.Errorf("unable to save log data on store: %w", err)
 	}
 
 	err = b.Cache().Put(ctx, datastore.NewKey("snapshot"), []byte(snapshotPath.Cid().String()))
 	if err != nil {
-		return cid.Cid{}, errors.Wrap(err, "unable to add snapshot data to cache")
+		return cid.Cid{}, fmt.Errorf("unable to add snapshot data to cache: %w", err)
 	}
 
 	unfinishedJSON, err := json.Marshal(unfinished)
 	if err != nil {
-		return cid.Cid{}, errors.Wrap(err, "unable to marshal unfinished cids")
+		return cid.Cid{}, fmt.Errorf("unable to marshal unfinished cids: %w", err)
 	}
 
 	err = b.Cache().Put(ctx, datastore.NewKey("queue"), unfinishedJSON)
 	if err != nil {
-		return cid.Cid{}, errors.Wrap(err, "unable to add unfinished data to cache")
+		return cid.Cid{}, fmt.Errorf("unable to add unfinished data to cache: %w", err)
 	}
 
 	return snapshotPath.Cid(), nil

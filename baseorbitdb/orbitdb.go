@@ -31,9 +31,9 @@ import (
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/libp2p/go-eventbus"
 	"github.com/libp2p/go-libp2p/core/event"
 	peer "github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -261,7 +261,7 @@ func (o *orbitDB) RegisterAccessControllerType(constructor iface.AccessControlle
 	defer o.muAccessControllerTypes.Unlock()
 
 	if constructor == nil {
-		return errors.New("accessController class needs to be given as an option")
+		return fmt.Errorf("accessController class needs to be given as an option")
 	}
 
 	controller, _ := constructor(context.Background(), nil, nil)
@@ -319,11 +319,11 @@ func (o *orbitDB) getStoreConstructor(s string) (iface.StoreConstructor, bool) {
 
 func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity, options *NewOrbitDBOptions) (BaseOrbitDB, error) {
 	if is == nil {
-		return nil, errors.New("ipfs is a required argument")
+		return nil, fmt.Errorf("ipfs is a required argument")
 	}
 
 	if identity == nil {
-		return nil, errors.New("identity is a required argument")
+		return nil, fmt.Errorf("identity is a required argument")
 	}
 
 	if options == nil {
@@ -347,7 +347,7 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 		Logger: options.Logger,
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to create a direct connection with peer")
+		return nil, fmt.Errorf("unable to create a direct connection with peer: %w", err)
 	}
 
 	k, err := is.Key().Self(ctx)
@@ -397,11 +397,11 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 	// set new heads as stateful, so newly subscriber can replay last event in case they missed it
 	odb.emitters.newHeads, err = eventBus.Emitter(new(EventExchangeHeads), eventbus.Stateful)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to create global emitter")
+		return nil, fmt.Errorf("unable to create global emitter: %w", err)
 	}
 
 	if err := odb.monitorDirectChannel(ctx, eventBus); err != nil {
-		return nil, errors.Wrap(err, "unable to monitor direct channel")
+		return nil, fmt.Errorf("unable to monitor direct channel: %w", err)
 	}
 
 	return odb, nil
@@ -410,7 +410,7 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 // NewOrbitDB Creates a new OrbitDB instance
 func NewOrbitDB(ctx context.Context, ipfs coreapi.CoreAPI, options *NewOrbitDBOptions) (BaseOrbitDB, error) {
 	if ipfs == nil {
-		return nil, errors.New("ipfs is a required argument")
+		return nil, fmt.Errorf("ipfs is a required argument")
 	}
 
 	k, err := ipfs.Key().Self(ctx)
@@ -440,12 +440,12 @@ func NewOrbitDB(ctx context.Context, ipfs coreapi.CoreAPI, options *NewOrbitDBOp
 		}
 
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to create data store used by keystore")
+			return nil, fmt.Errorf("unable to create data store used by keystore: %w", err)
 		}
 
 		ks, err := keystore.NewKeystore(ds)
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to create keystore")
+			return nil, fmt.Errorf("unable to create keystore: %w", err)
 		}
 
 		options.Keystore = ks
@@ -506,19 +506,19 @@ func (o *orbitDB) Create(ctx context.Context, name string, storeType string, opt
 	// Load the locally saved database information
 	c, err := o.loadCache(o.directory, dbAddress)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to load cache")
+		return nil, fmt.Errorf("unable to load cache: %w", err)
 	}
 
 	// Check if we have the database locally
 	haveDB := o.haveLocalData(ctx, c, dbAddress)
 
 	if haveDB && (options.Overwrite == nil || !*options.Overwrite) {
-		return nil, errors.New(fmt.Sprintf("database %s already exists", dbAddress))
+		return nil, fmt.Errorf("database %s already exists", dbAddress)
 	}
 
 	// Save the database locally
 	if err := o.addManifestToCache(ctx, o.directory, dbAddress); err != nil {
-		return nil, errors.Wrap(err, "unable to add manifest to cache")
+		return nil, fmt.Errorf("unable to add manifest to cache: %w", err)
 	}
 
 	o.logger.Debug(fmt.Sprintf("Created database '%s'", dbAddress))
@@ -560,33 +560,30 @@ func (o *orbitDB) Open(ctx context.Context, dbAddress string, options *CreateDBO
 	o.logger.Debug("Look from ", zap.String("directory", directory))
 
 	if err := address.IsValid(dbAddress); err != nil {
+		o.logger.Warn("open: invalid OrbitDB address", zap.String("address", dbAddress))
 		if !*options.Create {
-			return nil, errors.New("'options.Create' set to 'false'. If you want to create a database, set 'options.Create' to 'true'")
+			return nil, fmt.Errorf("'options.Create' set to 'false'. If you want to create a database, set 'options.Create' to 'true'")
 		} else if *options.Create && (options.StoreType == nil || *options.StoreType == "") {
-			return nil, errors.New(fmt.Sprintf("database type not provided! Provide a type with 'options.StoreType' (%s)", strings.Join(o.storeTypesNames(), "|")))
+			return nil, fmt.Errorf("database type not provided! Provide a type with 'options.StoreType' (%s)", strings.Join(o.storeTypesNames(), "|"))
 		} else {
-			o.logger.Debug(fmt.Sprintf("Not a valid OrbitDB address '%s', creating the database", dbAddress))
-
 			options.Overwrite = boolPtr(true)
-
 			return o.Create(ctx, dbAddress, *options.StoreType, options)
 		}
 	}
-	o.logger.Debug(fmt.Sprintf("address '%s' is valid", dbAddress))
 
 	parsedDBAddress, err := address.Parse(dbAddress)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to parse address")
+		return nil, fmt.Errorf("unable to parse address: %w", err)
 	}
 
 	dbCache, err := o.loadCache(directory, parsedDBAddress)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to acquire cache")
+		return nil, fmt.Errorf("unable to acquire cache: %w", err)
 	}
 
 	haveDB := o.haveLocalData(ctx, dbCache, parsedDBAddress)
 	if *options.LocalOnly && !haveDB {
-		return nil, errors.New(fmt.Sprintf("database %s doesn't exist!", dbAddress))
+		return nil, fmt.Errorf("database doesn't exist: %s", dbAddress)
 	}
 
 	readctx, cancel := context.WithTimeout(ctx, options.Timeout)
@@ -594,12 +591,12 @@ func (o *orbitDB) Open(ctx context.Context, dbAddress string, options *CreateDBO
 
 	manifestNode, err := io.ReadCBOR(readctx, o.IPFS(), parsedDBAddress.GetRoot())
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to fetch database manifest")
+		return nil, fmt.Errorf("unable to fetch database manifest: %w", err)
 	}
 
 	manifest := &utils.Manifest{}
 	if err := cbornode.DecodeInto(manifestNode.RawData(), manifest); err != nil {
-		return nil, errors.Wrap(err, "unable to unmarshal manifest")
+		return nil, fmt.Errorf("unable to unmarshal manifest: %w", err)
 	}
 
 	o.logger.Debug("Creating store instance")
@@ -608,7 +605,7 @@ func (o *orbitDB) Open(ctx context.Context, dbAddress string, options *CreateDBO
 
 	store, err := o.createStore(ctx, manifest.Type, parsedDBAddress, options)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to create store")
+		return nil, fmt.Errorf("unable to create store: %w", err)
 	}
 
 	return store, nil
@@ -627,11 +624,11 @@ func (o *orbitDB) DetermineAddress(ctx context.Context, name string, storeType s
 	}
 
 	if _, ok := o.getStoreConstructor(storeType); !ok {
-		return nil, errors.New("invalid database type")
+		return nil, fmt.Errorf("invalid database type")
 	}
 
 	if err := address.IsValid(name); err == nil {
-		return nil, errors.New("given database name is an address, give only the name of the database")
+		return nil, fmt.Errorf("given database name is an address, give only the name of the database")
 	}
 
 	if options.AccessController == nil {
@@ -648,13 +645,13 @@ func (o *orbitDB) DetermineAddress(ctx context.Context, name string, storeType s
 
 	accessControllerAddress, err := acutils.Create(ctx, o, options.AccessController.GetType(), options.AccessController, accesscontroller.WithLogger(o.logger))
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to create access controller")
+		return nil, fmt.Errorf("unable to create access controller: %w", err)
 	}
 
 	// Save the manifest to IPFS
 	manifestHash, err := utils.CreateDBManifest(ctx, o.IPFS(), name, storeType, accessControllerAddress.String())
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to save manifest on ipfs")
+		return nil, fmt.Errorf("unable to save manifest on ipfs: %w", err)
 	}
 
 	// Create the database address
@@ -664,7 +661,7 @@ func (o *orbitDB) DetermineAddress(ctx context.Context, name string, storeType s
 func (o *orbitDB) loadCache(directory string, dbAddress address.Address) (datastore.Datastore, error) {
 	db, err := o.cache.Load(directory, dbAddress)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to load cache")
+		return nil, fmt.Errorf("unable to load cache: %w", err)
 	}
 
 	return db, nil
@@ -693,13 +690,13 @@ func (o *orbitDB) haveLocalData(ctx context.Context, c datastore.Datastore, dbAd
 func (o *orbitDB) addManifestToCache(ctx context.Context, directory string, dbAddress address.Address) error {
 	c, err := o.loadCache(directory, dbAddress)
 	if err != nil {
-		return errors.Wrap(err, "unable to load existing cache")
+		return fmt.Errorf("unable to load existing cache: %w", err)
 	}
 
 	cacheKey := datastore.NewKey(path.Join(dbAddress.String(), "_manifest"))
 
 	if err := c.Put(ctx, cacheKey, []byte(dbAddress.GetRoot().String())); err != nil {
-		return errors.Wrap(err, "unable to set cache")
+		return fmt.Errorf("unable to set cache: %w", err)
 	}
 
 	return nil
@@ -709,7 +706,7 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 	var err error
 	storeFunc, ok := o.getStoreConstructor(storeType)
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("store type %s is not supported", storeType))
+		return nil, fmt.Errorf("store type %s is not supported", storeType)
 	}
 
 	var accessController accesscontroller.Interface
@@ -730,7 +727,7 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 
 		accessController, err = acutils.Resolve(ctx, o, options.AccessControllerAddress, ac, accesscontroller.WithLogger(o.logger))
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to acquire an access controller")
+			return nil, fmt.Errorf("unable to acquire an access controller: %w", err)
 		}
 	}
 
@@ -738,7 +735,7 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 
 	c, err := o.loadCache(o.directory, parsedDBAddress)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to acquire a cache instance")
+		return nil, fmt.Errorf("unable to acquire a cache instance: %w", err)
 	}
 
 	if options.Replicate == nil {
@@ -771,12 +768,12 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 		StoreSpecificOpts: options.StoreSpecificOpts,
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to instantiate store")
+		return nil, fmt.Errorf("unable to instantiate store: %w", err)
 	}
 
 	topic, err := o.pubsub.TopicSubscribe(ctx, parsedDBAddress.String())
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to subscribe to pubsub")
+		return nil, fmt.Errorf("unable to subscribe to pubsub: %w", err)
 	}
 
 	o.setStore(parsedDBAddress.String(), store)
@@ -786,11 +783,11 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 	// and the p2p network
 	if *options.Replicate {
 		if err := o.storeListener(ctx, store, topic); err != nil {
-			return nil, errors.Wrap(err, "unable to store listener")
+			return nil, fmt.Errorf("unable to store listener: %w", err)
 		}
 
 		if err := o.pubSubChanListener(ctx, store, topic, parsedDBAddress); err != nil {
-			return nil, errors.Wrap(err, "unable to listen on pubsub")
+			return nil, fmt.Errorf("unable to listen on pubsub: %w", err)
 		}
 	}
 
@@ -924,19 +921,19 @@ func (o *orbitDB) onNewPeerJoined(ctx context.Context, p peer.ID, store Store) {
 func (o *orbitDB) exchangeHeads(ctx context.Context, p peer.ID, store Store) error {
 	o.logger.Debug(fmt.Sprintf("connecting to %s", p))
 	if err := o.directChannel.Connect(ctx, p); err != nil {
-		return errors.Wrap(err, "unable to connect to peer")
+		return fmt.Errorf("unable to connect to peer: %w", err)
 	}
 	o.logger.Debug(fmt.Sprintf("connected to %s", p))
 
 	rawLocalHeads, err := store.Cache().Get(ctx, datastore.NewKey("_localHeads"))
 	if err != nil && err != datastore.ErrNotFound {
-		return errors.Wrap(err, "unable to get local heads from cache")
+		return fmt.Errorf("unable to get local heads from cache: %w", err)
 	}
 
 	// @FIXME(gfanton): looks like activate this break the exchange
 	// rawRemoteHeads, err := store.Cache().Get(ctx, datastore.NewKey("_remoteHeads"))
 	// if err != nil && err != datastore.ErrNotFound {
-	// 	return errors.Wrap(err, "unable to get data from cache")
+	// 	return fmt.Errorf("unable to get data from cache: %w", err)
 	// }
 
 	heads := []*entry.Entry{}
@@ -966,7 +963,7 @@ func (o *orbitDB) exchangeHeads(ctx context.Context, p peer.ID, store Store) err
 	payloadstring := fmt.Sprintf("%x", payload)
 	o.logger.Debug("sending payload", zap.String("payload_string", payloadstring), zap.Any("payload", payload))
 	if err = o.directChannel.Send(ctx, p, payload); err != nil {
-		return errors.Wrap(err, "unable to send heads on direct channel")
+		return fmt.Errorf("unable to send heads on direct channel: %w", err)
 	}
 
 	return nil

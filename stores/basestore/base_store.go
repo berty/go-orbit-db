@@ -26,8 +26,8 @@ import (
 	files "github.com/ipfs/go-ipfs-files"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/path"
-	"github.com/libp2p/go-eventbus"
 	"github.com/libp2p/go-libp2p/core/event"
+	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 	"github.com/pkg/errors"
 	otkv "go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -148,7 +148,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 	}
 
 	if identity == nil {
-		return errors.New("identity required")
+		return fmt.Errorf("identity required")
 	}
 
 	if err := b.generateEmitter(options.EventBus); err != nil {
@@ -168,7 +168,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 		b.access, err = simple.NewSimpleAccessController(ctx, nil, manifestParams)
 
 		if err != nil {
-			return errors.Wrap(err, "unable to create simple access controller")
+			return fmt.Errorf("unable to create simple access controller: %w", err)
 		}
 	}
 	b.dbName = addr.GetPath()
@@ -191,7 +191,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 
 	if err != nil {
 		b.muIndex.Unlock()
-		return errors.New("unable to instantiate an IPFS log")
+		return fmt.Errorf("unable to instantiate an IPFS log")
 	}
 
 	if options.Index == nil {
@@ -206,7 +206,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 		Tracer: b.tracer,
 	})
 	if err != nil {
-		return errors.Wrap(err, "unable to init error")
+		return fmt.Errorf("unable to init error: %w", err)
 	}
 
 	b.referenceCount = 64
@@ -230,7 +230,7 @@ func (b *BaseStore) InitBaseStore(ctx context.Context, ipfs coreapi.CoreAPI, ide
 
 	sub, err := b.replicator.EventBus().Subscribe(replicator.Events, eventbus.BufSize(128))
 	if err != nil {
-		return errors.Wrap(err, "unable to subscribe to replicator events")
+		return fmt.Errorf("unable to subscribe to replicator events: %w", err)
 	}
 
 	go func() {
@@ -325,7 +325,7 @@ func (b *BaseStore) Close() error {
 
 	err := b.Cache().Close()
 	if err != nil {
-		return errors.Wrap(err, "unable to close cache")
+		return fmt.Errorf("unable to close cache: %w", err)
 	}
 
 	return nil
@@ -353,12 +353,12 @@ func (b *BaseStore) ReplicationStatus() replicator.ReplicationInfo {
 func (b *BaseStore) Drop() error {
 	var err error
 	if err = b.Close(); err != nil {
-		return errors.Wrap(err, "unable to close store")
+		return fmt.Errorf("unable to close store: %w", err)
 	}
 
 	err = b.cacheDestroy()
 	if err != nil {
-		return errors.Wrap(err, "unable to destroy cache")
+		return fmt.Errorf("unable to destroy cache: %w", err)
 	}
 
 	// TODO: Destroy cache? b.cache.Delete()
@@ -375,7 +375,7 @@ func (b *BaseStore) Drop() error {
 	b.muIndex.Unlock()
 
 	if err != nil {
-		return errors.Wrap(err, "unable to create log")
+		return fmt.Errorf("unable to create log: %w", err)
 	}
 
 	b.muCache.Lock()
@@ -397,7 +397,7 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 	localHeadsBytes, err := b.Cache().Get(ctx, datastore.NewKey("_localHeads"))
 	if err != nil && err != datastore.ErrNotFound {
 		span.AddEvent("local-heads-load-failed")
-		return errors.Wrap(err, "unable to get local heads from cache")
+		return fmt.Errorf("unable to get local heads from cache: %w", err)
 	}
 
 	err = nil
@@ -415,7 +415,7 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 	remoteHeadsBytes, err := b.Cache().Get(ctx, datastore.NewKey("_remoteHeads"))
 	if err != nil && err != datastore.ErrNotFound {
 		span.AddEvent("remote-heads-load-failed")
-		return errors.Wrap(err, "unable to get data from cache")
+		return fmt.Errorf("unable to get data from cache: %w", err)
 	}
 
 	err = nil
@@ -425,7 +425,7 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 		err = json.Unmarshal(remoteHeadsBytes, &remoteHeads)
 		if err != nil {
 			span.AddEvent("remote-heads-unmarshall-failed")
-			return errors.Wrap(err, "unable to unmarshal cached remote heads")
+			return fmt.Errorf("unable to unmarshal cached remote heads: %w", err)
 		}
 		span.AddEvent("remote-heads-unmarshalled")
 	}
@@ -505,7 +505,7 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 			span.AddEvent("store-heads-joining")
 			if _, inErr = oplog.Join(l, amount); inErr != nil {
 				span.AddEvent("store-heads-joining-failed")
-				// err = errors.Wrap(err, "unable to join log")
+				// err = fmt.Errorf("unable to join log: %w", err)
 				// TODO: log
 				_ = inErr
 			} else {
@@ -526,13 +526,13 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 		span.AddEvent("store-index-updating")
 		if err := b.updateIndex(ctx); err != nil {
 			span.AddEvent("store-index-updating-error", trace.WithAttributes(otkv.String("error", err.Error())))
-			return errors.Wrap(err, "unable to update index")
+			return fmt.Errorf("unable to update index: %w", err)
 		}
 		span.AddEvent("store-index-updated")
 	}
 
 	if err := b.emitters.evtReady.Emit(stores.NewEventReady(b.Address(), b.OpLog().Heads().Slice())); err != nil {
-		return errors.Wrap(err, "unable to emit event ready")
+		return fmt.Errorf("unable to emit event ready: %w", err)
 	}
 
 	return nil
@@ -562,7 +562,7 @@ func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
 
 		identityProvider := b.Identity().Provider
 		if identityProvider == nil {
-			return errors.New("identity-provider is required, cannot verify entry")
+			return fmt.Errorf("identity-provider is required, cannot verify entry")
 		}
 
 		canAppend := b.AccessController().CanAppend(h, identityProvider, &CanAppendContext{log: b.OpLog()})
@@ -575,12 +575,12 @@ func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
 		hash, err := b.IO().Write(ctx, b.IPFS(), h, nil)
 		if err != nil {
 			span.AddEvent("store-sync-cant-write", trace.WithAttributes(otkv.String("error", err.Error())))
-			return errors.Wrap(err, "unable to write entry on dag")
+			return fmt.Errorf("unable to write entry on dag: %w", err)
 		}
 
 		if hash.String() != h.GetHash().String() {
 			span.AddEvent("store-sync-cant-verify-hash")
-			return errors.New("WARNING! Head hash didn't match the contents")
+			return fmt.Errorf("WARNING! Head hash didn't match the contents")
 		}
 
 		span.AddEvent("store-sync-head-verified")
@@ -616,7 +616,7 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 
 	queueJSON, err := b.Cache().Get(ctx, datastore.NewKey("queue"))
 	if err != nil && err != datastore.ErrNotFound {
-		return errors.Wrap(err, "unable to get value from cache")
+		return fmt.Errorf("unable to get value from cache: %w", err)
 	}
 
 	if err != datastore.ErrNotFound {
@@ -625,7 +625,7 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 		var entries []ipfslog.Entry
 
 		if err := json.Unmarshal(queueJSON, &queue); err != nil {
-			return errors.Wrap(err, "unable to deserialize queued CIDs")
+			return fmt.Errorf("unable to deserialize queued CIDs: %w", err)
 		}
 
 		for _, h := range queue {
@@ -633,45 +633,45 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 		}
 
 		if err := b.Sync(ctx, entries); err != nil {
-			return errors.Wrap(err, "unable to sync queued CIDs")
+			return fmt.Errorf("unable to sync queued CIDs: %w", err)
 		}
 	}
 
 	snapshot, err := b.Cache().Get(ctx, datastore.NewKey("snapshot"))
 	if err == datastore.ErrNotFound {
-		return errors.Wrap(err, "not found")
+		return fmt.Errorf("not found: %w", err)
 	}
 
 	if err != nil {
-		return errors.Wrap(err, "unable to get value from cache")
+		return fmt.Errorf("unable to get value from cache: %w", err)
 	}
 
 	b.Logger().Debug("loading snapshot from path", zap.String("snapshot", string(snapshot)))
 
 	resNode, err := b.IPFS().Unixfs().Get(ctx, path.New(string(snapshot)))
 	if err != nil {
-		return errors.Wrap(err, "unable to get snapshot from ipfs")
+		return fmt.Errorf("unable to get snapshot from ipfs: %w", err)
 	}
 
 	res, ok := resNode.(files.File)
 	if !ok {
-		return errors.New("unable to cast fetched data as a file")
+		return fmt.Errorf("unable to cast fetched data as a file")
 	}
 
 	headerLengthRaw := make([]byte, 2)
 	if _, err := res.Read(headerLengthRaw); err != nil {
-		return errors.Wrap(err, "unable to read from stream")
+		return fmt.Errorf("unable to read from stream: %w", err)
 	}
 
 	headerLength := binary.BigEndian.Uint16(headerLengthRaw)
 	header := &storeSnapshot{}
 	headerRaw := make([]byte, headerLength)
 	if _, err := res.Read(headerRaw); err != nil {
-		return errors.Wrap(err, "unable to read from stream")
+		return fmt.Errorf("unable to read from stream: %w", err)
 	}
 
 	if err := json.Unmarshal(headerRaw, &header); err != nil {
-		return errors.Wrap(err, "unable to decode header from ipfs data")
+		return fmt.Errorf("unable to decode header from ipfs data: %w", err)
 	}
 
 	var entries []ipfslog.Entry
@@ -680,7 +680,7 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 	for i := 0; i < header.Size; i++ {
 		entryLengthRaw := make([]byte, 2)
 		if _, err := res.Read(entryLengthRaw); err != nil {
-			return errors.Wrap(err, "unable to read from stream")
+			return fmt.Errorf("unable to read from stream: %w", err)
 		}
 
 		entryLength := binary.BigEndian.Uint16(entryLengthRaw)
@@ -688,13 +688,13 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 		entryRaw := make([]byte, entryLength)
 
 		if _, err := res.Read(entryRaw); err != nil {
-			return errors.Wrap(err, "unable to read from stream")
+			return fmt.Errorf("unable to read from stream: %w", err)
 		}
 
 		b.Logger().Debug(fmt.Sprintf("Entry raw: %s", string(entryRaw)))
 
 		if err = json.Unmarshal(entryRaw, e); err != nil {
-			return errors.Wrap(err, "unable to unmarshal entry from ipfs data")
+			return fmt.Errorf("unable to unmarshal entry from ipfs data: %w", err)
 		}
 
 		entries = append(entries, e)
@@ -726,15 +726,15 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 	})
 
 	if err != nil {
-		return errors.Wrap(err, "unable to load log")
+		return fmt.Errorf("unable to load log: %w", err)
 	}
 
 	if _, err = b.OpLog().Join(log, -1); err != nil {
-		return errors.Wrap(err, "unable to join log")
+		return fmt.Errorf("unable to join log: %w", err)
 	}
 
 	if err := b.updateIndex(ctx); err != nil {
-		return errors.Wrap(err, "unable to update index")
+		return fmt.Errorf("unable to update index: %w", err)
 	}
 
 	return nil
@@ -750,30 +750,30 @@ func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, on
 
 	data, err := op.Marshal()
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to marshal operation")
+		return nil, fmt.Errorf("unable to marshal operation: %w", err)
 	}
 
 	oplog := b.OpLog()
 
 	e, err := oplog.Append(ctx, data, &ipfslog.AppendOptions{PointerCount: b.referenceCount})
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to append data on log")
+		return nil, fmt.Errorf("unable to append data on log: %w", err)
 	}
 
 	b.recalculateReplicationStatus(e.GetClock().GetTime())
 
 	marshaledEntry, err := json.Marshal([]ipfslog.Entry{e})
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to marshal entry")
+		return nil, fmt.Errorf("unable to marshal entry: %w", err)
 	}
 
 	err = b.Cache().Put(ctx, datastore.NewKey("_localHeads"), marshaledEntry)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to add data to cache")
+		return nil, fmt.Errorf("unable to add data to cache: %w", err)
 	}
 
 	if err := b.updateIndex(ctx); err != nil {
-		return nil, errors.Wrap(err, "unable to update index")
+		return nil, fmt.Errorf("unable to update index: %w", err)
 	}
 
 	if err := b.emitters.evtWrite.Emit(stores.NewEventWrite(b.Address(), e, oplog.Heads().Slice())); err != nil {
@@ -821,7 +821,7 @@ func (b *BaseStore) updateIndex(ctx context.Context) error {
 	defer span.End()
 
 	if err := b.Index().UpdateIndex(b.OpLog(), []ipfslog.Entry{}); err != nil {
-		return errors.Wrap(err, "unable to update index")
+		return fmt.Errorf("unable to update index: %w", err)
 	}
 
 	return nil
@@ -831,31 +831,31 @@ func (b *BaseStore) generateEmitter(bus event.Bus) error {
 	var err error
 
 	if b.emitters.evtWrite, err = bus.Emitter(new(stores.EventWrite)); err != nil {
-		return errors.Wrap(err, "unable to create EventWrite emitter")
+		return fmt.Errorf("unable to create EventWrite emitter: %w", err)
 	}
 
 	if b.emitters.evtReady, err = bus.Emitter(new(stores.EventReady)); err != nil {
-		return errors.Wrap(err, "unable to create EventReady emitter")
+		return fmt.Errorf("unable to create EventReady emitter: %w", err)
 	}
 
 	if b.emitters.evtReplicateProgress, err = bus.Emitter(new(stores.EventReplicateProgress)); err != nil {
-		return errors.Wrap(err, "unable to create EventReplicateProgress emitter")
+		return fmt.Errorf("unable to create EventReplicateProgress emitter: %w", err)
 	}
 
 	if b.emitters.evtLoad, err = bus.Emitter(new(stores.EventLoad)); err != nil {
-		return errors.Wrap(err, "unable to create EventLoad emitter")
+		return fmt.Errorf("unable to create EventLoad emitter: %w", err)
 	}
 
 	if b.emitters.evtLoadProgress, err = bus.Emitter(new(stores.EventLoadProgress)); err != nil {
-		return errors.Wrap(err, "unable to create EventLoad emitter")
+		return fmt.Errorf("unable to create EventLoad emitter: %w", err)
 	}
 
 	if b.emitters.evtReplicated, err = bus.Emitter(new(stores.EventReplicated)); err != nil {
-		return errors.Wrap(err, "unable to create EventReplicated emitter")
+		return fmt.Errorf("unable to create EventReplicated emitter: %w", err)
 	}
 
 	if b.emitters.evtReplicate, err = bus.Emitter(new(stores.EventReplicate)); err != nil {
-		return errors.Wrap(err, "unable to create EventReplicate emitter")
+		return fmt.Errorf("unable to create EventReplicate emitter: %w", err)
 	}
 
 	return nil

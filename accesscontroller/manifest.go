@@ -2,6 +2,7 @@ package accesscontroller
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -9,7 +10,6 @@ import (
 	cid "github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/pkg/errors"
 	"github.com/polydawn/refmt/obj/atlas"
 	"go.uber.org/zap"
 )
@@ -160,7 +160,7 @@ func CreateManifest(ctx context.Context, ipfs coreapi.CoreAPI, controllerType st
 func ResolveManifest(ctx context.Context, ipfs coreapi.CoreAPI, manifestAddress string, params ManifestParams) (*Manifest, error) {
 	if params.GetSkipManifest() {
 		if params.GetType() == "" {
-			return nil, errors.New("no manifest, access-controller type required")
+			return nil, fmt.Errorf("no manifest, access-controller type required")
 		}
 
 		manifest := &Manifest{
@@ -177,18 +177,18 @@ func ResolveManifest(ctx context.Context, ipfs coreapi.CoreAPI, manifestAddress 
 
 	c, err := cid.Decode(manifestAddress)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to parse CID")
+		return nil, fmt.Errorf("unable to parse CID: %w", err)
 	}
 
 	node, err := io.ReadCBOR(ctx, ipfs, c)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to fetch manifest data")
+		return nil, fmt.Errorf("unable to fetch manifest data: %w", err)
 	}
 
 	manifest := &Manifest{}
 	err = cbornode.DecodeInto(node.RawData(), &manifest)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to unmarshal")
+		return nil, fmt.Errorf("unable to unmarshal: %w", err)
 	}
 
 	return manifest, nil

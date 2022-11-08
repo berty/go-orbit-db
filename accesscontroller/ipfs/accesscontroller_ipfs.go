@@ -15,7 +15,6 @@ import (
 	cid "github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/pkg/errors"
 	"github.com/polydawn/refmt/obj/atlas"
 	"go.uber.org/zap"
 )
@@ -50,7 +49,7 @@ func (i *ipfsAccessController) CanAppend(entry logac.LogEntry, p identityprovide
 		}
 	}
 
-	return errors.New("not allowed")
+	return fmt.Errorf("not allowed")
 }
 
 func (i *ipfsAccessController) GetAuthorizedByRole(role string) ([]string, error) {
@@ -65,11 +64,11 @@ func (i *ipfsAccessController) GetAuthorizedByRole(role string) ([]string, error
 }
 
 func (i *ipfsAccessController) Grant(ctx context.Context, capability string, keyID string) error {
-	return errors.New("not implemented - does not exist in JS version")
+	return fmt.Errorf("not implemented - does not exist in JS version")
 }
 
 func (i *ipfsAccessController) Revoke(ctx context.Context, capability string, keyID string) error {
-	return errors.New("not implemented - does not exist in JS version")
+	return fmt.Errorf("not implemented - does not exist in JS version")
 }
 
 func (i *ipfsAccessController) Load(ctx context.Context, address string) error {
@@ -77,34 +76,34 @@ func (i *ipfsAccessController) Load(ctx context.Context, address string) error {
 
 	c, err := cid.Decode(address)
 	if err != nil {
-		return errors.Wrap(err, "unable to parse cid")
+		return fmt.Errorf("unable to parse cid: %w", err)
 	}
 
 	res, err := io.ReadCBOR(ctx, i.ipfs, c)
 	if err != nil {
-		return errors.Wrap(err, "unable to load access controller manifest data")
+		return fmt.Errorf("unable to load access controller manifest data: %w", err)
 	}
 
 	manifest := &accesscontroller.Manifest{}
 	err = cbornode.DecodeInto(res.RawData(), manifest)
 	if err != nil {
-		return errors.Wrap(err, "unable to unmarshal access controller manifest data")
+		return fmt.Errorf("unable to unmarshal access controller manifest data: %w", err)
 	}
 
 	res, err = io.ReadCBOR(ctx, i.ipfs, manifest.Params.GetAddress())
 	if err != nil {
-		return errors.Wrap(err, "unable to load access controller data")
+		return fmt.Errorf("unable to load access controller data: %w", err)
 	}
 
 	writeAccessData := &cborWriteAccess{}
 	err = cbornode.DecodeInto(res.RawData(), writeAccessData)
 	if err != nil {
-		return errors.Wrap(err, "unable to unmarshal access controller data")
+		return fmt.Errorf("unable to unmarshal access controller data: %w", err)
 	}
 
 	var writeAccess []string
 	if err := json.Unmarshal([]byte(writeAccessData.Write), &writeAccess); err != nil {
-		return errors.Wrap(err, "unable to unmarshal json write access")
+		return fmt.Errorf("unable to unmarshal json write access: %w", err)
 	}
 
 	i.muWriteAccess.Lock()
@@ -120,12 +119,12 @@ func (i *ipfsAccessController) Save(ctx context.Context) (accesscontroller.Manif
 	i.muWriteAccess.RUnlock()
 
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to serialize write access")
+		return nil, fmt.Errorf("unable to serialize write access: %w", err)
 	}
 
 	c, err := io.WriteCBOR(ctx, i.ipfs, &cborWriteAccess{Write: string(writeAccess)}, nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to save access controller")
+		return nil, fmt.Errorf("unable to save access controller: %w", err)
 	}
 
 	i.logger.Debug(fmt.Sprintf("saved IPFS access controller write access on hash %s", c.String()))
@@ -134,17 +133,17 @@ func (i *ipfsAccessController) Save(ctx context.Context) (accesscontroller.Manif
 }
 
 func (i *ipfsAccessController) Close() error {
-	return errors.New("not implemented - does not exist in JS version")
+	return fmt.Errorf("not implemented - does not exist in JS version")
 }
 
 // NewIPFSAccessController Returns an access controller for IPFS
 func NewIPFSAccessController(_ context.Context, db iface.BaseOrbitDB, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (accesscontroller.Interface, error) {
 	if params == nil {
-		return &ipfsAccessController{}, errors.New("an options object must be passed")
+		return &ipfsAccessController{}, fmt.Errorf("an options object must be passed")
 	}
 
 	if db == nil {
-		return &ipfsAccessController{}, errors.New("an OrbitDB instance is required")
+		return &ipfsAccessController{}, fmt.Errorf("an OrbitDB instance is required")
 	}
 
 	if len(params.GetAccess("write")) == 0 {

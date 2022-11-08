@@ -10,9 +10,8 @@ import (
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/iface"
 	cid "github.com/ipfs/go-cid"
-	"github.com/libp2p/go-eventbus"
 	"github.com/libp2p/go-libp2p/core/event"
-	"github.com/pkg/errors"
+	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 	otkv "go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -278,7 +277,7 @@ func (r *replicator) processHash(ctx context.Context, item processItem) ([]cid.C
 	})
 
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to fetch log")
+		return nil, fmt.Errorf("unable to fetch log: %w", err)
 	}
 
 	r.muBuffer.Lock()
@@ -302,15 +301,15 @@ func (r *replicator) generateEmitter(bus event.Bus) error {
 	var err error
 
 	if r.emitters.evtLoadEnd, err = bus.Emitter(new(EventLoadEnd)); err != nil {
-		return errors.Wrap(err, "unable to create EventLoadEnd emitter")
+		return fmt.Errorf("unable to create EventLoadEnd emitter: %w", err)
 	}
 
 	if r.emitters.evtLoadAdded, err = bus.Emitter(new(EventLoadAdded)); err != nil {
-		return errors.Wrap(err, "unable to create EventLoadAdded emitter")
+		return fmt.Errorf("unable to create EventLoadAdded emitter: %w", err)
 	}
 
 	if r.emitters.evtLoadProgress, err = bus.Emitter(new(EventLoadProgress)); err != nil {
-		return errors.Wrap(err, "unable to create EventLoadProgress emitter")
+		return fmt.Errorf("unable to create EventLoadProgress emitter: %w", err)
 	}
 
 	return nil

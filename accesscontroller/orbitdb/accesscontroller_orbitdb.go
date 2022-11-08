@@ -3,6 +3,7 @@ package orbitdb
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 
 	logac "berty.tech/go-ipfs-log/accesscontroller"
@@ -15,7 +16,6 @@ import (
 
 	cid "github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/event"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -63,7 +63,7 @@ func (o *orbitDBAccessController) Address() address.Address {
 func (o *orbitDBAccessController) GetAuthorizedByRole(role string) ([]string, error) {
 	authorizations, err := o.getAuthorizations()
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to get authorizations")
+		return nil, fmt.Errorf("unable to get authorizations: %w", err)
 	}
 
 	return authorizations[role], nil
@@ -81,7 +81,7 @@ func (o *orbitDBAccessController) getAuthorizations() (map[string][]string, erro
 		authorizations[role] = map[string]struct{}{}
 
 		if err := json.Unmarshal(keyBytes, &authorizedKeys); err != nil {
-			return nil, errors.Wrap(err, "unable to unmarshal json")
+			return nil, fmt.Errorf("unable to unmarshal json: %w", err)
 		}
 
 		for _, key := range authorizedKeys {
@@ -114,12 +114,12 @@ func (o *orbitDBAccessController) getAuthorizations() (map[string][]string, erro
 func (o *orbitDBAccessController) CanAppend(entry logac.LogEntry, p identityprovider.Interface, additionalContext accesscontroller.CanAppendAdditionalContext) error {
 	writeAccess, err := o.GetAuthorizedByRole("write")
 	if err != nil {
-		return errors.Wrap(err, "unable to get keys with write access")
+		return fmt.Errorf("unable to get keys with write access: %w", err)
 	}
 
 	adminAccess, err := o.GetAuthorizedByRole("admin")
 	if err != nil {
-		return errors.Wrap(err, "unable to get keys with admin access")
+		return fmt.Errorf("unable to get keys with admin access: %w", err)
 	}
 
 	access := append(writeAccess, adminAccess...)
@@ -130,25 +130,25 @@ func (o *orbitDBAccessController) CanAppend(entry logac.LogEntry, p identityprov
 		}
 	}
 
-	return errors.New("unauthorized")
+	return fmt.Errorf("unauthorized")
 }
 
 func (o *orbitDBAccessController) Grant(ctx context.Context, capability string, keyID string) error {
 	capabilities, err := o.GetAuthorizedByRole(capability)
 	if err != nil {
-		return errors.Wrap(err, "unable to fetch capabilities")
+		return fmt.Errorf("unable to fetch capabilities: %w", err)
 	}
 
 	capabilities = append(capabilities, keyID)
 
 	capabilitiesJSON, err := json.Marshal(capabilities)
 	if err != nil {
-		return errors.Wrap(err, "unable to marshal capabilities")
+		return fmt.Errorf("unable to marshal capabilities: %w", err)
 	}
 
 	_, err = o.kvStore.Put(ctx, capability, capabilitiesJSON)
 	if err != nil {
-		return errors.Wrap(err, "unable to put data in store")
+		return fmt.Errorf("unable to put data in store: %w", err)
 	}
 
 	return nil
@@ -157,7 +157,7 @@ func (o *orbitDBAccessController) Grant(ctx context.Context, capability string, 
 func (o *orbitDBAccessController) Revoke(ctx context.Context, capability string, keyID string) error {
 	capabilities, err := o.GetAuthorizedByRole(capability)
 	if err != nil {
-		return errors.Wrap(err, "unable to get capability")
+		return fmt.Errorf("unable to get capability: %w", err)
 	}
 
 	for idx, existingKeyID := range capabilities {
@@ -170,17 +170,17 @@ func (o *orbitDBAccessController) Revoke(ctx context.Context, capability string,
 	if len(capabilities) > 0 {
 		capabilitiesJSON, err := json.Marshal(capabilities)
 		if err != nil {
-			return errors.Wrap(err, "unable to marshal capabilities")
+			return fmt.Errorf("unable to marshal capabilities: %w", err)
 		}
 
 		_, err = o.kvStore.Put(ctx, capability, capabilitiesJSON)
 		if err != nil {
-			return errors.Wrap(err, "unable to persist capabilities")
+			return fmt.Errorf("unable to persist capabilities: %w", err)
 		}
 	} else {
 		_, err := o.kvStore.Delete(ctx, capability)
 		if err != nil {
-			return errors.Wrap(err, "unable to remove capabilities")
+			return fmt.Errorf("unable to remove capabilities: %w", err)
 		}
 	}
 
@@ -191,7 +191,7 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 	if o.kvStore != nil {
 		err := o.kvStore.Close()
 		if err != nil {
-			return errors.Wrap(err, "unable to close opened store")
+			return fmt.Errorf("unable to close opened store: %w", err)
 		}
 	}
 
@@ -208,7 +208,7 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 		AccessController: ipfsAccessController,
 	})
 	if err != nil {
-		return errors.Wrap(err, "unable to open key value store for access controller")
+		return fmt.Errorf("unable to open key value store for access controller: %w", err)
 	}
 
 	o.kvStore = store
@@ -219,7 +219,7 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 		new(stores.EventReplicated),
 	})
 	if err != nil {
-		return errors.Wrap(err, "unable subscribe to store events")
+		return fmt.Errorf("unable subscribe to store events: %w", err)
 	}
 
 	go func() {
@@ -242,7 +242,7 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 
 	err = o.kvStore.Load(ctx, -1)
 	if err != nil {
-		return errors.Wrap(err, "unable to fetch store data")
+		return fmt.Errorf("unable to fetch store data: %w", err)
 	}
 
 	return nil
@@ -254,7 +254,7 @@ func (o *orbitDBAccessController) Save(ctx context.Context) (accesscontroller.Ma
 
 func (o *orbitDBAccessController) Close() error {
 	if err := o.kvStore.Close(); err != nil {
-		return errors.Wrap(err, "error while closing store")
+		return fmt.Errorf("error while closing store: %w", err)
 	}
 
 	return nil
@@ -269,12 +269,12 @@ func (o *orbitDBAccessController) onUpdate(ctx context.Context) {
 // NewIPFSAccessController Returns a default access controller for OrbitDB database
 func NewOrbitDBAccessController(ctx context.Context, db iface.BaseOrbitDB, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (accesscontroller.Interface, error) {
 	if db == nil {
-		return &orbitDBAccessController{}, errors.New("an OrbitDB instance is required")
+		return &orbitDBAccessController{}, fmt.Errorf("an OrbitDB instance is required")
 	}
 
 	kvDB, ok := db.(iface.OrbitDBKVStoreProvider)
 	if !ok {
-		return &orbitDBAccessController{}, errors.New("the OrbitDB instance must provide a key value store")
+		return &orbitDBAccessController{}, fmt.Errorf("the OrbitDB instance must provide a key value store")
 	}
 
 	addr := "default-access-controller"
@@ -286,12 +286,12 @@ func NewOrbitDBAccessController(ctx context.Context, db iface.BaseOrbitDB, param
 
 	kvStore, err := kvDB.KeyValue(ctx, addr, nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to init key value store")
+		return nil, fmt.Errorf("unable to init key value store: %w", err)
 	}
 
 	emitter, err := db.EventBus().Emitter(new(EventUpdated))
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to init emitter")
+		return nil, fmt.Errorf("unable to init emitter: %w", err)
 	}
 
 	controller := &orbitDBAccessController{
@@ -306,7 +306,7 @@ func NewOrbitDBAccessController(ctx context.Context, db iface.BaseOrbitDB, param
 
 	for _, writeAccess := range params.GetAccess("write") {
 		if err := controller.Grant(ctx, "write", writeAccess); err != nil {
-			return nil, errors.Wrap(err, "unable to grant write access")
+			return nil, fmt.Errorf("unable to grant write access: %w", err)
 		}
 	}
 

@@ -1,12 +1,12 @@
 package kvstore
 
 import (
+	"fmt"
 	"sync"
 
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores/operation"
-	"github.com/pkg/errors"
 )
 
 type kvIndex struct {
@@ -33,7 +33,7 @@ func (i *kvIndex) UpdateIndex(oplog ipfslog.Log, _ []ipfslog.Entry) error {
 	for idx := range entries {
 		item, err := operation.ParseOperation(entries[size-idx-1])
 		if err != nil {
-			return errors.Wrap(err, "unable to parse log kv operation")
+			return fmt.Errorf("unable to parse log kv operation: %w", err)
 		}
 
 		key := item.GetKey()

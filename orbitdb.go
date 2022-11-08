@@ -2,9 +2,9 @@ package orbitdb
 
 import (
 	"context"
+	"fmt"
 
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/pkg/errors"
 
 	"berty.tech/go-orbit-db/accesscontroller/ipfs"
 	"berty.tech/go-orbit-db/accesscontroller/orbitdb"
@@ -92,12 +92,12 @@ func (o *orbitDB) Log(ctx context.Context, address string, options *CreateDBOpti
 	options.StoreType = stringPtr("eventlog")
 	store, err := o.Open(ctx, address, options)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to open database")
+		return nil, fmt.Errorf("unable to open database: %w", err)
 	}
 
 	logStore, ok := store.(EventLogStore)
 	if !ok {
-		return nil, errors.New("unable to cast store to log")
+		return nil, fmt.Errorf("unable to cast store to log")
 	}
 
 	return logStore, nil
@@ -121,12 +121,12 @@ func (o *orbitDB) KeyValue(ctx context.Context, address string, options *CreateD
 
 	store, err := o.Open(ctx, address, options)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to open database")
+		return nil, fmt.Errorf("unable to open database: %w", err)
 	}
 
 	kvStore, ok := store.(KeyValueStore)
 	if !ok {
-		return nil, errors.New("unable to cast store to keyvalue")
+		return nil, fmt.Errorf("unable to cast store to keyvalue")
 	}
 
 	return kvStore, nil
@@ -142,12 +142,12 @@ func (o *orbitDB) Docs(ctx context.Context, address string, options *CreateDBOpt
 
 	store, err := o.Open(ctx, address, options)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to open database")
+		return nil, fmt.Errorf("unable to open database: %w", err)
 	}
 
 	documentStore, ok := store.(DocumentStore)
 	if !ok {
-		return nil, errors.New("unable to cast store to document")
+		return nil, fmt.Errorf("unable to cast store to document")
 	}
 
 	return documentStore, nil

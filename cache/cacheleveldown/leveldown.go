@@ -2,6 +2,7 @@ package cacheleveldown
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
 	"sync"
@@ -11,7 +12,6 @@ import (
 	datastore "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
 	leveldb "github.com/ipfs/go-ds-leveldb"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -94,7 +94,7 @@ func (l *levelDownCache) Load(directory string, dbAddress address.Address) (ds d
 	}
 
 	if err != nil {
-		err = errors.Wrap(err, "unable to init leveldb datastore")
+		err = fmt.Errorf("unable to init leveldb datastore: %w", err)
 		return
 	}
 
@@ -128,7 +128,7 @@ func (l *levelDownCache) Destroy(directory string, dbAddress address.Address) er
 
 	if directory != InMemoryDirectory {
 		if err := os.RemoveAll(keyPath); err != nil {
-			return errors.Wrap(err, "unable to delete datastore")
+			return fmt.Errorf("unable to delete datastore: %w", err)
 		}
 	}
 
