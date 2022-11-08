@@ -22,12 +22,13 @@ jobs:
         with:
           go-version: ${{ matrix.golang }}
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3.1.0
+        uses: golangci/golangci-lint-action@v3.3.0
         with:
           go-version: ${{ matrix.golang }}
-          version: v1.44.2
+          version: v1.50.1
           args: --timeout=10m
           # only-new-issues: true
+
 
   go-tests-on-linux:
     runs-on: ubuntu-latest
