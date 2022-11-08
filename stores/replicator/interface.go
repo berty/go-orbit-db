@@ -8,7 +8,7 @@ import (
 	"berty.tech/go-orbit-db/accesscontroller"
 	cid "github.com/ipfs/go-cid"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/libp2p/go-libp2p-core/event"
+	"github.com/libp2p/go-libp2p/core/event"
 )
 
 // storeInterface An interface used to avoid import cycles

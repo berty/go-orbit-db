@@ -23,7 +23,7 @@ func TestPersistence(t *testing.T) {
 	entryCount := 65
 	infinity := -1
 
-	mocknet := testingMockNet(ctx)
+	mocknet := testingMockNet(t)
 	node, clean := testingIPFSNode(ctx, t, mocknet)
 	defer clean()
 

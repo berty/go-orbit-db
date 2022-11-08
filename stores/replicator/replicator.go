@@ -11,7 +11,7 @@ import (
 	"berty.tech/go-ipfs-log/iface"
 	cid "github.com/ipfs/go-cid"
 	"github.com/libp2p/go-eventbus"
-	"github.com/libp2p/go-libp2p-core/event"
+	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/pkg/errors"
 	otkv "go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"

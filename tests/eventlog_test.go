@@ -32,7 +32,7 @@ func TestLogDatabase(t *testing.T) {
 	)
 	setup := func(t *testing.T) func() {
 		t.Helper()
-		mocknet := testingMockNet(ctx)
+		mocknet := testingMockNet(t)
 		node, nodeClean := testingIPFSNode(ctx, t, mocknet)
 
 		db1IPFS := testingCoreAPI(t, node)

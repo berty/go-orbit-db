@@ -14,7 +14,7 @@ import (
 	"berty.tech/go-orbit-db/stores"
 
 	cid "github.com/ipfs/go-cid"
-	"github.com/libp2p/go-libp2p-core/event"
+	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )

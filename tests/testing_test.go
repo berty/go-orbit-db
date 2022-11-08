@@ -8,17 +8,17 @@ import (
 	"os"
 	"testing"
 
-	"github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 
 	ds "github.com/ipfs/go-datastore"
 	dsync "github.com/ipfs/go-datastore/sync"
-	cfg "github.com/ipfs/go-ipfs-config"
-	ipfsCore "github.com/ipfs/go-ipfs/core"
-	"github.com/ipfs/go-ipfs/core/coreapi"
-	mock "github.com/ipfs/go-ipfs/core/mock"
-	"github.com/ipfs/go-ipfs/repo"
 	iface "github.com/ipfs/interface-go-ipfs-core"
+	cfg "github.com/ipfs/kubo/config"
+	ipfsCore "github.com/ipfs/kubo/core"
+	"github.com/ipfs/kubo/core/coreapi"
+	mock "github.com/ipfs/kubo/core/mock"
+	"github.com/ipfs/kubo/repo"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/require"
 )
@@ -51,7 +51,9 @@ func testingRepo(ctx context.Context, t *testing.T) repo.Repo {
 func testingIPFSAPIs(ctx context.Context, t *testing.T, count int) ([]iface.CoreAPI, func()) {
 	t.Helper()
 
-	mn := testingMockNet(ctx)
+	mn := testingMockNet(t)
+	defer mn.Close()
+
 	coreAPIs := make([]iface.CoreAPI, count)
 	cleans := make([]func(), count)
 
@@ -156,8 +158,10 @@ func testingCoreAPI(t *testing.T, core *ipfsCore.IpfsNode) iface.CoreAPI {
 	return api
 }
 
-func testingMockNet(ctx context.Context) mocknet.Mocknet {
-	return mocknet.New(ctx)
+func testingMockNet(t *testing.T) mocknet.Mocknet {
+	mn := mocknet.New()
+	t.Cleanup(func() { mn.Close() })
+	return mn
 }
 
 func testingTempDir(t *testing.T, name string) (string, func()) {

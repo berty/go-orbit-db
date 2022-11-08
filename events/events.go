@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/libp2p/go-eventbus"
-	"github.com/libp2p/go-libp2p-core/event"
+	"github.com/libp2p/go-libp2p/core/event"
 )
 
 type Event interface{}

@@ -2,8 +2,8 @@ package pubsub
 
 import (
 	"github.com/libp2p/go-eventbus"
-	"github.com/libp2p/go-libp2p-core/event"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/event"
+	"github.com/libp2p/go-libp2p/core/peer"
 
 	"berty.tech/go-orbit-db/iface"
 )

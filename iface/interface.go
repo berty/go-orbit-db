@@ -17,8 +17,8 @@ import (
 	cid "github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/libp2p/go-libp2p-core/event"
-	peer "github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/event"
+	peer "github.com/libp2p/go-libp2p/core/peer"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
