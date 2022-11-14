@@ -18,6 +18,10 @@ import (
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/iface"
+	"berty.tech/go-orbit-db/messagemarshaler"
+	"berty.tech/go-orbit-db/pubsub"
+	"berty.tech/go-orbit-db/pubsub/oneonone"
+	"berty.tech/go-orbit-db/pubsub/pubsubcoreapi"
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/operation"
 	"berty.tech/go-orbit-db/stores/replicator"
@@ -27,6 +31,7 @@ import (
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/libp2p/go-libp2p/core/event"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 	"github.com/pkg/errors"
 	otkv "go.opentelemetry.io/otel/attribute"
@@ -47,6 +52,7 @@ type BaseStore struct {
 	}
 
 	id                string
+	peerID            peer.ID
 	identity          *identityprovider.Identity
 	address           address.Address
 	dbName            string
@@ -58,11 +64,15 @@ type BaseStore struct {
 	index             iface.StoreIndex
 	replicationStatus replicator.ReplicationInfo
 
-	referenceCount int
-	replicate      bool
-	directory      string
-	options        *iface.NewStoreOptions
-	cacheDestroy   func() error
+	referenceCount   int
+	directory        string
+	options          *iface.NewStoreOptions
+	cacheDestroy     func() error
+	eventBus         event.Bus
+	pubsub           iface.PubSubInterface
+	messageMarshaler iface.MessageMarshaler
+	directChannel    iface.DirectChannel
+	newHeadsEmitter  event.Emitter
 
 	muCache   sync.RWMutex
 	muIndex   sync.RWMutex
@@ -124,20 +134,7 @@ func (b *BaseStore) IO() ipfslog.IO {
 }
 
 func (b *BaseStore) EventBus() event.Bus {
-	return b.options.EventBus
-}
-
-func (b *BaseStore) Context() context.Context {
-	return b.ctx
-}
-
-func (b *BaseStore) IsClosed() bool {
-	select {
-	case <-b.ctx.Done():
-		return true
-	default:
-		return false
-	}
+	return b.eventBus
 }
 
 // InitBaseStore Initializes the store base
@@ -155,10 +152,45 @@ func (b *BaseStore) InitBaseStore(ipfs coreapi.CoreAPI, identity *identityprovid
 	} else if err := b.SetBus(options.EventBus); err != nil {
 		return fmt.Errorf("unable set event bus: %w", err)
 	}
+	b.eventBus = options.EventBus
 
 	if options.Logger == nil {
 		options.Logger = zap.NewNop()
 	}
+
+	if options.DirectChannelFactory == nil {
+		options.DirectChannelFactory = oneonone.NewChannelFactory(ipfs)
+	}
+	directChannel, err := makeDirectChannel(b.ctx, options.EventBus, options.DirectChannelFactory, &iface.DirectChannelOptions{
+		Logger: options.Logger,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to create a direct connection with peer: %w", err)
+	}
+	b.directChannel = directChannel
+
+	b.newHeadsEmitter = options.NewHeadsEmitter
+
+	k, err := ipfs.Key().Self(b.ctx)
+	if err != nil {
+		return err
+	}
+
+	if options.PeerID.Validate() == peer.ErrEmptyPeerID {
+		id := k.ID()
+		options.PeerID = id
+	}
+	b.peerID = options.PeerID
+
+	if options.PubSub == nil {
+		options.PubSub = pubsubcoreapi.NewPubSub(ipfs, k.ID(), time.Second, options.Logger, options.Tracer)
+	}
+	b.pubsub = options.PubSub
+
+	if options.MessageMarshaler == nil {
+		options.MessageMarshaler = &messagemarshaler.JSONMarshaler{}
+	}
+	b.messageMarshaler = options.MessageMarshaler
 
 	if options.Tracer == nil {
 		options.Tracer = trace.NewNoopTracerProvider().Tracer("")
@@ -238,10 +270,8 @@ func (b *BaseStore) InitBaseStore(ipfs coreapi.CoreAPI, identity *identityprovid
 		b.directory = options.Directory
 	}
 
-	// TODO: Doesn't seem to be used
-	b.replicate = true
-	if options.Replicate != nil {
-		b.replicate = *options.Replicate
+	if options.Replicate == nil {
+		options.Replicate = boolPtr(true)
 	}
 
 	b.options = options
@@ -319,13 +349,37 @@ func (b *BaseStore) InitBaseStore(ipfs coreapi.CoreAPI, identity *identityprovid
 		}
 	}()
 
+	if err := b.monitorDirectChannel(); err != nil {
+		return fmt.Errorf("unable to monitor direct channel: %w", err)
+	}
+
+	// Subscribe to pubsub to get updates from peers,
+	// this is what hooks us into the message propagation layer
+	// and the p2p network
+	if *options.Replicate {
+		if err := b.replicate(); err != nil {
+			return fmt.Errorf("unable to start store replication: %w", err)
+		}
+	}
+
 	return nil
 }
 
+func (b *BaseStore) isClosed() bool {
+	select {
+	case <-b.ctx.Done():
+		return true
+	default:
+		return false
+	}
+}
+
 func (b *BaseStore) Close() error {
-	if b.IsClosed() {
+	if b.isClosed() {
 		return nil
 	}
+
+	b.closeDirectConnections()
 
 	// Replicator teardown logic
 	b.Replicator().Stop()
@@ -355,6 +409,12 @@ func (b *BaseStore) Close() error {
 	return nil
 }
 
+func (b *BaseStore) closeDirectConnections() {
+	if err := b.directChannel.Close(); err != nil {
+		b.logger.Error("unable to close connection", zap.Error(err))
+	}
+}
+
 func (b *BaseStore) Address() address.Address {
 	return b.address
 }
@@ -364,6 +424,63 @@ func (b *BaseStore) Index() iface.StoreIndex {
 	defer b.muIndex.RUnlock()
 
 	return b.index
+}
+
+func (b *BaseStore) monitorDirectChannel() error {
+	sub, err := b.eventBus.Subscribe(new(iface.EventPubSubPayload), eventbus.BufSize(128))
+	if err != nil {
+		return fmt.Errorf("unable to init pubsub subscriber: %w", err)
+	}
+
+	go func() {
+		for {
+			var e interface{}
+			select {
+			case <-b.ctx.Done():
+				return
+			case e = <-sub.Out():
+			}
+
+			evt := e.(iface.EventPubSubPayload)
+
+			msg := iface.MessageExchangeHeads{}
+			if err := b.messageMarshaler.Unmarshal(evt.Payload, &msg); err != nil {
+				b.logger.Error("unable to unmarshal message payload", zap.Error(err))
+				continue
+			}
+
+			b.logger.Debug("exchanging heads", zap.String("address", msg.Address))
+			if err := b.handleEventExchangeHeads(&msg); err != nil {
+				b.logger.Error("unable to handle pubsub payload", zap.Error(err))
+				continue
+			}
+
+			if b.newHeadsEmitter != nil {
+				if err := b.newHeadsEmitter.Emit(stores.NewEventExchangeHeads(evt.Peer, &msg)); err != nil {
+					b.logger.Warn("unable to emit new heads", zap.Error(err))
+				}
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (b *BaseStore) handleEventExchangeHeads(e *iface.MessageExchangeHeads) error {
+	untypedHeads := make([]ipfslog.Entry, len(e.Heads))
+	for i, h := range e.Heads {
+		untypedHeads[i] = h
+	}
+
+	b.logger.Debug(fmt.Sprintf("%s: Received %d heads for '%s':", b.peerID, len(untypedHeads), e.Address))
+
+	if len(untypedHeads) > 0 {
+		if err := b.Sync(b.ctx, untypedHeads); err != nil {
+			return fmt.Errorf("unable to sync heads: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (b *BaseStore) Type() string {
@@ -518,7 +635,7 @@ func (b *BaseStore) Load(ctx context.Context, amount int) error {
 
 			if inErr != nil {
 				span.AddEvent("store-head-loading-error")
-				err = errors.Wrap(inErr, "unable to create log from entry hash")
+				err = fmt.Errorf("unable to create log from entry hash: %w", inErr)
 				return
 			}
 
@@ -768,6 +885,10 @@ func intPtr(i int) *int {
 	return &i
 }
 
+func boolPtr(val bool) *bool {
+	return &val
+}
+
 func (b *BaseStore) AddOperation(ctx context.Context, op operation.Operation, onProgressCallback chan<- ipfslog.Entry) (ipfslog.Entry, error) {
 	ctx, span := b.tracer.Start(ctx, "add-operation")
 	defer span.End()
@@ -940,6 +1061,239 @@ func (b *BaseStore) SortFn() ipfslog.SortFn {
 	return b.sortFn
 }
 
+func (b *BaseStore) replicate() error {
+	topic, err := b.pubsub.TopicSubscribe(b.ctx, b.id)
+	if err != nil {
+		return fmt.Errorf("unable to subscribe to pubsub: %w", err)
+	}
+
+	if err := b.storeListener(topic); err != nil {
+		return fmt.Errorf("unable to store listener: %w", err)
+	}
+
+	if err := b.pubSubChanListener(topic); err != nil {
+		return fmt.Errorf("unable to listen on pubsub: %w", err)
+	}
+
+	return nil
+}
+
+func (b *BaseStore) storeListener(topic iface.PubSubTopic) error {
+	sub, err := b.EventBus().Subscribe(new(stores.EventWrite))
+	if err != nil {
+		return fmt.Errorf("unable to init event bus: %w", err)
+	}
+
+	go func() {
+		defer sub.Close()
+		for {
+			var e interface{}
+
+			select {
+			case <-b.ctx.Done():
+				return
+			case e = <-sub.Out():
+			}
+
+			evt := e.(stores.EventWrite)
+			go func() {
+				// @TODO(gfanton): HandleEventWrite trigger a
+				// publish that is a blocking call if no peers
+				// is found, add a deadline to avoid to be stuck
+				// here
+				ctx, cancel := context.WithTimeout(b.ctx, time.Second*10)
+				defer cancel()
+
+				if err := b.handleEventWrite(ctx, &evt, topic); err != nil {
+					b.logger.Warn("unable to handle EventWrite", zap.Error(err))
+				}
+			}()
+		}
+	}()
+
+	return nil
+}
+
+func (b *BaseStore) handleEventWrite(ctx context.Context, e *stores.EventWrite, topic iface.PubSubTopic) error {
+	b.logger.Debug("received stores.write event")
+
+	if len(e.Heads) == 0 {
+		return fmt.Errorf("'heads' are not defined")
+	}
+
+	if topic != nil {
+		peer, err := topic.Peers(ctx)
+		if err != nil {
+			return fmt.Errorf("unable to get topic peers: %w", err)
+		}
+
+		if len(peer) > 0 {
+			entries := make([]*entry.Entry, len(e.Heads))
+			for i, head := range e.Heads {
+				if entry, ok := head.(*entry.Entry); ok {
+					entries[i] = entry
+				} else {
+					return fmt.Errorf("unable to unwrap entry")
+				}
+			}
+
+			msg := &iface.MessageExchangeHeads{
+				Address: b.Address().String(),
+				Heads:   entries,
+			}
+
+			payload, err := b.messageMarshaler.Marshal(msg)
+			if err != nil {
+				return fmt.Errorf("unable to serialize heads %w", err)
+			}
+
+			err = topic.Publish(ctx, payload)
+			if err != nil {
+				return fmt.Errorf("unable to publish message on pubsub %w", err)
+			}
+
+			b.logger.Debug("stores.write event: published event on pub sub")
+		}
+	}
+
+	return nil
+}
+
+func (b *BaseStore) pubSubChanListener(topic iface.PubSubTopic) error {
+	chPeers, err := topic.WatchPeers(b.ctx)
+	if err != nil {
+		return err
+	}
+
+	chMessages, err := topic.WatchMessages(b.ctx)
+	if err != nil {
+		return err
+	}
+
+	newPeerEmitter, err := b.EventBus().Emitter(new(stores.EventNewPeer))
+	if err != nil {
+		return fmt.Errorf("unable to init emitter: %w", err)
+	}
+
+	go func() {
+		defer newPeerEmitter.Close()
+
+		for e := range chPeers {
+			switch evt := e.(type) {
+			case *iface.EventPubSubJoin:
+				// notify store that we have a new peers
+				if err := newPeerEmitter.Emit(stores.NewEventNewPeer(evt.Peer)); err != nil {
+					b.logger.Error("unable to emit event new peer", zap.Error(err))
+				}
+
+				// handle new peers
+				go b.onNewPeerJoined(evt.Peer)
+				b.logger.Debug(fmt.Sprintf("peer %s joined from %s self is %s", evt.Peer.String(), b.address, b.peerID))
+
+			case *iface.EventPubSubLeave:
+				b.logger.Debug(fmt.Sprintf("peer %s left from %s self is %s", evt.Peer.String(), b.address, b.peerID))
+
+			default:
+				b.logger.Debug("unhandled event, can't match type")
+			}
+		}
+	}()
+
+	go func() {
+		for evt := range chMessages {
+			b.logger.Debug("Got pub sub message")
+
+			msg := &iface.MessageExchangeHeads{}
+			err := b.messageMarshaler.Unmarshal(evt.Content, msg)
+			if err != nil {
+				b.logger.Error("unable to unmarshal head entries", zap.Error(err))
+				continue
+			}
+
+			if len(msg.Heads) == 0 {
+				b.logger.Debug(fmt.Sprintf("Nothing to synchronize for %s:", b.address))
+				continue
+			}
+
+			b.logger.Debug(fmt.Sprintf("Received %d heads for %s:", len(msg.Heads), b.address))
+
+			entries := make([]ipfslog.Entry, len(msg.Heads))
+			for i, head := range msg.Heads {
+				entries[i] = head
+			}
+
+			if err := b.Sync(b.ctx, entries); err != nil {
+				b.logger.Debug(fmt.Sprintf("Error while syncing heads for %s:", b.address))
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (b *BaseStore) onNewPeerJoined(p peer.ID) {
+	b.logger.Debug(fmt.Sprintf("%s: New peer '%s' connected to %s", b.peerID, p, b.id))
+
+	if err := b.exchangeHeads(p); err != nil {
+		if !errors.Is(err, context.Canceled) {
+			b.logger.Error("unable to exchange heads", zap.Error(err))
+		}
+		return
+	}
+}
+
+func (b *BaseStore) exchangeHeads(p peer.ID) error {
+	b.logger.Debug(fmt.Sprintf("connecting to %s", p))
+
+	if err := b.directChannel.Connect(b.ctx, p); err != nil {
+		return fmt.Errorf("unable to connect to peer: %w", err)
+	}
+	b.logger.Debug(fmt.Sprintf("connected to %s", p))
+
+	rawLocalHeads, err := b.Cache().Get(b.ctx, datastore.NewKey("_localHeads"))
+	if err != nil && err != datastore.ErrNotFound {
+		return fmt.Errorf("unable to get local heads from cache: %w", err)
+	}
+
+	// @FIXME(gfanton): looks like activate this break the exchange
+	// rawRemoteHeads, err := store.Cache().Get(b.ctx, datastore.NewKey("_remoteHeads"))
+	// if err != nil && err != datastore.ErrNotFound {
+	// 	return fmt.Errorf("unable to get data from cache: %w", err)
+	// }
+
+	heads := []*entry.Entry{}
+
+	for _, rawHeads := range [][]byte{rawLocalHeads} {
+		if len(rawLocalHeads) > 0 {
+			var dHeads []*entry.Entry
+			err = json.Unmarshal(rawHeads, &dHeads)
+			if err != nil {
+				b.logger.Warn("unable to unmarshal cached local heads", zap.Error(err))
+			} else {
+				heads = append(heads, dHeads...)
+			}
+		}
+	}
+
+	msg := &iface.MessageExchangeHeads{
+		Address: b.id,
+		Heads:   heads,
+	}
+
+	payload, err := b.messageMarshaler.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("unable to marshall message: %w", err)
+	}
+
+	payloadstring := fmt.Sprintf("%x", payload)
+	b.logger.Debug("sending payload", zap.String("payload_string", payloadstring), zap.Any("payload", payload))
+	if err = b.directChannel.Send(b.ctx, p, payload); err != nil {
+		return fmt.Errorf("unable to send heads on direct channel: %w", err)
+	}
+
+	return nil
+}
+
 type CanAppendContext struct {
 	log ipfslog.Log
 }
@@ -953,6 +1307,15 @@ func (c *CanAppendContext) GetLogEntries() []logac.LogEntry {
 	}
 
 	return entries
+}
+
+func makeDirectChannel(ctx context.Context, bus event.Bus, df iface.DirectChannelFactory, opts *iface.DirectChannelOptions) (iface.DirectChannel, error) {
+	emitter, err := pubsub.NewPayloadEmitter(bus)
+	if err != nil {
+		return nil, fmt.Errorf("unable to init pubsub emitter: %w", err)
+	}
+
+	return df(ctx, emitter, opts)
 }
 
 var _ iface.Store = &BaseStore{}

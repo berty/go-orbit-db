@@ -181,9 +181,6 @@ type Store interface {
 	// Close Closes the store
 	Close() error
 
-	// IsClosed returns true if the store is closed
-	IsClosed() bool
-
 	// Address Returns the address for the current store
 	Address() address.Address
 
@@ -245,9 +242,6 @@ type Store interface {
 
 	// subscribe to events on this store
 	EventBus() event.Bus
-
-	// Get the context of the store
-	Context() context.Context
 }
 
 // EventLogStore A type of store that provides an append only log
@@ -352,6 +346,11 @@ type NewStoreOptions struct {
 	Tracer                 trace.Tracer
 	IO                     ipfslog.IO
 	StoreSpecificOpts      interface{}
+	PubSub                 PubSubInterface
+	MessageMarshaler       MessageMarshaler
+	PeerID                 peer.ID
+	DirectChannelFactory   DirectChannelFactory
+	NewHeadsEmitter        event.Emitter
 }
 
 type DirectChannelOptions struct {

@@ -384,11 +384,11 @@ func testDirectChannelNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (or
 
 	orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{
 		Directory:            &dbPath1,
+		Logger:               logger,
 		DirectChannelFactory: directchannel.InitDirectChannelFactory(zap.NewNop(), node1.PeerHost),
 		// @NOTE(gfanton): use raw pubsub here, we need a higher buffer
 		// for subscribe to make the test works on CI
 		PubSub: pubsubraw.NewPubSub(node1.PubSub, node1.Identity, nil, nil),
-		Logger: logger,
 	})
 	require.NoError(t, err)
 
@@ -422,11 +422,11 @@ func testDefaultNodeGenerator(t *testing.T, mn mocknet.Mocknet, i int) (orbitdb.
 	logger.Named("orbitdb.tests").Debug(fmt.Sprintf("node%d is %s", i, node1.Identity.String()))
 
 	orbitdb1, err := orbitdb.NewOrbitDB(ctx, ipfs1, &orbitdb.NewOrbitDBOptions{
-		// @NOTE(gfanton): use raw pubsub here, we need a higher buffer
-		// for subscribe to make the test works on CI
-		PubSub:    pubsubraw.NewPubSub(node1.PubSub, node1.Identity, logger, nil),
 		Directory: &dbPath1,
 		Logger:    logger,
+		// @NOTE(gfanton): use raw pubsub here, we need a higher buffer
+		// for subscribe to make the test works on CI
+		PubSub: pubsubraw.NewPubSub(node1.PubSub, node1.Identity, nil, nil),
 	})
 	require.NoError(t, err)
 

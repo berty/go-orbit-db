@@ -3,6 +3,7 @@ package stores
 import (
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-orbit-db/address"
+	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores/replicator"
 	cid "github.com/ipfs/go-cid"
 	peer "github.com/libp2p/go-libp2p/core/peer"
@@ -15,6 +16,7 @@ var Events = []interface{}{
 	new(EventLoad),
 	new(EventReplicated),
 	new(EventReplicate),
+	new(EventExchangeHeads),
 }
 
 type EventReplicate struct {
@@ -135,5 +137,18 @@ type EventNewPeer struct {
 func NewEventNewPeer(p peer.ID) EventNewPeer {
 	return EventNewPeer{
 		Peer: p,
+	}
+}
+
+// EventExchangeHeadsset An event as stateful, sent when new exchange head is done, so newly subscriber can replay last event in case they missed it
+type EventExchangeHeads struct {
+	Peer    peer.ID
+	Message *iface.MessageExchangeHeads
+}
+
+func NewEventExchangeHeads(p peer.ID, msg *iface.MessageExchangeHeads) EventExchangeHeads {
+	return EventExchangeHeads{
+		Peer:    p,
+		Message: msg,
 	}
 }
