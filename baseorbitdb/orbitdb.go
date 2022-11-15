@@ -88,6 +88,7 @@ type NewOrbitDBOptions struct {
 	DirectChannelFactory iface.DirectChannelFactory
 	PubSub               iface.PubSubInterface
 	MessageMarshaler     iface.MessageMarshaler
+	EventBus             event.Bus
 }
 
 type orbitDB struct {
@@ -309,7 +310,9 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 		options.Tracer = trace.NewNoopTracerProvider().Tracer("")
 	}
 
-	eventBus := eventbus.NewBus()
+	if options.EventBus == nil {
+		options.EventBus = eventbus.NewBus()
+	}
 
 	k, err := is.Key().Self(ctx)
 	if err != nil {
@@ -339,7 +342,7 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 		pubsub:                options.PubSub,
 		cache:                 options.Cache,
 		directory:             *options.Directory,
-		eventBus:              eventBus,
+		eventBus:              options.EventBus,
 		stores:                map[string]Store{},
 		directChannelFactory:  options.DirectChannelFactory,
 		closeKeystore:         options.CloseKeystore,
@@ -705,6 +708,14 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 
 	if options.Directory == nil {
 		options.Directory = &o.directory
+	}
+
+	if options.EventBus == nil {
+		if o.EventBus() != nil {
+			options.EventBus = o.EventBus()
+		} else {
+			options.EventBus = eventbus.NewBus()
+		}
 	}
 
 	store, err := storeFunc(o.IPFS(), identity, parsedDBAddress, &iface.NewStoreOptions{
