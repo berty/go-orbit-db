@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/libp2p/go-libp2p-core/peer"
 	p2ppubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 

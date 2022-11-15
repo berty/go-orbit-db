@@ -12,8 +12,8 @@ import (
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/operation"
-	"github.com/ipfs/go-ipfs/core"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/ipfs/kubo/core"
+	"github.com/libp2p/go-libp2p/core/peer"
 	p2pmocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,7 +42,7 @@ func TestReplicateAutomatically(t *testing.T) {
 		dbPath1, dbPath1Clean = testingTempDir(t, "db1")
 		dbPath2, dbPath2Clean = testingTempDir(t, "db2")
 
-		mocknet = testingMockNet(ctx)
+		mocknet = testingMockNet(t)
 
 		var node1Clean, node2Clean func()
 		node1, node1Clean = testingIPFSNode(ctx, t, mocknet)

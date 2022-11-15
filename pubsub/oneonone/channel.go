@@ -10,8 +10,7 @@ import (
 
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/options"
-	peer "github.com/libp2p/go-libp2p-core/peer"
-	"github.com/pkg/errors"
+	peer "github.com/libp2p/go-libp2p/core/peer"
 	"go.uber.org/zap"
 
 	"berty.tech/go-orbit-db/iface"
@@ -50,7 +49,7 @@ func (c *channels) Connect(ctx context.Context, target peer.ID) error {
 		sub, err := c.ipfs.PubSub().Subscribe(ctx, id, options.PubSub.Discover(true))
 		if err != nil {
 			c.muSubs.Unlock()
-			return errors.Wrap(err, "unable to subscribe to pubsub")
+			return fmt.Errorf("unable to subscribe to pubsub: %w", err)
 		}
 
 		c.subs[target] = &channel{
@@ -89,7 +88,7 @@ func (c *channels) Send(ctx context.Context, p peer.ID, head []byte) error {
 
 	err := c.ipfs.PubSub().Publish(ctx, id, head)
 	if err != nil {
-		return errors.Wrap(err, "unable to publish data on pubsub")
+		return fmt.Errorf("unable to publish data on pubsub: %w", err)
 	}
 
 	return nil
@@ -183,7 +182,7 @@ func NewChannelFactory(ipfs coreapi.CoreAPI) iface.DirectChannelFactory {
 		selfKey, err := ipfs.Key().Self(ctx)
 		if err != nil {
 			cancel()
-			return nil, errors.Wrap(err, "unable to get key for self")
+			return nil, fmt.Errorf("unable to get key for self: %w", err)
 		}
 
 		ch := &channels{

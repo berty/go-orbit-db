@@ -28,7 +28,7 @@ func TestKeyValueStore(t *testing.T) {
 func setupTestingKeyValueStore(ctx context.Context, t *testing.T, dir string) (iface.OrbitDB, iface.KeyValueStore, func()) {
 	t.Helper()
 
-	mocknet := testingMockNet(ctx)
+	mocknet := testingMockNet(t)
 	node, nodeClean := testingIPFSNode(ctx, t, mocknet)
 
 	db1IPFS := testingCoreAPI(t, node)

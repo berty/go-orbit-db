@@ -47,11 +47,11 @@ func IsValid(name string) error {
 
 	accessControllerHash, err := cid.Decode(parts[0])
 	if err != nil {
-		return errors.Wrap(err, "address is invalid")
+		return fmt.Errorf("address is invalid: %w", err)
 	}
 
 	if accessControllerHash.String() == "" {
-		return errors.New("address is invalid")
+		return fmt.Errorf("address is invalid")
 	}
 
 	return nil
@@ -68,7 +68,7 @@ func Parse(path string) (Address, error) {
 
 	c, err := cid.Decode(parts[0])
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to parse CID")
+		return nil, fmt.Errorf("unable to parse CID: %w", err)
 	}
 
 	return &address{

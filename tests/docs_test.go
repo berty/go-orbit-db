@@ -35,7 +35,7 @@ func testingDocsStore(t *testing.T, dir string) {
 	dbname := "orbit-db-tests"
 
 	t.Run("orbit-db - Documents Database", func(t *testing.T) {
-		mocknet := testingMockNet(ctx)
+		mocknet := testingMockNet(t)
 
 		node, clean := testingIPFSNode(ctx, t, mocknet)
 		defer clean()

@@ -2,10 +2,10 @@ package kvstore
 
 import (
 	"context"
+	"fmt"
 
 	"berty.tech/go-ipfs-log/identityprovider"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/pkg/errors"
 
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/iface"
@@ -40,12 +40,12 @@ func (o *orbitDBKeyValue) Put(ctx context.Context, key string, value []byte) (op
 
 	e, err := o.AddOperation(ctx, op, nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "error while adding value")
+		return nil, fmt.Errorf("error while adding value: %w", err)
 	}
 
 	op, err = operation.ParseOperation(e)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to parse newly created entry")
+		return nil, fmt.Errorf("unable to parse newly created entry: %w", err)
 	}
 
 	return op, nil
@@ -56,12 +56,12 @@ func (o *orbitDBKeyValue) Delete(ctx context.Context, key string) (operation.Ope
 
 	e, err := o.AddOperation(ctx, op, nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "error while deleting value")
+		return nil, fmt.Errorf("error while deleting value: %w", err)
 	}
 
 	op, err = operation.ParseOperation(e)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to parse newly created entry")
+		return nil, fmt.Errorf("unable to parse newly created entry: %w", err)
 	}
 
 	return op, nil
@@ -74,7 +74,7 @@ func (o *orbitDBKeyValue) Get(ctx context.Context, key string) ([]byte, error) {
 	}
 
 	if !ok {
-		return nil, errors.New("unable to cast to bytes")
+		return nil, fmt.Errorf("unable to cast to bytes")
 	}
 
 	return value, nil
@@ -92,7 +92,7 @@ func NewOrbitDBKeyValue(ctx context.Context, ipfs coreapi.CoreAPI, identity *ide
 
 	err := store.InitBaseStore(ctx, ipfs, identity, addr, options)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to initialize base store")
+		return nil, fmt.Errorf("unable to initialize base store: %w", err)
 	}
 
 	return store, nil

@@ -2,10 +2,9 @@ package operation
 
 import (
 	"encoding/json"
+	"fmt"
 
 	ipfslog "berty.tech/go-ipfs-log"
-
-	"github.com/pkg/errors"
 )
 
 type opDoc struct {
@@ -62,14 +61,14 @@ func (o *operation) GetDocs() []OpDoc {
 // ParseOperation Gets the operation from an entry
 func ParseOperation(e ipfslog.Entry) (Operation, error) {
 	if e == nil {
-		return nil, errors.New("an entry must be provided")
+		return nil, fmt.Errorf("an entry must be provided")
 	}
 
 	op := operation{}
 
 	err := json.Unmarshal(e.GetPayload(), &op)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to parse operation json")
+		return nil, fmt.Errorf("unable to parse operation json: %w", err)
 	}
 
 	op.Entry = e

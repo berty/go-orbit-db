@@ -2,13 +2,13 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"path"
 
 	"berty.tech/go-ipfs-log/io"
 	cid "github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/pkg/errors"
 	"github.com/polydawn/refmt/obj/atlas"
 )
 
@@ -29,7 +29,7 @@ func CreateDBManifest(ctx context.Context, ipfs coreapi.CoreAPI, name string, db
 
 	c, err := io.WriteCBOR(ctx, ipfs, manifest, nil)
 	if err != nil {
-		return cid.Cid{}, errors.Wrap(err, "unable to write cbor data")
+		return cid.Cid{}, fmt.Errorf("unable to write cbor data: %w", err)
 	}
 
 	return c, err

@@ -28,7 +28,7 @@ func TestCreateOpen(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mocknet := testingMockNet(ctx)
+	mocknet := testingMockNet(t)
 	node, clean := testingIPFSNode(ctx, t, mocknet)
 	defer clean()
 

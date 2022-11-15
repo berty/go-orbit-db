@@ -2,6 +2,7 @@ package eventlogstore
 
 import (
 	"context"
+	"fmt"
 
 	ipfslog "berty.tech/go-ipfs-log"
 	"berty.tech/go-ipfs-log/identityprovider"
@@ -11,7 +12,6 @@ import (
 	"berty.tech/go-orbit-db/stores/operation"
 	cid "github.com/ipfs/go-cid"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/pkg/errors"
 )
 
 type orbitDBEventLogStore struct {
@@ -37,12 +37,12 @@ func (o *orbitDBEventLogStore) Add(ctx context.Context, value []byte) (operation
 
 	e, err := o.AddOperation(ctx, op, nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "error while deleting value")
+		return nil, fmt.Errorf("error while deleting value: %w", err)
 	}
 
 	op, err = operation.ParseOperation(e)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to parse newly created entry")
+		return nil, fmt.Errorf("unable to parse newly created entry: %w", err)
 	}
 
 	return op, nil
@@ -58,7 +58,7 @@ func (o *orbitDBEventLogStore) Get(ctx context.Context, cid cid.Cid) (operation.
 
 	go func() {
 		if err := o.Stream(ctx, stream, &iface.StreamOptions{GTE: &cid, Amount: &one}); err != nil {
-			errChan <- errors.Wrap(err, "unable to open stream")
+			errChan <- fmt.Errorf("unable to open stream: %w", err)
 			cancel()
 			return
 		}
@@ -70,13 +70,13 @@ func (o *orbitDBEventLogStore) Get(ctx context.Context, cid cid.Cid) (operation.
 		if ok {
 			return value, nil
 		}
-		return nil, errors.New("channel read failed")
+		return nil, fmt.Errorf("channel read failed")
 
 	case err := <-errChan:
 		return nil, err
 
 	case <-ctx.Done():
-		return nil, errors.New("context deadline exceeded")
+		return nil, fmt.Errorf("context deadline exceeded")
 	}
 }
 
@@ -84,13 +84,13 @@ func (o *orbitDBEventLogStore) Stream(ctx context.Context, resultChan chan opera
 	defer close(resultChan)
 	messages, err := o.query(options)
 	if err != nil {
-		return errors.Wrap(err, "unable to fetch query results")
+		return fmt.Errorf("unable to fetch query results: %w", err)
 	}
 
 	for _, message := range messages {
 		op, err := operation.ParseOperation(message)
 		if err != nil {
-			return errors.Wrap(err, "unable to parse operation")
+			return fmt.Errorf("unable to parse operation: %w", err)
 		}
 
 		resultChan <- op
@@ -111,7 +111,7 @@ func (o *orbitDBEventLogStore) query(options *iface.StreamOptions) ([]ipfslog.En
 
 	events, ok := o.Index().Get("").([]ipfslog.Entry)
 	if !ok {
-		return nil, errors.New("unable to cast index to entries")
+		return nil, fmt.Errorf("unable to cast index to entries")
 	}
 
 	amount := 1
@@ -207,7 +207,7 @@ func NewOrbitDBEventLogStore(ctx context.Context, ipfs coreapi.CoreAPI, identity
 
 	err := store.InitBaseStore(ctx, ipfs, identity, addr, options)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to initialize base store")
+		return nil, fmt.Errorf("unable to initialize base store: %w", err)
 	}
 
 	return store, nil

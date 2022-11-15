@@ -2,7 +2,7 @@ package baseorbitdb
 
 import (
 	"berty.tech/go-orbit-db/iface"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 type EventExchangeHeads struct {

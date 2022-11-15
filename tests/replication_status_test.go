@@ -31,7 +31,7 @@ func TestReplicationStatus(t *testing.T) {
 		dbPath2, dbPath2Clean := testingTempDir(t, "db2")
 		require.NotEmpty(t, dbPath2)
 
-		mocknet := testingMockNet(ctx)
+		mocknet := testingMockNet(t)
 		require.NotNil(t, mocknet)
 
 		node, nodeClean := testingIPFSNode(ctx, t, mocknet)
