@@ -16,19 +16,24 @@ jobs:
         golang:
           - 1.18.x
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up Go
-        uses: actions/setup-go@v2
-        with:
-          go-version: ${{ matrix.golang }}
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3.3.0
-        with:
-          go-version: ${{ matrix.golang }}
-          version: v1.50.1
-          args: --timeout=10m
-          # only-new-issues: true
+      - name: Checkout
+        uses: actions/checkout@v3
 
+      - name: Setup asdf
+        uses: asdf-vm/actions/setup@v1
+
+      - name: Setup golang
+        run: |
+          asdf plugin add golang
+          asdf install golang
+
+      - name: Setup golangci-lint
+        run: |
+          asdf plugin add golangci-lint
+          asdf install golangci-lint
+
+      - name: Run golangci-lint
+        run: make lint
 
   go-tests-on-linux:
     runs-on: ubuntu-latest
