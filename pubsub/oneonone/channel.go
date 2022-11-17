@@ -23,8 +23,10 @@ const (
 )
 
 type channel struct {
-	id  string
-	sub coreapi.PubSubSubscription
+	ctx    context.Context
+	cancel context.CancelFunc
+	id     string
+	sub    coreapi.PubSubSubscription
 }
 
 type channels struct {
@@ -52,12 +54,16 @@ func (c *channels) Connect(ctx context.Context, target peer.ID) error {
 			return fmt.Errorf("unable to subscribe to pubsub: %w", err)
 		}
 
+		ctx, cancel := context.WithCancel(ctx)
+
 		c.subs[target] = &channel{
-			sub: sub,
-			id:  id,
+			ctx:    ctx,
+			cancel: cancel,
+			sub:    sub,
+			id:     id,
 		}
 		go func() {
-			c.monitorTopic(sub, target)
+			c.monitorTopic(ctx, sub, target)
 
 			// if monitor topic is done, remove target from cache
 			c.muSubs.Lock()
@@ -127,9 +133,9 @@ func (c *channels) getChannelID(p peer.ID) string {
 	return fmt.Sprintf("/%s/%s", PROTOCOL, strings.Join(channelIDPeers, "/"))
 }
 
-func (c *channels) monitorTopic(sub coreapi.PubSubSubscription, p peer.ID) {
+func (c *channels) monitorTopic(ctx context.Context, sub coreapi.PubSubSubscription, p peer.ID) {
 	for {
-		msg, err := sub.Next(c.ctx)
+		msg, err := sub.Next(ctx)
 		switch err {
 		case nil:
 		case context.Canceled, context.DeadlineExceeded:

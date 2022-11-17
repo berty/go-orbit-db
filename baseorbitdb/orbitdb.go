@@ -2,15 +2,12 @@ package baseorbitdb
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"path"
 	"strings"
 	"sync"
 	"time"
 
-	ipfslog "berty.tech/go-ipfs-log"
-	"berty.tech/go-ipfs-log/entry"
 	idp "berty.tech/go-ipfs-log/identityprovider"
 	"berty.tech/go-ipfs-log/io"
 	"berty.tech/go-ipfs-log/keystore"
@@ -21,9 +18,6 @@ import (
 	"berty.tech/go-orbit-db/cache/cacheleveldown"
 	"berty.tech/go-orbit-db/iface"
 	_ "berty.tech/go-orbit-db/internal/buildconstraints" // fail for bad go version
-	"berty.tech/go-orbit-db/pubsub"
-	"berty.tech/go-orbit-db/pubsub/oneonone"
-	"berty.tech/go-orbit-db/pubsub/pubsubcoreapi"
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/utils"
 	cid "github.com/ipfs/go-cid"
@@ -34,7 +28,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/event"
 	peer "github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
-	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -84,7 +77,7 @@ const CBORReadDefaultTimeout = time.Second * 30
 // NewOrbitDBOptions Options for a new OrbitDB instance
 type NewOrbitDBOptions struct {
 	ID                   *string
-	PeerID               *peer.ID
+	PeerID               peer.ID
 	Directory            *string
 	Keystore             keystore.Interface
 	Cache                cache.Interface
@@ -95,9 +88,12 @@ type NewOrbitDBOptions struct {
 	DirectChannelFactory iface.DirectChannelFactory
 	PubSub               iface.PubSubInterface
 	MessageMarshaler     iface.MessageMarshaler
+	EventBus             event.Bus
 }
 
 type orbitDB struct {
+	ctx                   context.Context
+	cancel                context.CancelFunc
 	storeTypes            map[string]iface.StoreConstructor
 	accessControllerTypes map[string]iface.AccessControllerConstructor
 	ipfs                  coreapi.CoreAPI
@@ -112,7 +108,7 @@ type orbitDB struct {
 	cache                 cache.Interface
 	logger                *zap.Logger
 	tracer                trace.Tracer
-	directChannel         iface.DirectChannel
+	directChannelFactory  iface.DirectChannelFactory
 	messageMarshaler      iface.MessageMarshaler
 
 	// emitters
@@ -128,15 +124,6 @@ type orbitDB struct {
 	muKeyStore              sync.RWMutex
 	muCaches                sync.RWMutex
 	muAccessControllerTypes sync.RWMutex
-}
-
-type jsonMessageMarshaler struct{}
-
-func (jsonMessageMarshaler) Marshal(m *iface.MessageExchangeHeads) ([]byte, error) {
-	return json.Marshal(m)
-}
-func (jsonMessageMarshaler) Unmarshal(data []byte, m *iface.MessageExchangeHeads) error {
-	return json.Unmarshal(data, m)
 }
 
 func (o *orbitDB) Logger() *zap.Logger {
@@ -191,15 +178,6 @@ func (o *orbitDB) setStore(address string, store iface.Store) {
 	o.stores[address] = store
 }
 
-func (o *orbitDB) getStore(address string) (iface.Store, bool) {
-	o.muStores.RLock()
-	defer o.muStores.RUnlock()
-
-	store, ok := o.stores[address]
-
-	return store, ok
-}
-
 func (o *orbitDB) closeAllStores() {
 	o.muStores.Lock()
 	defer o.muStores.Unlock()
@@ -219,12 +197,6 @@ func (o *orbitDB) closeCache() {
 
 	if err := o.cache.Close(); err != nil {
 		o.logger.Error("unable to close cache", zap.Error(err))
-	}
-}
-
-func (o *orbitDB) closeDirectConnections() {
-	if err := o.directChannel.Close(); err != nil {
-		o.logger.Error("unable to close connection", zap.Error(err))
 	}
 }
 
@@ -338,16 +310,8 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 		options.Tracer = trace.NewNoopTracerProvider().Tracer("")
 	}
 
-	eventBus := eventbus.NewBus()
-	if options.DirectChannelFactory == nil {
-		options.DirectChannelFactory = oneonone.NewChannelFactory(is)
-	}
-
-	directConnections, err := makeDirectChannel(ctx, eventBus, options.DirectChannelFactory, &iface.DirectChannelOptions{
-		Logger: options.Logger,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("unable to create a direct connection with peer: %w", err)
+	if options.EventBus == nil {
+		options.EventBus = eventbus.NewBus()
 	}
 
 	k, err := is.Key().Self(ctx)
@@ -355,17 +319,9 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 		return nil, err
 	}
 
-	if options.PeerID == nil {
+	if options.PeerID.Validate() == peer.ErrEmptyPeerID {
 		id := k.ID()
-		options.PeerID = &id
-	}
-
-	if options.MessageMarshaler == nil {
-		options.MessageMarshaler = &jsonMessageMarshaler{}
-	}
-
-	if options.PubSub == nil {
-		options.PubSub = pubsubcoreapi.NewPubSub(is, k.ID(), time.Second, options.Logger, options.Tracer)
+		options.PeerID = id
 	}
 
 	if options.Cache == nil {
@@ -376,16 +332,19 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 		options.Directory = &cacheleveldown.InMemoryDirectory
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
 	odb := &orbitDB{
+		ctx:                   ctx,
+		cancel:                cancel,
 		ipfs:                  is,
 		identity:              identity,
-		id:                    *options.PeerID,
+		id:                    options.PeerID,
 		pubsub:                options.PubSub,
 		cache:                 options.Cache,
 		directory:             *options.Directory,
-		eventBus:              eventBus,
+		eventBus:              options.EventBus,
 		stores:                map[string]Store{},
-		directChannel:         directConnections,
+		directChannelFactory:  options.DirectChannelFactory,
 		closeKeystore:         options.CloseKeystore,
 		storeTypes:            map[string]iface.StoreConstructor{},
 		accessControllerTypes: map[string]iface.AccessControllerConstructor{},
@@ -395,15 +354,10 @@ func newOrbitDB(ctx context.Context, is coreapi.CoreAPI, identity *idp.Identity,
 	}
 
 	// set new heads as stateful, so newly subscriber can replay last event in case they missed it
-	odb.emitters.newHeads, err = eventBus.Emitter(new(EventExchangeHeads), eventbus.Stateful)
+	odb.emitters.newHeads, err = options.EventBus.Emitter(new(stores.EventExchangeHeads), eventbus.Stateful)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create global emitter: %w", err)
 	}
-
-	if err := odb.monitorDirectChannel(ctx, eventBus); err != nil {
-		return nil, fmt.Errorf("unable to monitor direct channel: %w", err)
-	}
-
 	return odb, nil
 }
 
@@ -476,10 +430,10 @@ func NewOrbitDB(ctx context.Context, ipfs coreapi.CoreAPI, options *NewOrbitDBOp
 
 func (o *orbitDB) Close() error {
 	o.closeAllStores()
-	o.closeDirectConnections()
 	o.closeCache()
 	o.closeKeyStore()
 
+	o.cancel()
 	return nil
 }
 
@@ -527,6 +481,7 @@ func (o *orbitDB) Create(ctx context.Context, name string, storeType string, opt
 	return o.Open(ctx, dbAddress.String(), options)
 }
 
+// Open opens a OrbitDB store. During this operation, ctx can be used to cancel or expire this method. Once this function returns, the cancellation and expiration of ctx will be noop. Users should call Store.Close to close the store after this function returns.
 func (o *orbitDB) Open(ctx context.Context, dbAddress string, options *CreateDBOptions) (Store, error) {
 	o.logger.Debug("open orbitdb store", zap.String("address", dbAddress))
 
@@ -755,275 +710,43 @@ func (o *orbitDB) createStore(ctx context.Context, storeType string, parsedDBAdd
 		options.Directory = &o.directory
 	}
 
-	store, err := storeFunc(ctx, o.IPFS(), identity, parsedDBAddress, &iface.NewStoreOptions{
-		AccessController:  accessController,
-		Cache:             options.Cache,
-		Replicate:         options.Replicate,
-		Directory:         *options.Directory,
-		SortFn:            options.SortFn,
-		CacheDestroy:      func() error { return o.cache.Destroy(o.directory, parsedDBAddress) },
-		Logger:            o.logger,
-		Tracer:            o.tracer,
-		IO:                options.IO,
-		StoreSpecificOpts: options.StoreSpecificOpts,
+	if options.EventBus == nil {
+		if o.EventBus() != nil {
+			options.EventBus = o.EventBus()
+		} else {
+			options.EventBus = eventbus.NewBus()
+		}
+	}
+
+	store, err := storeFunc(o.IPFS(), identity, parsedDBAddress, &iface.NewStoreOptions{
+		EventBus:             options.EventBus,
+		AccessController:     accessController,
+		Cache:                options.Cache,
+		Replicate:            options.Replicate,
+		Directory:            *options.Directory,
+		SortFn:               options.SortFn,
+		CacheDestroy:         func() error { return o.cache.Destroy(o.directory, parsedDBAddress) },
+		Logger:               o.logger,
+		Tracer:               o.tracer,
+		IO:                   options.IO,
+		StoreSpecificOpts:    options.StoreSpecificOpts,
+		PubSub:               o.pubsub,
+		MessageMarshaler:     o.messageMarshaler,
+		PeerID:               o.id,
+		DirectChannelFactory: o.directChannelFactory,
+		NewHeadsEmitter:      o.emitters.newHeads,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to instantiate store: %w", err)
 	}
 
-	topic, err := o.pubsub.TopicSubscribe(ctx, parsedDBAddress.String())
-	if err != nil {
-		return nil, fmt.Errorf("unable to subscribe to pubsub: %w", err)
-	}
-
 	o.setStore(parsedDBAddress.String(), store)
-
-	// Subscribe to pubsub to get updates from peers,
-	// this is what hooks us into the message propagation layer
-	// and the p2p network
-	if *options.Replicate {
-		if err := o.storeListener(ctx, store, topic); err != nil {
-			return nil, fmt.Errorf("unable to store listener: %w", err)
-		}
-
-		if err := o.pubSubChanListener(ctx, store, topic, parsedDBAddress); err != nil {
-			return nil, fmt.Errorf("unable to listen on pubsub: %w", err)
-		}
-	}
 
 	return store, nil
 }
 
-func (o *orbitDB) storeListener(ctx context.Context, store Store, topic iface.PubSubTopic) error {
-	sub, err := store.EventBus().Subscribe(new(stores.EventWrite))
-	if err != nil {
-		return fmt.Errorf("unable to init event bus: %w", err)
-	}
-
-	go func() {
-		defer sub.Close()
-		for {
-			var e interface{}
-
-			select {
-			case <-ctx.Done():
-				return
-			case e = <-sub.Out():
-			}
-
-			evt := e.(stores.EventWrite)
-			go func() {
-				// @TODO(gfanton): HandleEventWrite trigger a
-				// publish that is a blocking call if no peers
-				// is found, add a deadline to avoid to be stuck
-				// here
-				ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-				defer cancel()
-
-				if err := o.handleEventWrite(ctx, &evt, topic, store); err != nil {
-					o.logger.Warn("unable to handle EventWrite", zap.Error(err))
-				}
-			}()
-		}
-	}()
-
-	return nil
-}
-
-func (o *orbitDB) pubSubChanListener(ctx context.Context, store Store, topic iface.PubSubTopic, addr address.Address) error {
-	chPeers, err := topic.WatchPeers(ctx)
-	if err != nil {
-		return err
-	}
-
-	chMessages, err := topic.WatchMessages(ctx)
-	if err != nil {
-		return err
-	}
-
-	newPeerEmitter, err := store.EventBus().Emitter(new(stores.EventNewPeer))
-	if err != nil {
-		return fmt.Errorf("unable to init emitter: %w", err)
-	}
-
-	go func() {
-		defer newPeerEmitter.Close()
-
-		for e := range chPeers {
-			switch evt := e.(type) {
-			case *iface.EventPubSubJoin:
-				// notify store that we have a new peers
-				if err := newPeerEmitter.Emit(stores.NewEventNewPeer(evt.Peer)); err != nil {
-					o.logger.Error("unable to emit event new peer", zap.Error(err))
-				}
-
-				// handle new peers
-				go o.onNewPeerJoined(ctx, evt.Peer, store)
-				o.logger.Debug(fmt.Sprintf("peer %s joined from %s self is %s", evt.Peer.String(), addr, o.PeerID()))
-
-			case *iface.EventPubSubLeave:
-				o.logger.Debug(fmt.Sprintf("peer %s left from %s self is %s", evt.Peer.String(), addr, o.PeerID()))
-
-			default:
-				o.logger.Debug("unhandled event, can't match type")
-			}
-		}
-	}()
-
-	go func() {
-		for evt := range chMessages {
-			o.logger.Debug("Got pub sub message")
-
-			msg := &iface.MessageExchangeHeads{}
-			err := o.messageMarshaler.Unmarshal(evt.Content, msg)
-			if err != nil {
-				o.logger.Error("unable to unmarshal head entries", zap.Error(err))
-				continue
-			}
-
-			if len(msg.Heads) == 0 {
-				o.logger.Debug(fmt.Sprintf("Nothing to synchronize for %s:", addr))
-				continue
-			}
-
-			o.logger.Debug(fmt.Sprintf("Received %d heads for %s:", len(msg.Heads), addr))
-
-			entries := make([]ipfslog.Entry, len(msg.Heads))
-			for i, head := range msg.Heads {
-				entries[i] = head
-			}
-
-			if err := store.Sync(ctx, entries); err != nil {
-				o.logger.Debug(fmt.Sprintf("Error while syncing heads for %s:", addr))
-			}
-		}
-	}()
-
-	return nil
-}
-
-func (o *orbitDB) onNewPeerJoined(ctx context.Context, p peer.ID, store Store) {
-	self, err := o.IPFS().Key().Self(ctx)
-	if err == nil {
-		o.logger.Debug(fmt.Sprintf("%s: New peer '%s' connected to %s", self.ID(), p, store.Address().String()))
-	} else {
-		o.logger.Debug(fmt.Sprintf("New peer '%s' connected to %s", p, store.Address().String()))
-	}
-
-	if err := o.exchangeHeads(ctx, p, store); err != nil {
-		if !errors.Is(err, context.Canceled) {
-			o.logger.Error("unable to exchange heads", zap.Error(err))
-		}
-		return
-	}
-}
-
-func (o *orbitDB) exchangeHeads(ctx context.Context, p peer.ID, store Store) error {
-	o.logger.Debug(fmt.Sprintf("connecting to %s", p))
-	if err := o.directChannel.Connect(ctx, p); err != nil {
-		return fmt.Errorf("unable to connect to peer: %w", err)
-	}
-	o.logger.Debug(fmt.Sprintf("connected to %s", p))
-
-	rawLocalHeads, err := store.Cache().Get(ctx, datastore.NewKey("_localHeads"))
-	if err != nil && err != datastore.ErrNotFound {
-		return fmt.Errorf("unable to get local heads from cache: %w", err)
-	}
-
-	// @FIXME(gfanton): looks like activate this break the exchange
-	// rawRemoteHeads, err := store.Cache().Get(ctx, datastore.NewKey("_remoteHeads"))
-	// if err != nil && err != datastore.ErrNotFound {
-	// 	return fmt.Errorf("unable to get data from cache: %w", err)
-	// }
-
-	heads := []*entry.Entry{}
-
-	for _, rawHeads := range [][]byte{rawLocalHeads} {
-		if len(rawLocalHeads) > 0 {
-			var dHeads []*entry.Entry
-			err = json.Unmarshal(rawHeads, &dHeads)
-			if err != nil {
-				o.logger.Warn("unable to unmarshal cached local heads", zap.Error(err))
-			} else {
-				heads = append(heads, dHeads...)
-			}
-		}
-	}
-
-	msg := &iface.MessageExchangeHeads{
-		Address: store.Address().String(),
-		Heads:   heads,
-	}
-
-	payload, err := o.messageMarshaler.Marshal(msg)
-	if err != nil {
-		return fmt.Errorf("unable to marshall message: %w", err)
-	}
-
-	payloadstring := fmt.Sprintf("%x", payload)
-	o.logger.Debug("sending payload", zap.String("payload_string", payloadstring), zap.Any("payload", payload))
-	if err = o.directChannel.Send(ctx, p, payload); err != nil {
-		return fmt.Errorf("unable to send heads on direct channel: %w", err)
-	}
-
-	return nil
-}
-
 func (o *orbitDB) EventBus() event.Bus {
 	return o.eventBus
-}
-
-func (o *orbitDB) monitorDirectChannel(ctx context.Context, bus event.Bus) error {
-	sub, err := bus.Subscribe(new(iface.EventPubSubPayload), eventbus.BufSize(128))
-	if err != nil {
-		return fmt.Errorf("unable to init pubsub subscriber: %w", err)
-	}
-
-	go func() {
-		for {
-			var e interface{}
-			select {
-			case <-ctx.Done():
-				return
-			case e = <-sub.Out():
-			}
-
-			evt := e.(iface.EventPubSubPayload)
-
-			msg := iface.MessageExchangeHeads{}
-			if err := o.messageMarshaler.Unmarshal(evt.Payload, &msg); err != nil {
-				o.logger.Error("unable to unmarshal message payload", zap.Error(err))
-				continue
-			}
-
-			store, ok := o.getStore(msg.Address)
-			if !ok {
-				o.logger.Error("unable to get store from address", zap.Error(err))
-				continue
-			}
-
-			o.logger.Debug("exchanging heads", zap.String("address", msg.Address))
-			if err := o.handleEventExchangeHeads(ctx, &msg, store); err != nil {
-				o.logger.Error("unable to handle pubsub payload", zap.Error(err))
-				continue
-			}
-
-			if err := o.emitters.newHeads.Emit(NewEventExchangeHeads(evt.Peer, &msg)); err != nil {
-				o.logger.Warn("unable to emit new heads", zap.Error(err))
-			}
-		}
-	}()
-
-	return nil
-}
-
-func makeDirectChannel(ctx context.Context, bus event.Bus, df iface.DirectChannelFactory, opts *iface.DirectChannelOptions) (iface.DirectChannel, error) {
-	emitter, err := pubsub.NewPayloadEmitter(bus)
-	if err != nil {
-		return nil, fmt.Errorf("unable to init pubsub emitter: %w", err)
-	}
-
-	return df(ctx, emitter, opts)
 }
 
 var _ BaseOrbitDB = &orbitDB{}

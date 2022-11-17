@@ -346,6 +346,11 @@ type NewStoreOptions struct {
 	Tracer                 trace.Tracer
 	IO                     ipfslog.IO
 	StoreSpecificOpts      interface{}
+	PubSub                 PubSubInterface
+	MessageMarshaler       MessageMarshaler
+	PeerID                 peer.ID
+	DirectChannelFactory   DirectChannelFactory
+	NewHeadsEmitter        event.Emitter
 }
 
 type DirectChannelOptions struct {
@@ -371,7 +376,7 @@ type DirectChannelEmitter interface {
 type DirectChannelFactory func(ctx context.Context, emitter DirectChannelEmitter, opts *DirectChannelOptions) (DirectChannel, error)
 
 // StoreConstructor Defines the expected constructor for a custom store
-type StoreConstructor func(context.Context, coreapi.CoreAPI, *identityprovider.Identity, address.Address, *NewStoreOptions) (Store, error)
+type StoreConstructor func(coreapi.CoreAPI, *identityprovider.Identity, address.Address, *NewStoreOptions) (Store, error)
 
 // IndexConstructor Defines the expected constructor for a custom index
 type IndexConstructor func(publicKey []byte) StoreIndex

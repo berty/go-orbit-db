@@ -36,6 +36,7 @@ func (p *psTopic) WatchPeers(ctx context.Context) (<-chan events.Event, error) {
 
 	ch := make(chan events.Event, 32)
 	go func() {
+		defer ph.Cancel()
 		defer close(ch)
 		for {
 			evt, err := ph.NextPeerEvent(ctx)
@@ -70,6 +71,7 @@ func (p *psTopic) WatchMessages(ctx context.Context) (<-chan *iface.EventPubSubM
 	ch := make(chan *iface.EventPubSubMessage, 32)
 	go func() {
 		defer close(ch)
+		defer sub.Cancel()
 		for {
 			msg, err := sub.Next(ctx)
 			if err != nil {
