@@ -8,8 +8,8 @@ jobs:
     steps:
       - uses: actions/checkout@master
       - uses: codfish/semantic-release-action@v2
-        if: github.ref == 'refs/heads/master'
         with:
+          dry_run: true
           plugins: |
             [
               ["@semantic-release/commit-analyzer", {
