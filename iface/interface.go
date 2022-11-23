@@ -53,6 +53,8 @@ type CreateDBOptions struct {
 	IO                      ipfslog.IO
 	Timeout                 time.Duration
 	MessageMarshaler        MessageMarshaler
+	Logger                  *zap.Logger
+	CloseFunc               func()
 	StoreSpecificOpts       interface{}
 }
 
@@ -345,12 +347,12 @@ type NewStoreOptions struct {
 	Logger                 *zap.Logger
 	Tracer                 trace.Tracer
 	IO                     ipfslog.IO
-	StoreSpecificOpts      interface{}
 	PubSub                 PubSubInterface
 	MessageMarshaler       MessageMarshaler
 	PeerID                 peer.ID
-	DirectChannelFactory   DirectChannelFactory
-	NewHeadsEmitter        event.Emitter
+	DirectChannel          DirectChannel
+	CloseFunc              func()
+	StoreSpecificOpts      interface{}
 }
 
 type DirectChannelOptions struct {

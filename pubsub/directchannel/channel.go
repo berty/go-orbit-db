@@ -82,6 +82,7 @@ func (d *directChannel) Connect(ctx context.Context, pid peer.ID) (err error) {
 // @NOTE(gfanton): we dont need this on direct channel
 // Close Closes the connection
 func (d *directChannel) Close() error {
+	d.host.RemoveStreamHandler(PROTOCOL)
 	return d.emitter.Close()
 }
 
