@@ -19,8 +19,6 @@ import (
 	"berty.tech/go-orbit-db/events"
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/messagemarshaler"
-	"berty.tech/go-orbit-db/pubsub"
-	"berty.tech/go-orbit-db/pubsub/oneonone"
 	"berty.tech/go-orbit-db/pubsub/pubsubcoreapi"
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/operation"
@@ -72,7 +70,6 @@ type BaseStore struct {
 	pubsub           iface.PubSubInterface
 	messageMarshaler iface.MessageMarshaler
 	directChannel    iface.DirectChannel
-	newHeadsEmitter  event.Emitter
 
 	muCache   sync.RWMutex
 	muIndex   sync.RWMutex
@@ -82,6 +79,7 @@ type BaseStore struct {
 	tracer    trace.Tracer
 	ctx       context.Context
 	cancel    context.CancelFunc
+	closeFunc func()
 
 	// Deprecated: if possible don't use this, use EventBus() directly instead
 	events.EventEmitter
@@ -158,18 +156,7 @@ func (b *BaseStore) InitBaseStore(ipfs coreapi.CoreAPI, identity *identityprovid
 		options.Logger = zap.NewNop()
 	}
 
-	if options.DirectChannelFactory == nil {
-		options.DirectChannelFactory = oneonone.NewChannelFactory(ipfs)
-	}
-	directChannel, err := makeDirectChannel(b.ctx, options.EventBus, options.DirectChannelFactory, &iface.DirectChannelOptions{
-		Logger: options.Logger,
-	})
-	if err != nil {
-		return fmt.Errorf("unable to create a direct connection with peer: %w", err)
-	}
-	b.directChannel = directChannel
-
-	b.newHeadsEmitter = options.NewHeadsEmitter
+	b.directChannel = options.DirectChannel
 
 	k, err := ipfs.Key().Self(b.ctx)
 	if err != nil {
@@ -200,7 +187,7 @@ func (b *BaseStore) InitBaseStore(ipfs coreapi.CoreAPI, identity *identityprovid
 		return fmt.Errorf("identity required")
 	}
 
-	if err := b.generateEmitter(options.EventBus); err != nil {
+	if err := b.generateEmitter(b.eventBus); err != nil {
 		return err
 	}
 
@@ -252,7 +239,7 @@ func (b *BaseStore) InitBaseStore(ipfs coreapi.CoreAPI, identity *identityprovid
 
 	b.replicator, err = replicator.NewReplicator(b, options.ReplicationConcurrency, &replicator.Options{
 		Logger:   b.logger,
-		EventBus: options.EventBus,
+		EventBus: b.eventBus,
 		Tracer:   b.tracer,
 	})
 	if err != nil {
@@ -273,6 +260,11 @@ func (b *BaseStore) InitBaseStore(ipfs coreapi.CoreAPI, identity *identityprovid
 	if options.Replicate == nil {
 		options.Replicate = boolPtr(true)
 	}
+
+	if options.CloseFunc == nil {
+		options.CloseFunc = func() {}
+	}
+	b.closeFunc = options.CloseFunc
 
 	b.options = options
 
@@ -349,14 +341,14 @@ func (b *BaseStore) InitBaseStore(ipfs coreapi.CoreAPI, identity *identityprovid
 		}
 	}()
 
-	if err := b.monitorDirectChannel(); err != nil {
-		return fmt.Errorf("unable to monitor direct channel: %w", err)
-	}
-
 	// Subscribe to pubsub to get updates from peers,
 	// this is what hooks us into the message propagation layer
 	// and the p2p network
 	if *options.Replicate {
+		if options.DirectChannel == nil {
+			return errors.New("replication needs DirectChannel")
+		}
+
 		if err := b.replicate(); err != nil {
 			return fmt.Errorf("unable to start store replication: %w", err)
 		}
@@ -379,7 +371,9 @@ func (b *BaseStore) Close() error {
 		return nil
 	}
 
-	b.closeDirectConnections()
+	b.cancel()
+
+	b.closeFunc()
 
 	// Replicator teardown logic
 	b.Replicator().Stop()
@@ -404,15 +398,7 @@ func (b *BaseStore) Close() error {
 		return fmt.Errorf("unable to close cache: %w", err)
 	}
 
-	b.cancel()
-
 	return nil
-}
-
-func (b *BaseStore) closeDirectConnections() {
-	if err := b.directChannel.Close(); err != nil {
-		b.logger.Error("unable to close connection", zap.Error(err))
-	}
 }
 
 func (b *BaseStore) Address() address.Address {
@@ -424,63 +410,6 @@ func (b *BaseStore) Index() iface.StoreIndex {
 	defer b.muIndex.RUnlock()
 
 	return b.index
-}
-
-func (b *BaseStore) monitorDirectChannel() error {
-	sub, err := b.eventBus.Subscribe(new(iface.EventPubSubPayload), eventbus.BufSize(128))
-	if err != nil {
-		return fmt.Errorf("unable to init pubsub subscriber: %w", err)
-	}
-
-	go func() {
-		for {
-			var e interface{}
-			select {
-			case <-b.ctx.Done():
-				return
-			case e = <-sub.Out():
-			}
-
-			evt := e.(iface.EventPubSubPayload)
-
-			msg := iface.MessageExchangeHeads{}
-			if err := b.messageMarshaler.Unmarshal(evt.Payload, &msg); err != nil {
-				b.logger.Error("unable to unmarshal message payload", zap.Error(err))
-				continue
-			}
-
-			b.logger.Debug("exchanging heads", zap.String("address", msg.Address))
-			if err := b.handleEventExchangeHeads(&msg); err != nil {
-				b.logger.Error("unable to handle pubsub payload", zap.Error(err))
-				continue
-			}
-
-			if b.newHeadsEmitter != nil {
-				if err := b.newHeadsEmitter.Emit(stores.NewEventExchangeHeads(evt.Peer, &msg)); err != nil {
-					b.logger.Warn("unable to emit new heads", zap.Error(err))
-				}
-			}
-		}
-	}()
-
-	return nil
-}
-
-func (b *BaseStore) handleEventExchangeHeads(e *iface.MessageExchangeHeads) error {
-	untypedHeads := make([]ipfslog.Entry, len(e.Heads))
-	for i, h := range e.Heads {
-		untypedHeads[i] = h
-	}
-
-	b.logger.Debug(fmt.Sprintf("%s: Received %d heads for '%s':", b.peerID, len(untypedHeads), e.Address))
-
-	if len(untypedHeads) > 0 {
-		if err := b.Sync(b.ctx, untypedHeads); err != nil {
-			return fmt.Errorf("unable to sync heads: %w", err)
-		}
-	}
-
-	return nil
 }
 
 func (b *BaseStore) Type() string {
@@ -1307,15 +1236,6 @@ func (c *CanAppendContext) GetLogEntries() []logac.LogEntry {
 	}
 
 	return entries
-}
-
-func makeDirectChannel(ctx context.Context, bus event.Bus, df iface.DirectChannelFactory, opts *iface.DirectChannelOptions) (iface.DirectChannel, error) {
-	emitter, err := pubsub.NewPayloadEmitter(bus)
-	if err != nil {
-		return nil, fmt.Errorf("unable to init pubsub emitter: %w", err)
-	}
-
-	return df(ctx, emitter, opts)
 }
 
 var _ iface.Store = &BaseStore{}
