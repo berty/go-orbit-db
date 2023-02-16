@@ -1184,16 +1184,15 @@ func (b *BaseStore) exchangeHeads(p peer.ID) error {
 		return fmt.Errorf("unable to get local heads from cache: %w", err)
 	}
 
-	// @FIXME(gfanton): looks like activate this break the exchange
-	// rawRemoteHeads, err := store.Cache().Get(b.ctx, datastore.NewKey("_remoteHeads"))
-	// if err != nil && err != datastore.ErrNotFound {
-	// 	return fmt.Errorf("unable to get data from cache: %w", err)
-	// }
+	rawRemoteHeads, err := b.Cache().Get(b.ctx, datastore.NewKey("_remoteHeads"))
+	if err != nil && err != datastore.ErrNotFound {
+		return fmt.Errorf("unable to get data from cache: %w", err)
+	}
 
 	heads := []*entry.Entry{}
 
-	for _, rawHeads := range [][]byte{rawLocalHeads} {
-		if len(rawLocalHeads) > 0 {
+	for _, rawHeads := range [][]byte{rawLocalHeads, rawRemoteHeads} {
+		if len(rawHeads) > 0 {
 			var dHeads []*entry.Entry
 			err = json.Unmarshal(rawHeads, &dHeads)
 			if err != nil {
