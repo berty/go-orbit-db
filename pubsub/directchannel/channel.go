@@ -16,7 +16,7 @@ import (
 )
 
 const PROTOCOL = "/go-orbit-db/direct-channel/1.2.0"
-const DelimitedReadMaxSize = 2048
+const DelimitedReadMaxSize = 1024 * 1024 * 4 // mb
 
 type directChannel struct {
 	logger  *zap.Logger
@@ -57,8 +57,9 @@ func (d *directChannel) handleNewPeer(s network.Stream) {
 	}
 
 	length := int(length64)
-	if length < 0 || length > DelimitedReadMaxSize {
-		d.logger.Error("invalid buffer length", zap.Error(io.ErrShortBuffer))
+
+	if length > DelimitedReadMaxSize {
+		d.logger.Error(fmt.Sprintf("received data exceeding maximum allowed size (%d > %d)", length, DelimitedReadMaxSize))
 		return
 	}
 
