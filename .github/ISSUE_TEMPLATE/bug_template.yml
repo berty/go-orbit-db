@@ -1,6 +1,6 @@
 name: "Bug report"
 description: Report a bug for this project.
-labels: ["bug", "🔍 Ready for Review"]
+labels: ["bug"]
 assignees:
 - peletron
 body:
