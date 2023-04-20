@@ -1,8 +1,6 @@
 name: "Bug report"
 description: Report a bug for this project.
 labels: ["bug"]
-assignees:
-- peletron
 body:
   - type: checkboxes
     attributes:
@@ -15,7 +13,7 @@ body:
     id: package-version
     attributes:
       label: Package version
-      description: What version of go-ipfs-db package are you using?
+      description: What version of go-orbit-db package are you using?
       placeholder: v1.8.0
     validations:
       required: true
