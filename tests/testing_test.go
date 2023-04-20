@@ -41,6 +41,7 @@ func testingRepo(ctx context.Context, t *testing.T) repo.Repo {
 	c.Addresses.Swarm = []string{"/ip4/127.0.0.1/tcp/4001", "/ip4/127.0.0.1/udp/4001/quic"}
 	c.Identity.PeerID = pid.Pretty()
 	c.Identity.PrivKey = base64.StdEncoding.EncodeToString(privkeyb)
+	c.Swarm.ResourceMgr.Enabled = cfg.False // we don't need ressources manager for test
 
 	return &repo.Mock{
 		D: dsync.MutexWrap(ds.NewMapDatastore()),

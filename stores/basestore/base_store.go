@@ -25,7 +25,7 @@ import (
 	"berty.tech/go-orbit-db/stores/replicator"
 	cid "github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
-	files "github.com/ipfs/go-ipfs-files"
+	files "github.com/ipfs/go-libipfs/files"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/libp2p/go-libp2p/core/event"

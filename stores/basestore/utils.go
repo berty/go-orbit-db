@@ -10,7 +10,7 @@ import (
 	"berty.tech/go-orbit-db/iface"
 	cid "github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
-	files "github.com/ipfs/go-ipfs-files"
+	files "github.com/ipfs/go-libipfs/files"
 )
 
 func SaveSnapshot(ctx context.Context, b iface.Store) (cid.Cid, error) {

@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         golang:
-          - 1.18.x
+          - '1.19.x'
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -40,8 +40,8 @@ jobs:
     strategy:
       matrix:
         golang:
-          - 1.18.x
-          - 1.19.x
+          - '1.19.x'
+          - '1.20.x'
     env:
       OS: ubuntu-latest
       GOLANG: ${{ matrix.golang }}
@@ -49,7 +49,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@master
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.golang }}
       - name: Cache Go modules
@@ -89,8 +89,8 @@ jobs:
     strategy:
       matrix:
         golang:
-          - 1.18.x
-          - 1.19.x
+          - '1.19.x'
+          - '1.20.x'
     env:
       OS: macos-latest
       GOLANG: ${{ matrix.golang }}
@@ -98,7 +98,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@master
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.golang }}
       - name: Cache Go modules

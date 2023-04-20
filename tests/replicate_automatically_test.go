@@ -12,6 +12,7 @@ import (
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/operation"
+	cid "github.com/ipfs/go-cid"
 	"github.com/ipfs/kubo/core"
 	"github.com/libp2p/go-libp2p/core/peer"
 	p2pmocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
@@ -129,9 +130,12 @@ func TestReplicateAutomatically(t *testing.T) {
 		require.NoError(t, err)
 
 		// add message to log
+		ops := make(map[cid.Cid]operation.Operation, entryCount)
 		for i := 0; i < entryCount; i++ {
-			_, err := db1.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
+			op, err := db1.Add(ctx, []byte(fmt.Sprintf("hello%d", i)))
 			require.NoError(t, err)
+			ops[op.GetEntry().GetHash()] = op
+
 		}
 
 		sub, err := db2.EventBus().Subscribe(new(stores.EventReplicated))
@@ -141,36 +145,21 @@ func TestReplicateAutomatically(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		hasAllResults := false
-
-		infinity := -1
+		centries := make(chan cid.Cid, entryCount)
 		go func() {
+			defer close(centries)
 			for {
+				var evt stores.EventReplicated
 				select {
-				case <-sub.Out():
+				case e := <-sub.Out():
+					evt = e.(stores.EventReplicated)
 				case <-ctx.Done():
 					return
 				}
-				result1, err := db1.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
-				if !assert.NoError(t, err) {
-					return
-				}
 
-				result2, err := db2.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
-				if !assert.NoError(t, err) {
-					return
+				for _, entry := range evt.Entries {
+					centries <- entry.GetHash()
 				}
-
-				if len(result1) != len(result2) {
-					continue
-				}
-
-				hasAllResults = true
-				for i := 0; i < len(result1); i++ {
-					assert.Equal(t, string(result1[i].GetValue()), string(result2[i].GetValue()))
-				}
-
-				cancel()
 			}
 		}()
 
@@ -178,8 +167,26 @@ func TestReplicateAutomatically(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close()
 
-		<-ctx.Done()
-		require.True(t, hasAllResults)
+		for len(ops) > 0 {
+			select {
+			case <-ctx.Done():
+				require.NoError(t, err, "waiting for entries")
+			case h := <-centries:
+				delete(ops, h)
+			}
+		}
+		cancel()
+
+		infinity := -1
+		result1, err := db1.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
+		require.NoError(t, err)
+		result2, err := db2.List(ctx, &orbitdb.StreamOptions{Amount: &infinity})
+		require.NoError(t, err)
+		require.Equal(t, len(result1), len(result1))
+
+		for i := 0; i < len(result1); i++ {
+			require.Equal(t, string(result1[i].GetValue()), string(result2[i].GetValue()))
+		}
 	})
 
 	t.Run("automatic replication exchanges the correct heads", func(t *testing.T) {
