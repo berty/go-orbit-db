@@ -16,6 +16,7 @@ import (
 
 	cid "github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/event"
+	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 	"go.uber.org/zap"
 )
 
@@ -217,7 +218,7 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 		new(stores.EventWrite),
 		new(stores.EventReady),
 		new(stores.EventReplicated),
-	})
+	}, eventbus.Name("odb/load"))
 	if err != nil {
 		return fmt.Errorf("unable subscribe to store events: %w", err)
 	}

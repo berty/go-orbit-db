@@ -268,7 +268,8 @@ func (b *BaseStore) InitBaseStore(ipfs coreapi.CoreAPI, identity *identityprovid
 
 	b.options = options
 
-	sub, err := b.replicator.EventBus().Subscribe(replicator.Events, eventbus.BufSize(128))
+	sub, err := b.replicator.EventBus().Subscribe(replicator.Events,
+		eventbus.BufSize(128), eventbus.Name("odb/base-store-main-loop"))
 	if err != nil {
 		return fmt.Errorf("unable to subscribe to replicator events: %w", err)
 	}
@@ -1008,7 +1009,7 @@ func (b *BaseStore) replicate() error {
 }
 
 func (b *BaseStore) storeListener(topic iface.PubSubTopic) error {
-	sub, err := b.EventBus().Subscribe(new(stores.EventWrite))
+	sub, err := b.EventBus().Subscribe(new(stores.EventWrite), eventbus.Name("odb/store-listener"))
 	if err != nil {
 		return fmt.Errorf("unable to init event bus: %w", err)
 	}
