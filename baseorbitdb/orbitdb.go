@@ -813,7 +813,8 @@ func (o *orbitDB) EventBus() event.Bus {
 }
 
 func (o *orbitDB) monitorDirectChannel(ctx context.Context, bus event.Bus) error {
-	sub, err := bus.Subscribe(new(iface.EventPubSubPayload), eventbus.BufSize(128))
+	sub, err := bus.Subscribe(new(iface.EventPubSubPayload),
+		eventbus.BufSize(128), eventbus.Name("odb/monitor-direct-channel"))
 	if err != nil {
 		return fmt.Errorf("unable to init pubsub subscriber: %w", err)
 	}
