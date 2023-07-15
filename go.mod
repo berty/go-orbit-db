@@ -3,7 +3,7 @@ module github.com/stateless-minds/go-orbit-db
 go 1.20
 
 require (
-	github.com/ipfs/boxo v0.10.2-0.20230629143123-2d3edc552442
+	github.com/ipfs/boxo v0.10.3-0.20230706061345-cfad09d7156e
 	github.com/ipfs/go-cid v0.4.1
 	github.com/ipfs/go-datastore v0.6.0
 	github.com/ipfs/go-ds-leveldb v0.5.0
@@ -96,6 +96,7 @@ require (
 	github.com/ipfs/go-peertaskqueue v0.8.1 // indirect
 	github.com/ipfs/go-unixfsnode v1.7.1 // indirect
 	github.com/ipld/edelweiss v0.2.0 // indirect
+	github.com/ipld/go-car/v2 v2.10.2-0.20230622090957-499d0c909d33 // indirect
 	github.com/ipld/go-codec-dagpb v1.6.0 // indirect
 	github.com/ipld/go-ipld-prime v0.20.0 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
