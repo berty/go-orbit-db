@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	ipfslog "berty.tech/go-ipfs-log"
-	"berty.tech/go-orbit-db/iface"
+	ipfslog "github.com/stateless-minds/go-ipfs-log"
+	"github.com/stateless-minds/go-orbit-db/iface"
 )
 
 func (o *orbitDB) handleEventExchangeHeads(ctx context.Context, e *iface.MessageExchangeHeads, store iface.Store) error {

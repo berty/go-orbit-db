@@ -1,7 +1,7 @@
 package replicator
 
 import (
-	"berty.tech/go-ipfs-log/iface"
+	"github.com/stateless-minds/go-ipfs-log/iface"
 	cid "github.com/ipfs/go-cid"
 )
 

@@ -1,7 +1,7 @@
 package cache
 
 import (
-	"berty.tech/go-orbit-db/address"
+	"github.com/stateless-minds/go-orbit-db/address"
 	datastore "github.com/ipfs/go-datastore"
 	"go.uber.org/zap"
 )

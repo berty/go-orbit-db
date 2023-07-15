@@ -1,2 +1,2 @@
 // baseorbitdb package containing the base implementation of OrbitDB
-package baseorbitdb // import "berty.tech/go-orbit-db/baseorbitdb"
+package baseorbitdb // import "github.com/stateless-minds/go-orbit-db/baseorbitdb"

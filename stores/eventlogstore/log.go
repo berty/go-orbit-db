@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	ipfslog "berty.tech/go-ipfs-log"
-	"berty.tech/go-ipfs-log/identityprovider"
-	"berty.tech/go-orbit-db/address"
-	"berty.tech/go-orbit-db/iface"
-	"berty.tech/go-orbit-db/stores/basestore"
-	"berty.tech/go-orbit-db/stores/operation"
+	ipfslog "github.com/stateless-minds/go-ipfs-log"
+	"github.com/stateless-minds/go-ipfs-log/identityprovider"
+	"github.com/stateless-minds/go-orbit-db/address"
+	"github.com/stateless-minds/go-orbit-db/iface"
+	"github.com/stateless-minds/go-orbit-db/stores/basestore"
+	"github.com/stateless-minds/go-orbit-db/stores/operation"
+	coreapi "github.com/ipfs/boxo/coreiface"
 	cid "github.com/ipfs/go-cid"
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
 )
 
 type orbitDBEventLogStore struct {

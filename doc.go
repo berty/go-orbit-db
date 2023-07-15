@@ -1,2 +1,2 @@
 // orbitdb implements the OrbitDB interface
-package orbitdb // import "berty.tech/go-orbit-db"
+package orbitdb // import "github.com/stateless-minds/go-orbit-db"

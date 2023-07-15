@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	coreapi "github.com/ipfs/boxo/coreiface"
 
-	"berty.tech/go-orbit-db/accesscontroller/ipfs"
-	"berty.tech/go-orbit-db/accesscontroller/orbitdb"
-	"berty.tech/go-orbit-db/accesscontroller/simple"
-	"berty.tech/go-orbit-db/baseorbitdb"
-	"berty.tech/go-orbit-db/iface"
-	"berty.tech/go-orbit-db/stores/documentstore"
-	"berty.tech/go-orbit-db/stores/eventlogstore"
-	"berty.tech/go-orbit-db/stores/kvstore"
+	"github.com/stateless-minds/go-orbit-db/accesscontroller/ipfs"
+	"github.com/stateless-minds/go-orbit-db/accesscontroller/orbitdb"
+	"github.com/stateless-minds/go-orbit-db/accesscontroller/simple"
+	"github.com/stateless-minds/go-orbit-db/baseorbitdb"
+	"github.com/stateless-minds/go-orbit-db/iface"
+	"github.com/stateless-minds/go-orbit-db/stores/documentstore"
+	"github.com/stateless-minds/go-orbit-db/stores/eventlogstore"
+	"github.com/stateless-minds/go-orbit-db/stores/kvstore"
 )
 
 type orbitDB struct {

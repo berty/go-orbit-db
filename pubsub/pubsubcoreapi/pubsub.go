@@ -5,15 +5,15 @@ import (
 	"sync"
 	"time"
 
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	options "github.com/ipfs/interface-go-ipfs-core/options"
+	coreapi "github.com/ipfs/boxo/coreiface"
+	options "github.com/ipfs/boxo/coreiface/options"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"berty.tech/go-orbit-db/events"
-	"berty.tech/go-orbit-db/iface"
-	"berty.tech/go-orbit-db/pubsub"
+	"github.com/stateless-minds/go-orbit-db/events"
+	"github.com/stateless-minds/go-orbit-db/iface"
+	"github.com/stateless-minds/go-orbit-db/pubsub"
 )
 
 type psTopic struct {

@@ -1,2 +1,2 @@
 // documentstore a document store for OrbitDB
-package documentstore // import "berty.tech/go-orbit-db/stores/documentstore"
+package documentstore // import "github.com/stateless-minds/go-orbit-db/stores/documentstore"

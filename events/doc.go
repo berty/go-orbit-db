@@ -1,3 +1,3 @@
 // events defines an event subscriber and dispatcher
 // Deprecated: use EventBus instead
-package events // import "berty.tech/go-orbit-db/events"
+package events // import "github.com/stateless-minds/go-orbit-db/events"

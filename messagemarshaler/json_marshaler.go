@@ -3,7 +3,7 @@ package messagemarshaler
 import (
 	"encoding/json"
 
-	"berty.tech/go-orbit-db/iface"
+	"github.com/stateless-minds/go-orbit-db/iface"
 )
 
 type JSONMarshaler struct{}

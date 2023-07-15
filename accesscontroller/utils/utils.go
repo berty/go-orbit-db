@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"berty.tech/go-orbit-db/accesscontroller"
-	"berty.tech/go-orbit-db/iface"
+	"github.com/stateless-minds/go-orbit-db/accesscontroller"
+	"github.com/stateless-minds/go-orbit-db/iface"
 	cid "github.com/ipfs/go-cid"
 )
 
