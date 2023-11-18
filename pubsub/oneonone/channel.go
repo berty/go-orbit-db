@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/ipfs/interface-go-ipfs-core/options"
+	coreapi "github.com/ipfs/boxo/coreiface"
+	"github.com/ipfs/boxo/coreiface/options"
 	peer "github.com/libp2p/go-libp2p/core/peer"
 	"go.uber.org/zap"
 
