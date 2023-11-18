@@ -11,9 +11,9 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 
+	iface "github.com/ipfs/boxo/coreiface"
 	ds "github.com/ipfs/go-datastore"
 	dsync "github.com/ipfs/go-datastore/sync"
-	iface "github.com/ipfs/interface-go-ipfs-core"
 	cfg "github.com/ipfs/kubo/config"
 	ipfsCore "github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/coreapi"
@@ -39,7 +39,7 @@ func testingRepo(ctx context.Context, t *testing.T) repo.Repo {
 	c.Pubsub.Enabled = cfg.True
 	c.Bootstrap = []string{}
 	c.Addresses.Swarm = []string{"/ip4/127.0.0.1/tcp/4001", "/ip4/127.0.0.1/udp/4001/quic"}
-	c.Identity.PeerID = pid.Pretty()
+	c.Identity.PeerID = pid.String()
 	c.Identity.PrivKey = base64.StdEncoding.EncodeToString(privkeyb)
 	c.Swarm.ResourceMgr.Enabled = cfg.False // we don't need ressources manager for test
 

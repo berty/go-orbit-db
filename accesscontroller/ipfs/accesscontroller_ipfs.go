@@ -12,9 +12,9 @@ import (
 	"berty.tech/go-orbit-db/accesscontroller"
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/iface"
+	coreapi "github.com/ipfs/boxo/coreiface"
 	cid "github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/polydawn/refmt/obj/atlas"
 	"go.uber.org/zap"
 )

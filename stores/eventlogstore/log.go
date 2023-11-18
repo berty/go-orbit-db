@@ -10,8 +10,8 @@ import (
 	"berty.tech/go-orbit-db/iface"
 	"berty.tech/go-orbit-db/stores/basestore"
 	"berty.tech/go-orbit-db/stores/operation"
+	coreapi "github.com/ipfs/boxo/coreiface"
 	cid "github.com/ipfs/go-cid"
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
 )
 
 type orbitDBEventLogStore struct {

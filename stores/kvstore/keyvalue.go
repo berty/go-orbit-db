@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"berty.tech/go-ipfs-log/identityprovider"
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	coreapi "github.com/ipfs/boxo/coreiface"
 
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/iface"

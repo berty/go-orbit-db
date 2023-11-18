@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	coreapi "github.com/ipfs/boxo/coreiface"
 
 	"berty.tech/go-orbit-db/accesscontroller/ipfs"
 	"berty.tech/go-orbit-db/accesscontroller/orbitdb"
