@@ -76,7 +76,7 @@ func (d *directChannel) handleNewPeer(s network.Stream) {
 
 // @NOTE(gfanton): we dont need this on direct channel
 // Connect Waits for the other peer to be connected
-func (d *directChannel) Connect(ctx context.Context, pid peer.ID) (err error) {
+func (d *directChannel) Connect(ctx context.Context, pid peer.ID) (err error) { //nolint:all
 	return nil
 }
 
@@ -92,7 +92,7 @@ type holderChannels struct {
 	logger *zap.Logger
 }
 
-func (c *holderChannels) NewChannel(ctx context.Context, emitter iface.DirectChannelEmitter, opts *iface.DirectChannelOptions) (iface.DirectChannel, error) {
+func (c *holderChannels) NewChannel(_ context.Context, emitter iface.DirectChannelEmitter, opts *iface.DirectChannelOptions) (iface.DirectChannel, error) {
 	if opts == nil {
 		opts = &iface.DirectChannelOptions{}
 	}

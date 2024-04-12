@@ -38,19 +38,19 @@ func (o *simpleAccessController) Address() address.Address {
 	return nil
 }
 
-func (o *simpleAccessController) Grant(ctx context.Context, capability string, keyID string) error {
+func (o *simpleAccessController) Grant(ctx context.Context, capability string, keyID string) error { //nolint:all
 	return nil
 }
 
-func (o *simpleAccessController) Revoke(ctx context.Context, capability string, keyID string) error {
+func (o *simpleAccessController) Revoke(ctx context.Context, capability string, keyID string) error { //nolint:all
 	return nil
 }
 
-func (o *simpleAccessController) Load(ctx context.Context, address string) error {
+func (o *simpleAccessController) Load(ctx context.Context, address string) error { //nolint:all
 	return nil
 }
 
-func (o *simpleAccessController) Save(ctx context.Context) (accesscontroller.ManifestParams, error) {
+func (o *simpleAccessController) Save(_ context.Context) (accesscontroller.ManifestParams, error) {
 	return accesscontroller.NewManifestParams(cid.Cid{}, true, "simple"), nil
 }
 
@@ -66,7 +66,7 @@ func (o *simpleAccessController) GetAuthorizedByRole(role string) ([]string, err
 	return o.allowedKeys[role], nil
 }
 
-func (o *simpleAccessController) CanAppend(e logac.LogEntry, p identityprovider.Interface, additionalContext accesscontroller.CanAppendAdditionalContext) error {
+func (o *simpleAccessController) CanAppend(e logac.LogEntry, _ identityprovider.Interface, _ accesscontroller.CanAppendAdditionalContext) error {
 	for _, id := range o.allowedKeys["write"] {
 		if e.GetIdentity().ID == id || id == "*" {
 			return nil

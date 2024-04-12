@@ -31,6 +31,7 @@ import (
 	peer "github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 	"go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 )
 
@@ -334,7 +335,7 @@ func newOrbitDB(ctx context.Context, is coreiface.CoreAPI, identity *idp.Identit
 	}
 
 	if options.Tracer == nil {
-		options.Tracer = trace.NewNoopTracerProvider().Tracer("")
+		options.Tracer = tracenoop.NewTracerProvider().Tracer("")
 	}
 
 	if options.EventBus == nil {

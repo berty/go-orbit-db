@@ -34,6 +34,7 @@ import (
 	"github.com/pkg/errors"
 	otkv "go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 )
 
@@ -180,7 +181,7 @@ func (b *BaseStore) InitBaseStore(ipfs coreiface.CoreAPI, identity *identityprov
 	b.messageMarshaler = options.MessageMarshaler
 
 	if options.Tracer == nil {
-		options.Tracer = trace.NewNoopTracerProvider().Tracer("")
+		options.Tracer = tracenoop.NewTracerProvider().Tracer("")
 	}
 
 	if identity == nil {
@@ -662,7 +663,7 @@ func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
 	return nil
 }
 
-func (b *BaseStore) LoadMoreFrom(ctx context.Context, amount uint, entries []ipfslog.Entry) {
+func (b *BaseStore) LoadMoreFrom(ctx context.Context, amount uint, entries []ipfslog.Entry) { //nolint:all
 	b.Replicator().Load(ctx, entries)
 	// TODO: can this return an error?
 }

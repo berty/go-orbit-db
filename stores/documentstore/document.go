@@ -20,7 +20,7 @@ type orbitDBDocumentStore struct {
 	docOpts *iface.CreateDocumentDBOptions
 }
 
-func (o *orbitDBDocumentStore) Get(ctx context.Context, key string, opts *iface.DocumentStoreGetOptions) ([]interface{}, error) {
+func (o *orbitDBDocumentStore) Get(_ context.Context, key string, opts *iface.DocumentStoreGetOptions) ([]interface{}, error) {
 	if opts == nil {
 		opts = &iface.DocumentStoreGetOptions{}
 	}
@@ -179,7 +179,7 @@ func (o *orbitDBDocumentStore) PutAll(ctx context.Context, values []interface{})
 }
 
 // Query Finds documents using a filter function
-func (o *orbitDBDocumentStore) Query(ctx context.Context, filter func(doc interface{}) (bool, error)) ([]interface{}, error) {
+func (o *orbitDBDocumentStore) Query(_ context.Context, filter func(doc interface{}) (bool, error)) ([]interface{}, error) {
 	docIndex, ok := o.Index().(*documentIndex)
 	if !ok {
 		return nil, fmt.Errorf("unable to cast index to documentIndex")

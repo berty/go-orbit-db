@@ -9,6 +9,7 @@ import (
 	"github.com/ipfs/kubo/core/coreiface/options"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
 	"berty.tech/go-orbit-db/events"
@@ -172,7 +173,7 @@ func NewPubSub(api coreiface.CoreAPI, id peer.ID, pollInterval time.Duration, lo
 	}
 
 	if tracer == nil {
-		tracer = trace.NewNoopTracerProvider().Tracer("")
+		tracer = tracenoop.NewTracerProvider().Tracer("")
 	}
 
 	return &coreAPIPubSub{

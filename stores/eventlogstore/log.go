@@ -80,7 +80,7 @@ func (o *orbitDBEventLogStore) Get(ctx context.Context, cid cid.Cid) (operation.
 	}
 }
 
-func (o *orbitDBEventLogStore) Stream(ctx context.Context, resultChan chan operation.Operation, options *iface.StreamOptions) error {
+func (o *orbitDBEventLogStore) Stream(_ context.Context, resultChan chan operation.Operation, options *iface.StreamOptions) error {
 	defer close(resultChan)
 	messages, err := o.query(options)
 	if err != nil {
