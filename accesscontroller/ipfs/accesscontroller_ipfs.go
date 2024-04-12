@@ -14,7 +14,7 @@ import (
 	"berty.tech/go-orbit-db/iface"
 	cid "github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	coreiface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/polydawn/refmt/obj/atlas"
 	"go.uber.org/zap"
 )
@@ -24,7 +24,7 @@ type cborWriteAccess struct {
 }
 
 type ipfsAccessController struct {
-	ipfs          coreapi.CoreAPI
+	ipfs          coreiface.CoreAPI
 	writeAccess   []string
 	muWriteAccess sync.RWMutex
 	logger        *zap.Logger

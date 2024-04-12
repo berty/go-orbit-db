@@ -23,11 +23,11 @@ import (
 	"berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/operation"
 	"berty.tech/go-orbit-db/stores/replicator"
+	"github.com/ipfs/boxo/path"
 	cid "github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
 	files "github.com/ipfs/go-libipfs/files"
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/ipfs/interface-go-ipfs-core/path"
+	coreiface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
@@ -54,7 +54,7 @@ type BaseStore struct {
 	identity          *identityprovider.Identity
 	address           address.Address
 	dbName            string
-	ipfs              coreapi.CoreAPI
+	ipfs              coreiface.CoreAPI
 	cache             datastore.Datastore
 	access            accesscontroller.Interface
 	oplog             ipfslog.Log
@@ -89,7 +89,7 @@ func (b *BaseStore) DBName() string {
 	return b.dbName
 }
 
-func (b *BaseStore) IPFS() coreapi.CoreAPI {
+func (b *BaseStore) IPFS() coreiface.CoreAPI {
 	return b.ipfs
 }
 
@@ -136,7 +136,7 @@ func (b *BaseStore) EventBus() event.Bus {
 }
 
 // InitBaseStore Initializes the store base
-func (b *BaseStore) InitBaseStore(ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) error {
+func (b *BaseStore) InitBaseStore(ipfs coreiface.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) error {
 	var err error
 
 	b.ctx, b.cancel = context.WithCancel(context.Background())
@@ -719,7 +719,12 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 
 	b.Logger().Debug("loading snapshot from path", zap.String("snapshot", string(snapshot)))
 
-	resNode, err := b.IPFS().Unixfs().Get(ctx, path.New(string(snapshot)))
+	path, err := path.NewPath(string(snapshot))
+	if err != nil {
+		return fmt.Errorf("unable to convert string to path: %w", err)
+	}
+
+	resNode, err := b.IPFS().Unixfs().Get(ctx, path)
 	if err != nil {
 		return fmt.Errorf("unable to get snapshot from ipfs: %w", err)
 	}

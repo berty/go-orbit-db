@@ -13,10 +13,10 @@ import (
 
 	ds "github.com/ipfs/go-datastore"
 	dsync "github.com/ipfs/go-datastore/sync"
-	iface "github.com/ipfs/interface-go-ipfs-core"
 	cfg "github.com/ipfs/kubo/config"
 	ipfsCore "github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/coreapi"
+	coreiface "github.com/ipfs/kubo/core/coreiface"
 	mock "github.com/ipfs/kubo/core/mock"
 	"github.com/ipfs/kubo/repo"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
@@ -39,7 +39,7 @@ func testingRepo(ctx context.Context, t *testing.T) repo.Repo {
 	c.Pubsub.Enabled = cfg.True
 	c.Bootstrap = []string{}
 	c.Addresses.Swarm = []string{"/ip4/127.0.0.1/tcp/4001", "/ip4/127.0.0.1/udp/4001/quic"}
-	c.Identity.PeerID = pid.Pretty()
+	c.Identity.PeerID = pid.String()
 	c.Identity.PrivKey = base64.StdEncoding.EncodeToString(privkeyb)
 	c.Swarm.ResourceMgr.Enabled = cfg.False // we don't need ressources manager for test
 
@@ -49,13 +49,13 @@ func testingRepo(ctx context.Context, t *testing.T) repo.Repo {
 	}
 }
 
-func testingIPFSAPIs(ctx context.Context, t *testing.T, count int) ([]iface.CoreAPI, func()) {
+func testingIPFSAPIs(ctx context.Context, t *testing.T, count int) ([]coreiface.CoreAPI, func()) {
 	t.Helper()
 
 	mn := testingMockNet(t)
 	defer mn.Close()
 
-	coreAPIs := make([]iface.CoreAPI, count)
+	coreAPIs := make([]coreiface.CoreAPI, count)
 	cleans := make([]func(), count)
 
 	for i := 0; i < count; i++ {
@@ -72,10 +72,10 @@ func testingIPFSAPIs(ctx context.Context, t *testing.T, count int) ([]iface.Core
 	}
 }
 
-func testingIPFSAPIsNonMocked(ctx context.Context, t *testing.T, count int) ([]iface.CoreAPI, func()) {
+func testingIPFSAPIsNonMocked(ctx context.Context, t *testing.T, count int) ([]coreiface.CoreAPI, func()) {
 	t.Helper()
 
-	coreAPIs := make([]iface.CoreAPI, count)
+	coreAPIs := make([]coreiface.CoreAPI, count)
 	cleans := make([]func(), count)
 
 	for i := 0; i < count; i++ {
@@ -151,7 +151,7 @@ func testingNonMockedIPFSNode(ctx context.Context, t *testing.T) (*ipfsCore.Ipfs
 	return core, cleanup
 }
 
-func testingCoreAPI(t *testing.T, core *ipfsCore.IpfsNode) iface.CoreAPI {
+func testingCoreAPI(t *testing.T, core *ipfsCore.IpfsNode) coreiface.CoreAPI {
 	t.Helper()
 
 	api, err := coreapi.NewCoreAPI(core)

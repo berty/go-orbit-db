@@ -12,7 +12,7 @@ import (
 	"berty.tech/go-orbit-db/stores/basestore"
 	"berty.tech/go-orbit-db/stores/operation"
 
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	coreiface "github.com/ipfs/kubo/core/coreiface"
 )
 
 type orbitDBDocumentStore struct {
@@ -242,7 +242,7 @@ func DefaultStoreOptsForMap(keyField string) *iface.CreateDocumentDBOptions {
 }
 
 // NewOrbitDBDocumentStore Instantiates a new DocumentStore
-func NewOrbitDBDocumentStore(ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) (iface.Store, error) {
+func NewOrbitDBDocumentStore(ipfs coreiface.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) (iface.Store, error) {
 	if options.StoreSpecificOpts == nil {
 		options.StoreSpecificOpts = DefaultStoreOptsForMap("_id")
 	}

@@ -277,8 +277,6 @@ github.com/ipfs/boxo v0.18.0 h1:MOL9/AgoV3e7jlVMInicaSdbgralfqSsbkc31dZ9tmw=
 github.com/ipfs/boxo v0.18.0/go.mod h1:pIZgTWdm3k3pLF9Uq6MB8JEcW07UDwNJjlXW1HELW80=
 github.com/ipfs/go-bitfield v1.1.0 h1:fh7FIo8bSwaJEh6DdTWbCeZ1eqOaOkKFI74SCnsWbGA=
 github.com/ipfs/go-bitfield v1.1.0/go.mod h1:paqf1wjq/D2BBmzfTVFlJQ9IlFOZpg422HL0HqsGWHU=
-github.com/ipfs/go-bitswap v0.11.0 h1:j1WVvhDX1yhG32NTC9xfxnqycqYIlhzEzLXG/cU1HyQ=
-github.com/ipfs/go-bitswap v0.11.0/go.mod h1:05aE8H3XOU+LXpTedeAS0OZpcO1WFsj5niYQH9a1Tmk=
 github.com/ipfs/go-block-format v0.0.3/go.mod h1:4LmD4ZUw0mhO+JSKdpWwrzATiEfM7WWgQ8H5l6P8MVk=
 github.com/ipfs/go-block-format v0.2.0 h1:ZqrkxBA2ICbDRbK8KJs/u0O3dlp6gmAuuXUJNiW1Ycs=
 github.com/ipfs/go-block-format v0.2.0/go.mod h1:+jpL11nFx5A/SPpsoBn6Bzkra/zaArfSmsknbPMYgzM=
@@ -333,8 +331,6 @@ github.com/ipfs/go-ipfs-pq v0.0.3 h1:YpoHVJB+jzK15mr/xsWC574tyDLkezVrDNeaalQBsTE
 github.com/ipfs/go-ipfs-pq v0.0.3/go.mod h1:btNw5hsHBpRcSSgZtiNm/SLj5gYIZ18AKtv3kERkRb4=
 github.com/ipfs/go-ipfs-redirects-file v0.1.1 h1:Io++k0Vf/wK+tfnhEh63Yte1oQK5VGT2hIEYpD0Rzx8=
 github.com/ipfs/go-ipfs-redirects-file v0.1.1/go.mod h1:tAwRjCV0RjLTjH8DR/AU7VYvfQECg+lpUy2Mdzv7gyk=
-github.com/ipfs/go-ipfs-routing v0.3.0 h1:9W/W3N+g+y4ZDeffSgqhgo7BsBSJwPMcyssET9OWevc=
-github.com/ipfs/go-ipfs-routing v0.3.0/go.mod h1:dKqtTFIql7e1zYsEuWLyuOU+E0WJWW8JjbTPLParDWo=
 github.com/ipfs/go-ipfs-util v0.0.1/go.mod h1:spsl5z8KUnrve+73pOhSVZND1SIxPW5RyBCNzQxlJBc=
 github.com/ipfs/go-ipfs-util v0.0.2/go.mod h1:CbPtkWJzjLdEcezDns2XYaehFVNXG9zrdrtMecczcsQ=
 github.com/ipfs/go-ipfs-util v0.0.3 h1:2RFdGez6bu2ZlZdI+rWfIdbQb1KudQp3VGwPtdNCmE0=
@@ -363,8 +359,6 @@ github.com/ipfs/go-merkledag v0.11.0 h1:DgzwK5hprESOzS4O1t/wi6JDpyVQdvm9Bs59N/jq
 github.com/ipfs/go-merkledag v0.11.0/go.mod h1:Q4f/1ezvBiJV0YCIXvt51W/9/kqJGH4I1LsA7+djsM4=
 github.com/ipfs/go-metrics-interface v0.0.1 h1:j+cpbjYvu4R8zbleSs36gvB7jR+wsL2fGD6n0jO4kdg=
 github.com/ipfs/go-metrics-interface v0.0.1/go.mod h1:6s6euYU4zowdslK0GKHmqaIZ3j/b/tL7HTWtJ4VPgWY=
-github.com/ipfs/go-path v0.3.1 h1:wkeaCWE/NTuuPGlEkLTsED5UkzfKYZpxaFFPgk8ZVLE=
-github.com/ipfs/go-path v0.3.1/go.mod h1:eNLsxJEEMxn/CDzUJ6wuNl+6No6tEUhOZcPKsZsYX0E=
 github.com/ipfs/go-peertaskqueue v0.8.1 h1:YhxAs1+wxb5jk7RvS0LHdyiILpNmRIRnZVztekOF0pg=
 github.com/ipfs/go-peertaskqueue v0.8.1/go.mod h1:Oxxd3eaK279FxeydSPPVGHzbwVeHjatZ2GA8XD+KbPU=
 github.com/ipfs/go-unixfs v0.4.5 h1:wj8JhxvV1G6CD7swACwSKYa+NgtdWC1RUit+gFnymDU=
@@ -373,8 +367,6 @@ github.com/ipfs/go-unixfsnode v1.9.0 h1:ubEhQhr22sPAKO2DNsyVBW7YB/zA8Zkif25aBvz8
 github.com/ipfs/go-unixfsnode v1.9.0/go.mod h1:HxRu9HYHOjK6HUqFBAi++7DVoWAHn0o4v/nZ/VA+0g8=
 github.com/ipfs/go-verifcid v0.0.2 h1:XPnUv0XmdH+ZIhLGKg6U2vaPaRDXb9urMyNVCE7uvTs=
 github.com/ipfs/go-verifcid v0.0.2/go.mod h1:40cD9x1y4OWnFXbLNJYRe7MpNvWlMn3LZAG5Wb4xnPU=
-github.com/ipfs/interface-go-ipfs-core v0.11.1 h1:xVW8DKzd230h8bPv+oC2fBjW4PtDGqGtvpX64/aBe48=
-github.com/ipfs/interface-go-ipfs-core v0.11.1/go.mod h1:xmnoccUXY7N/Q8AIx0vFqgW926/FAZ8+do/1NTEHKsU=
 github.com/ipfs/kubo v0.27.0 h1:rVWKI9VGYt8Eyr/4vflUbT6OrOgOWG0ddHeEAajKClA=
 github.com/ipfs/kubo v0.27.0/go.mod h1:7HMQUnD+S1q9P3G7iV3VfwHzukJ/PeUm4geYYDC+hx0=
 github.com/ipld/go-car/v2 v2.13.1 h1:KnlrKvEPEzr5IZHKTXLAEub+tPrzeAFQVRlSQvuxBO4=

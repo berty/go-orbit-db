@@ -4,12 +4,12 @@ go 1.21
 
 require (
 	berty.tech/go-ipfs-log v1.10.2
+	github.com/ipfs/boxo v0.18.0
 	github.com/ipfs/go-cid v0.4.1
 	github.com/ipfs/go-datastore v0.6.0
 	github.com/ipfs/go-ds-leveldb v0.5.0
 	github.com/ipfs/go-ipld-cbor v0.1.0
 	github.com/ipfs/go-libipfs v0.6.2
-	github.com/ipfs/interface-go-ipfs-core v0.11.1
 	github.com/ipfs/kubo v0.27.0
 	github.com/libp2p/go-libp2p v0.33.0
 	github.com/libp2p/go-libp2p-pubsub v0.10.0
@@ -74,20 +74,16 @@ require (
 	github.com/ipfs-shipyard/nopfs v0.0.12 // indirect
 	github.com/ipfs-shipyard/nopfs/ipfs v0.13.2-0.20231027223058-cde3b5ba964c // indirect
 	github.com/ipfs/bbloom v0.0.4 // indirect
-	github.com/ipfs/boxo v0.18.0 // indirect
 	github.com/ipfs/go-bitfield v1.1.0 // indirect
 	github.com/ipfs/go-block-format v0.2.0 // indirect
-	github.com/ipfs/go-blockservice v0.5.0 // indirect
 	github.com/ipfs/go-cidutil v0.1.0 // indirect
 	github.com/ipfs/go-ds-badger v0.3.0 // indirect
 	github.com/ipfs/go-ds-flatfs v0.5.1 // indirect
 	github.com/ipfs/go-ds-measure v0.2.0 // indirect
 	github.com/ipfs/go-fs-lock v0.0.7 // indirect
-	github.com/ipfs/go-ipfs-blockstore v1.3.0 // indirect
 	github.com/ipfs/go-ipfs-cmds v0.10.0 // indirect
 	github.com/ipfs/go-ipfs-delay v0.0.1 // indirect
 	github.com/ipfs/go-ipfs-ds-help v1.1.0 // indirect
-	github.com/ipfs/go-ipfs-exchange-interface v0.2.0 // indirect
 	github.com/ipfs/go-ipfs-pq v0.0.3 // indirect
 	github.com/ipfs/go-ipfs-redirects-file v0.1.1 // indirect
 	github.com/ipfs/go-ipfs-util v0.0.3 // indirect
@@ -96,12 +92,9 @@ require (
 	github.com/ipfs/go-ipld-legacy v0.2.1 // indirect
 	github.com/ipfs/go-log v1.0.5 // indirect
 	github.com/ipfs/go-log/v2 v2.5.1 // indirect
-	github.com/ipfs/go-merkledag v0.11.0 // indirect
 	github.com/ipfs/go-metrics-interface v0.0.1 // indirect
-	github.com/ipfs/go-path v0.3.1 // indirect
 	github.com/ipfs/go-peertaskqueue v0.8.1 // indirect
 	github.com/ipfs/go-unixfsnode v1.9.0 // indirect
-	github.com/ipfs/go-verifcid v0.0.2 // indirect
 	github.com/ipld/go-car/v2 v2.13.1 // indirect
 	github.com/ipld/go-codec-dagpb v1.6.0 // indirect
 	github.com/ipld/go-ipld-prime v0.21.0 // indirect
@@ -197,7 +190,6 @@ require (
 	go.opentelemetry.io/otel/metric v1.22.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.21.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
-	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.17.1 // indirect
 	go.uber.org/fx v1.20.1 // indirect
 	go.uber.org/mock v0.4.0 // indirect
