@@ -14,7 +14,7 @@ import (
 	"berty.tech/go-orbit-db/iface"
 	cid "github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	coreiface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/polydawn/refmt/obj/atlas"
 	"go.uber.org/zap"
 )
@@ -24,7 +24,7 @@ type cborWriteAccess struct {
 }
 
 type ipfsAccessController struct {
-	ipfs          coreapi.CoreAPI
+	ipfs          coreiface.CoreAPI
 	writeAccess   []string
 	muWriteAccess sync.RWMutex
 	logger        *zap.Logger
@@ -38,7 +38,7 @@ func (i *ipfsAccessController) Address() address.Address {
 	return nil
 }
 
-func (i *ipfsAccessController) CanAppend(entry logac.LogEntry, p identityprovider.Interface, additionalContext accesscontroller.CanAppendAdditionalContext) error {
+func (i *ipfsAccessController) CanAppend(entry logac.LogEntry, p identityprovider.Interface, _ accesscontroller.CanAppendAdditionalContext) error {
 	i.muWriteAccess.RLock()
 	defer i.muWriteAccess.RUnlock()
 
@@ -63,11 +63,11 @@ func (i *ipfsAccessController) GetAuthorizedByRole(role string) ([]string, error
 	return nil, nil
 }
 
-func (i *ipfsAccessController) Grant(ctx context.Context, capability string, keyID string) error {
+func (i *ipfsAccessController) Grant(ctx context.Context, capability string, keyID string) error { //nolint:all
 	return fmt.Errorf("not implemented - does not exist in JS version")
 }
 
-func (i *ipfsAccessController) Revoke(ctx context.Context, capability string, keyID string) error {
+func (i *ipfsAccessController) Revoke(ctx context.Context, capability string, keyID string) error { //nolint:all
 	return fmt.Errorf("not implemented - does not exist in JS version")
 }
 

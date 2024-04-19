@@ -11,7 +11,7 @@ import (
 	"berty.tech/go-orbit-db/stores/basestore"
 	"berty.tech/go-orbit-db/stores/operation"
 	cid "github.com/ipfs/go-cid"
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	coreiface "github.com/ipfs/kubo/core/coreiface"
 )
 
 type orbitDBEventLogStore struct {
@@ -80,7 +80,7 @@ func (o *orbitDBEventLogStore) Get(ctx context.Context, cid cid.Cid) (operation.
 	}
 }
 
-func (o *orbitDBEventLogStore) Stream(ctx context.Context, resultChan chan operation.Operation, options *iface.StreamOptions) error {
+func (o *orbitDBEventLogStore) Stream(_ context.Context, resultChan chan operation.Operation, options *iface.StreamOptions) error {
 	defer close(resultChan)
 	messages, err := o.query(options)
 	if err != nil {
@@ -201,7 +201,7 @@ func (o *orbitDBEventLogStore) Type() string {
 }
 
 // NewOrbitDBEventLogStore Instantiates a new EventLogStore
-func NewOrbitDBEventLogStore(ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) (i iface.Store, e error) {
+func NewOrbitDBEventLogStore(ipfs coreiface.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) (i iface.Store, e error) {
 
 	store := &orbitDBEventLogStore{}
 	options.Index = NewEventIndex

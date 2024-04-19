@@ -20,7 +20,7 @@ func (b *baseIndex) Get(_ string) interface{} {
 	return b.index
 }
 
-func (b *baseIndex) UpdateIndex(log ipfslog.Log, entries []ipfslog.Entry) error {
+func (b *baseIndex) UpdateIndex(log ipfslog.Log, _ []ipfslog.Entry) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.index = log.Values().Slice()

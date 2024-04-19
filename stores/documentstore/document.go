@@ -12,7 +12,7 @@ import (
 	"berty.tech/go-orbit-db/stores/basestore"
 	"berty.tech/go-orbit-db/stores/operation"
 
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	coreiface "github.com/ipfs/kubo/core/coreiface"
 )
 
 type orbitDBDocumentStore struct {
@@ -20,7 +20,7 @@ type orbitDBDocumentStore struct {
 	docOpts *iface.CreateDocumentDBOptions
 }
 
-func (o *orbitDBDocumentStore) Get(ctx context.Context, key string, opts *iface.DocumentStoreGetOptions) ([]interface{}, error) {
+func (o *orbitDBDocumentStore) Get(_ context.Context, key string, opts *iface.DocumentStoreGetOptions) ([]interface{}, error) {
 	if opts == nil {
 		opts = &iface.DocumentStoreGetOptions{}
 	}
@@ -179,7 +179,7 @@ func (o *orbitDBDocumentStore) PutAll(ctx context.Context, values []interface{})
 }
 
 // Query Finds documents using a filter function
-func (o *orbitDBDocumentStore) Query(ctx context.Context, filter func(doc interface{}) (bool, error)) ([]interface{}, error) {
+func (o *orbitDBDocumentStore) Query(_ context.Context, filter func(doc interface{}) (bool, error)) ([]interface{}, error) {
 	docIndex, ok := o.Index().(*documentIndex)
 	if !ok {
 		return nil, fmt.Errorf("unable to cast index to documentIndex")
@@ -242,7 +242,7 @@ func DefaultStoreOptsForMap(keyField string) *iface.CreateDocumentDBOptions {
 }
 
 // NewOrbitDBDocumentStore Instantiates a new DocumentStore
-func NewOrbitDBDocumentStore(ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) (iface.Store, error) {
+func NewOrbitDBDocumentStore(ipfs coreiface.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) (iface.Store, error) {
 	if options.StoreSpecificOpts == nil {
 		options.StoreSpecificOpts = DefaultStoreOptsForMap("_id")
 	}

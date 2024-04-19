@@ -12,7 +12,7 @@ type eventIndex struct {
 	lock  sync.RWMutex
 }
 
-func (i *eventIndex) Get(key string) interface{} {
+func (i *eventIndex) Get(key string) interface{} { //nolint:all
 	i.lock.RLock()
 	defer i.lock.RUnlock()
 

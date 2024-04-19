@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/ipfs/interface-go-ipfs-core/options"
+	coreiface "github.com/ipfs/kubo/core/coreiface"
+	"github.com/ipfs/kubo/core/coreiface/options"
 	peer "github.com/libp2p/go-libp2p/core/peer"
 	"go.uber.org/zap"
 
@@ -26,7 +26,7 @@ type channel struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	id     string
-	sub    coreapi.PubSubSubscription
+	sub    coreiface.PubSubSubscription
 }
 
 type channels struct {
@@ -37,7 +37,7 @@ type channels struct {
 	emitter iface.DirectChannelEmitter
 	ctx     context.Context
 	cancel  context.CancelFunc
-	ipfs    coreapi.CoreAPI
+	ipfs    coreiface.CoreAPI
 	logger  *zap.Logger
 }
 
@@ -133,7 +133,7 @@ func (c *channels) getChannelID(p peer.ID) string {
 	return fmt.Sprintf("/%s/%s", PROTOCOL, strings.Join(channelIDPeers, "/"))
 }
 
-func (c *channels) monitorTopic(ctx context.Context, sub coreapi.PubSubSubscription, p peer.ID) {
+func (c *channels) monitorTopic(ctx context.Context, sub coreiface.PubSubSubscription, p peer.ID) {
 	for {
 		msg, err := sub.Next(ctx)
 		switch err {
@@ -173,7 +173,7 @@ func (c *channels) Close() error {
 }
 
 // NewChannel Creates a new pubsub topic for communication between two peers
-func NewChannelFactory(ipfs coreapi.CoreAPI) iface.DirectChannelFactory {
+func NewChannelFactory(ipfs coreiface.CoreAPI) iface.DirectChannelFactory {
 	return func(ctx context.Context, emitter iface.DirectChannelEmitter, opts *iface.DirectChannelOptions) (iface.DirectChannel, error) {
 		ctx, cancel := context.WithCancel(ctx)
 

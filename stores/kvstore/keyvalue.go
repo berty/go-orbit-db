@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"berty.tech/go-ipfs-log/identityprovider"
-	coreapi "github.com/ipfs/interface-go-ipfs-core"
+	coreiface "github.com/ipfs/kubo/core/coreiface"
 
 	"berty.tech/go-orbit-db/address"
 	"berty.tech/go-orbit-db/iface"
@@ -67,7 +67,7 @@ func (o *orbitDBKeyValue) Delete(ctx context.Context, key string) (operation.Ope
 	return op, nil
 }
 
-func (o *orbitDBKeyValue) Get(ctx context.Context, key string) ([]byte, error) {
+func (o *orbitDBKeyValue) Get(_ context.Context, key string) ([]byte, error) {
 	value, ok := o.Index().(*kvIndex).Get(key).([]byte)
 	if value == nil {
 		return nil, nil
@@ -85,7 +85,7 @@ func (o *orbitDBKeyValue) Type() string {
 }
 
 // NewOrbitDBKeyValue Instantiates a new KeyValueStore
-func NewOrbitDBKeyValue(ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) (i iface.Store, e error) {
+func NewOrbitDBKeyValue(ipfs coreiface.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) (i iface.Store, e error) {
 	store := &orbitDBKeyValue{}
 
 	options.Index = NewKVIndex
