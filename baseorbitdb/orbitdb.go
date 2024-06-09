@@ -24,7 +24,7 @@ import (
 	"berty.tech/go-orbit-db/utils"
 	cid "github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
-	leveldb "github.com/ipfs/go-ds-leveldb"
+
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	coreapi "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/libp2p/go-libp2p/core/event"
@@ -429,27 +429,12 @@ func NewOrbitDB(ctx context.Context, ipfs coreapi.CoreAPI, options *NewOrbitDBOp
 	}
 
 	if options.Keystore == nil {
-		var err error
-		var ds *leveldb.Datastore
-
-		// create new datastore
-		if *options.Directory == cacheleveldown.InMemoryDirectory {
-			ds, err = leveldb.NewDatastore("", nil)
-		} else {
-			ds, err = leveldb.NewDatastore(path.Join(*options.Directory, id.String(), "/keystore"), nil)
-		}
-
+		ks, closeKeystore, err := NewKeystore(id, *options.Directory)
 		if err != nil {
-			return nil, fmt.Errorf("unable to create data store used by keystore: %w", err)
+			return nil, err
 		}
-
-		ks, err := keystore.NewKeystore(ds)
-		if err != nil {
-			return nil, fmt.Errorf("unable to create keystore: %w", err)
-		}
-
 		options.Keystore = ks
-		options.CloseKeystore = ds.Close
+		options.CloseKeystore = closeKeystore
 	}
 
 	if options.ID == nil {
