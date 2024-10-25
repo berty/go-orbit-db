@@ -1,4 +1,2 @@
 golang 1.22.5
 golangci-lint 1.57.2
-# Add nodejs for the CI workflows
-nodejs 16.16.0
