@@ -24,7 +24,7 @@ import (
 	"github.com/stateless-minds/go-orbit-db/stores/operation"
 	"github.com/stateless-minds/go-orbit-db/stores/replicator"
 	coreapi "github.com/ipfs/kubo/core/coreiface"
-	"github.com/ipfs/kubo/core/coreiface/path"
+	"github.com/ipfs/boxo/path"
 	files "github.com/ipfs/boxo/files"
 	cid "github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
