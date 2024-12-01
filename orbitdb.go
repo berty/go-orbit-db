@@ -4,11 +4,7 @@ import (
 	"context"
 	"fmt"
 
-<<<<<<< HEAD
-	coreapi "github.com/ipfs/kubo/core/coreiface"
-=======
 	coreiface "github.com/ipfs/kubo/core/coreiface"
->>>>>>> e8ef88b31a120f3a80241d15e37cb34357f8b85b
 
 	"github.com/stateless-minds/go-orbit-db/accesscontroller/ipfs"
 	"github.com/stateless-minds/go-orbit-db/accesscontroller/orbitdb"
