@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/stateless-minds/go-ipfs-log/identityprovider"
-	coreapi "github.com/ipfs/boxo/coreiface"
+	coreapi "github.com/ipfs/kubo/core/coreiface"
 
 	"github.com/stateless-minds/go-orbit-db/address"
 	"github.com/stateless-minds/go-orbit-db/iface"

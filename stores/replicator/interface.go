@@ -6,7 +6,7 @@ import (
 	ipfslog "github.com/stateless-minds/go-ipfs-log"
 	"github.com/stateless-minds/go-ipfs-log/identityprovider"
 	"github.com/stateless-minds/go-orbit-db/accesscontroller"
-	coreapi "github.com/ipfs/boxo/coreiface"
+	coreapi "github.com/ipfs/kubo/core/coreiface"
 	cid "github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/event"
 )

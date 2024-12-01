@@ -6,7 +6,7 @@ import (
 	"path"
 
 	"github.com/stateless-minds/go-ipfs-log/io"
-	coreapi "github.com/ipfs/boxo/coreiface"
+	coreapi "github.com/ipfs/kubo/core/coreiface"
 	cid "github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/polydawn/refmt/obj/atlas"

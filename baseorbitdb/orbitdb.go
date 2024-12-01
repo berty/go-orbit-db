@@ -22,7 +22,7 @@ import (
 	"github.com/stateless-minds/go-orbit-db/pubsub"
 	"github.com/stateless-minds/go-orbit-db/pubsub/oneonone"
 	"github.com/stateless-minds/go-orbit-db/utils"
-	coreapi "github.com/ipfs/boxo/coreiface"
+	coreapi "github.com/ipfs/kubo/core/coreiface"
 	cid "github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
 	leveldb "github.com/ipfs/go-ds-leveldb"

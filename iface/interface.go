@@ -14,7 +14,7 @@ import (
 	"github.com/stateless-minds/go-orbit-db/events"
 	"github.com/stateless-minds/go-orbit-db/stores/operation"
 	"github.com/stateless-minds/go-orbit-db/stores/replicator"
-	coreapi "github.com/ipfs/boxo/coreiface"
+	coreapi "github.com/ipfs/kubo/core/coreiface"
 	cid "github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
 	"github.com/libp2p/go-libp2p/core/event"

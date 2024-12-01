@@ -12,7 +12,7 @@ import (
 	"github.com/stateless-minds/go-orbit-db/stores/basestore"
 	"github.com/stateless-minds/go-orbit-db/stores/operation"
 
-	coreapi "github.com/ipfs/boxo/coreiface"
+	coreapi "github.com/ipfs/kubo/core/coreiface"
 )
 
 type orbitDBDocumentStore struct {
