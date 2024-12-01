@@ -1,9 +1,5 @@
 bazil.org/fuse v0.0.0-20200117225306-7b5117fecadc h1:utDghgcjE8u+EBjHOgYT+dJPcnDF05KqWMBcjuJy510=
 bazil.org/fuse v0.0.0-20200117225306-7b5117fecadc/go.mod h1:FbcW6z/2VytnFDhZfumh8Ss8zxHE6qpMP5sHTRe0EaM=
-berty.tech/go-ipfs-log v1.10.2 h1:qolviVCX3zLecjxgj4tLf+LwUgSSUr8OqppHXuYiEvc=
-berty.tech/go-ipfs-log v1.10.2/go.mod h1:ODtCoR9h3JrJqSBv8OkESVDRhJzNLxUuxh5kG6hywPI=
-berty.tech/go-orbit-db v1.22.1 h1:rsuLULFfqfUUe5qS13LvhCnzSkd5S7KI+9nyexGcDaQ=
-berty.tech/go-orbit-db v1.22.1/go.mod h1:Z/DpHf3s/rEfWzmnDfddAdaHxWtmuWgkluIo+/uIX+c=
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.31.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
@@ -726,8 +722,8 @@ github.com/spf13/jwalterweatherman v1.0.0/go.mod h1:cQK4TGJAtQXfYWX+Ddv3mKDzgVb6
 github.com/spf13/pflag v1.0.3/go.mod h1:DYY7MBk1bdzusC3SYhjObp+wFpr4gzcvqqNjLnInEg4=
 github.com/spf13/viper v1.3.2/go.mod h1:ZiWeW+zYFKm7srdB9IoDzzZXaJaI5eL9QjNiN/DMA2s=
 github.com/src-d/envconfig v1.0.0/go.mod h1:Q9YQZ7BKITldTBnoxsE5gOeB5y66RyPXeue/R4aaNBc=
-github.com/stateless-minds/go-ipfs-log v1.10.2 h1:bOHWFlKNN2DAzAdkH6ffiwouWCdvwNQ0JzpCGBnnh1k=
-github.com/stateless-minds/go-ipfs-log v1.10.2/go.mod h1:GA3zzndpH183QbdF4yPjQWxoLieQUpy8B9AKOSFaie8=
+github.com/stateless-minds/go-ipfs-log v1.10.5 h1:NX/rLawbg8/3uR9qNuT4H9nxlkQizVNKdYQPOZJku1s=
+github.com/stateless-minds/go-ipfs-log v1.10.5/go.mod h1:GA3zzndpH183QbdF4yPjQWxoLieQUpy8B9AKOSFaie8=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.4.0/go.mod h1:YvHI0jy2hoMjB+UWwv71VJQ9isScKT/TqJzVSSt89Yw=

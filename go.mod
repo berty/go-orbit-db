@@ -5,8 +5,6 @@ go 1.22
 toolchain go1.22.5
 
 require (
-	berty.tech/go-ipfs-log v1.10.2
-	berty.tech/go-orbit-db v1.22.1
 	github.com/ipfs/boxo v0.20.0
 	github.com/ipfs/go-cid v0.4.1
 	github.com/ipfs/go-datastore v0.6.0
@@ -18,7 +16,7 @@ require (
 	github.com/libp2p/go-libp2p-pubsub v0.11.0
 	github.com/pkg/errors v0.9.1
 	github.com/polydawn/refmt v0.89.0
-	github.com/stateless-minds/go-ipfs-log v1.10.2
+	github.com/stateless-minds/go-ipfs-log v1.10.5
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/otel v1.26.0
 	go.opentelemetry.io/otel/trace v1.26.0

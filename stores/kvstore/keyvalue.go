@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"berty.tech/go-ipfs-log/identityprovider"
+	"github.com/stateless-minds/go-ipfs-log/identityprovider"
 	coreiface "github.com/ipfs/kubo/core/coreiface"
 
 	"github.com/stateless-minds/go-orbit-db/address"
