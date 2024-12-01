@@ -12,7 +12,7 @@ import (
 	"github.com/stateless-minds/go-orbit-db/accesscontroller"
 	"github.com/stateless-minds/go-orbit-db/address"
 	"github.com/stateless-minds/go-orbit-db/iface"
-	coreapi "github.com/ipfs/boxo/coreiface"
+	coreapi "github.com/ipfs/kubo/core/coreiface"
 	cid "github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/polydawn/refmt/obj/atlas"
