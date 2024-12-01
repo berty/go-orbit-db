@@ -14,6 +14,7 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 	otkv "go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"golang.org/x/sync/semaphore"
 )
@@ -77,7 +78,7 @@ func NewReplicator(store storeInterface, concurrency uint, opts *Options) (Repli
 	}
 
 	if opts.Tracer == nil {
-		opts.Tracer = trace.NewNoopTracerProvider().Tracer("")
+		opts.Tracer = tracenoop.NewTracerProvider().Tracer("")
 	}
 
 	if concurrency == 0 {
@@ -178,7 +179,7 @@ func (r *replicator) Load(ctx context.Context, entries []ipfslog.Entry) {
 		wg.Add(1)
 
 		// add one process
-		go func(i int) {
+		go func(_ int) {
 			if err := r.processOne(ctx, &wg); err != nil {
 				r.logger.Warn("unable to process entry", zap.Error(err))
 			}

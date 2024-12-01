@@ -6,15 +6,15 @@ import (
 	ipfslog "github.com/stateless-minds/go-ipfs-log"
 	"github.com/stateless-minds/go-ipfs-log/identityprovider"
 	"github.com/stateless-minds/go-orbit-db/accesscontroller"
-	coreapi "github.com/ipfs/kubo/core/coreiface"
 	cid "github.com/ipfs/go-cid"
+	coreiface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/libp2p/go-libp2p/core/event"
 )
 
 // storeInterface An interface used to avoid import cycles
 type storeInterface interface {
 	OpLog() ipfslog.Log
-	IPFS() coreapi.CoreAPI
+	IPFS() coreiface.CoreAPI
 	Identity() *identityprovider.Identity
 	AccessController() accesscontroller.Interface
 	SortFn() ipfslog.SortFn

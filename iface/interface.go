@@ -14,9 +14,9 @@ import (
 	"github.com/stateless-minds/go-orbit-db/events"
 	"github.com/stateless-minds/go-orbit-db/stores/operation"
 	"github.com/stateless-minds/go-orbit-db/stores/replicator"
-	coreapi "github.com/ipfs/kubo/core/coreiface"
 	cid "github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
+	coreiface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/libp2p/go-libp2p/core/event"
 	peer "github.com/libp2p/go-libp2p/core/peer"
 	"go.opentelemetry.io/otel/trace"
@@ -75,7 +75,7 @@ type DetermineAddressOptions struct {
 // BaseOrbitDB Provides the main OrbitDB interface used to open and create stores
 type BaseOrbitDB interface {
 	// IPFS Returns the instance of the IPFS API used by the current DB
-	IPFS() coreapi.CoreAPI
+	IPFS() coreiface.CoreAPI
 
 	// Identity Returns the identity used by the current DB
 	Identity() *identityprovider.Identity
@@ -220,7 +220,7 @@ type Store interface {
 	OpLog() ipfslog.Log
 
 	// IPFS Returns the IPFS instance for the store
-	IPFS() coreapi.CoreAPI
+	IPFS() coreiface.CoreAPI
 
 	// DBName Returns the store name as a string
 	DBName() string
@@ -378,7 +378,7 @@ type DirectChannelEmitter interface {
 type DirectChannelFactory func(ctx context.Context, emitter DirectChannelEmitter, opts *DirectChannelOptions) (DirectChannel, error)
 
 // StoreConstructor Defines the expected constructor for a custom store
-type StoreConstructor func(coreapi.CoreAPI, *identityprovider.Identity, address.Address, *NewStoreOptions) (Store, error)
+type StoreConstructor func(coreiface.CoreAPI, *identityprovider.Identity, address.Address, *NewStoreOptions) (Store, error)
 
 // IndexConstructor Defines the expected constructor for a custom index
 type IndexConstructor func(publicKey []byte) StoreIndex
