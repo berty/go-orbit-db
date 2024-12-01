@@ -6,9 +6,9 @@ import (
 	"path"
 
 	"github.com/stateless-minds/go-ipfs-log/io"
-	coreapi "github.com/ipfs/kubo/core/coreiface"
 	cid "github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
+	coreiface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/polydawn/refmt/obj/atlas"
 )
 
@@ -20,7 +20,7 @@ type Manifest struct {
 }
 
 // CreateDBManifest creates a new database manifest and saves it on IPFS
-func CreateDBManifest(ctx context.Context, ipfs coreapi.CoreAPI, name string, dbType string, accessControllerAddress string) (cid.Cid, error) {
+func CreateDBManifest(ctx context.Context, ipfs coreiface.CoreAPI, name string, dbType string, accessControllerAddress string) (cid.Cid, error) {
 	manifest := &Manifest{
 		Name:             name,
 		Type:             dbType,

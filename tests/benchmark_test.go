@@ -11,7 +11,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 
-	iface "github.com/ipfs/kubo/core/coreiface"
 	ds "github.com/ipfs/go-datastore"
 	dsync "github.com/ipfs/go-datastore/sync"
 	cfg "github.com/ipfs/kubo/config"
@@ -24,25 +23,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testingRepo(ctx context.Context, t *testing.T) repo.Repo {
-	t.Helper()
+func testingRepoB(_ context.Context, b *testing.B) repo.Repo {
+	b.Helper()
 
 	c := cfg.Config{}
 	priv, pub, err := crypto.GenerateKeyPairWithReader(crypto.RSA, 2048, rand.Reader)
-	require.NoError(t, err)
+	require.NoError(b, err)
 
 	pid, err := peer.IDFromPublicKey(pub)
-	require.NoError(t, err)
+	require.NoError(b, err)
 
 	privkeyb, err := crypto.MarshalPrivateKey(priv)
-	require.NoError(t, err)
+	require.NoError(b, err)
 
 	c.Pubsub.Enabled = cfg.True
 	c.Bootstrap = []string{}
 	c.Addresses.Swarm = []string{"/ip4/127.0.0.1/tcp/4001", "/ip4/127.0.0.1/udp/4001/quic"}
 	c.Identity.PeerID = pid.String()
 	c.Identity.PrivKey = base64.StdEncoding.EncodeToString(privkeyb)
-	c.Swarm.ResourceMgr.Enabled = cfg.False // we don't need ressources manager for test
+	c.Swarm.ResourceMgr.Enabled = cfg.False // we don'b need ressources manager for test
 
 	return &repo.Mock{
 		D: dsync.MutexWrap(ds.NewMapDatastore()),
@@ -50,10 +49,10 @@ func testingRepo(ctx context.Context, t *testing.T) repo.Repo {
 	}
 }
 
-func testingIPFSAPIs(ctx context.Context, t *testing.T, count int) ([]coreiface.CoreAPI, func()) {
-	t.Helper()
+func testingIPFSAPIsB(ctx context.Context, b *testing.B, count int) ([]coreiface.CoreAPI, func()) {
+	b.Helper()
 
-	mn := testingMockNet(t)
+	mn := testingMockNetB(b)
 	defer mn.Close()
 
 	coreAPIs := make([]coreiface.CoreAPI, count)
@@ -62,8 +61,8 @@ func testingIPFSAPIs(ctx context.Context, t *testing.T, count int) ([]coreiface.
 	for i := 0; i < count; i++ {
 		node := (*ipfsCore.IpfsNode)(nil)
 
-		node, cleans[i] = testingIPFSNode(ctx, t, mn)
-		coreAPIs[i] = testingCoreAPI(t, node)
+		node, cleans[i] = testingIPFSNodeB(ctx, b, mn)
+		coreAPIs[i] = testingCoreAPIB(b, node)
 	}
 
 	return coreAPIs, func() {
@@ -73,8 +72,8 @@ func testingIPFSAPIs(ctx context.Context, t *testing.T, count int) ([]coreiface.
 	}
 }
 
-func testingIPFSAPIsNonMocked(ctx context.Context, t *testing.T, count int) ([]coreiface.CoreAPI, func()) {
-	t.Helper()
+func testingIPFSAPIsNonMockedB(ctx context.Context, b *testing.B, count int) ([]coreiface.CoreAPI, func()) {
+	b.Helper()
 
 	coreAPIs := make([]coreiface.CoreAPI, count)
 	cleans := make([]func(), count)
@@ -82,14 +81,14 @@ func testingIPFSAPIsNonMocked(ctx context.Context, t *testing.T, count int) ([]c
 	for i := 0; i < count; i++ {
 		core, err := ipfsCore.NewNode(ctx, &ipfsCore.BuildCfg{
 			Online: true,
-			Repo:   testingRepo(ctx, t),
+			Repo:   testingRepoB(ctx, b),
 			ExtraOpts: map[string]bool{
 				"pubsub": true,
 			},
 		})
-		require.NoError(t, err)
+		require.NoError(b, err)
 
-		coreAPIs[i] = testingCoreAPI(t, core)
+		coreAPIs[i] = testingCoreAPIB(b, core)
 		cleans[i] = func() {
 			core.Close()
 		}
@@ -102,75 +101,75 @@ func testingIPFSAPIsNonMocked(ctx context.Context, t *testing.T, count int) ([]c
 	}
 }
 
-func testingIPFSNodeWithoutPubsub(ctx context.Context, t *testing.T, m mocknet.Mocknet) (*ipfsCore.IpfsNode, func()) {
-	t.Helper()
+func testingIPFSNodeWithoutPubsubB(ctx context.Context, b *testing.B, m mocknet.Mocknet) (*ipfsCore.IpfsNode, func()) {
+	b.Helper()
 
 	core, err := ipfsCore.NewNode(ctx, &ipfsCore.BuildCfg{
 		Online: true,
-		Repo:   testingRepo(ctx, t),
+		Repo:   testingRepoB(ctx, b),
 		Host:   mock.MockHostOption(m),
 		ExtraOpts: map[string]bool{
 			"pubsub": false,
 		},
 	})
-	require.NoError(t, err)
+	require.NoError(b, err)
 
 	cleanup := func() { core.Close() }
 	return core, cleanup
 }
 
-func testingIPFSNode(ctx context.Context, t *testing.T, m mocknet.Mocknet) (*ipfsCore.IpfsNode, func()) {
-	t.Helper()
+func testingIPFSNodeB(ctx context.Context, b *testing.B, m mocknet.Mocknet) (*ipfsCore.IpfsNode, func()) {
+	b.Helper()
 
 	core, err := ipfsCore.NewNode(ctx, &ipfsCore.BuildCfg{
 		Online: true,
-		Repo:   testingRepo(ctx, t),
+		Repo:   testingRepoB(ctx, b),
 		Host:   mock.MockHostOption(m),
 		ExtraOpts: map[string]bool{
 			"pubsub": true,
 		},
 	})
-	require.NoError(t, err)
+	require.NoError(b, err)
 
 	cleanup := func() { core.Close() }
 	return core, cleanup
 }
 
-func testingNonMockedIPFSNode(ctx context.Context, t *testing.T) (*ipfsCore.IpfsNode, func()) {
-	t.Helper()
+func testingNonMockedIPFSNodeB(ctx context.Context, b *testing.B) (*ipfsCore.IpfsNode, func()) {
+	b.Helper()
 
 	core, err := ipfsCore.NewNode(ctx, &ipfsCore.BuildCfg{
 		Online: true,
-		Repo:   testingRepo(ctx, t),
+		Repo:   testingRepoB(ctx, b),
 		ExtraOpts: map[string]bool{
 			"pubsub": true,
 		},
 	})
-	require.NoError(t, err)
+	require.NoError(b, err)
 
 	cleanup := func() { core.Close() }
 	return core, cleanup
 }
 
-func testingCoreAPI(t *testing.T, core *ipfsCore.IpfsNode) coreiface.CoreAPI {
-	t.Helper()
+func testingCoreAPIB(b *testing.B, core *ipfsCore.IpfsNode) coreiface.CoreAPI {
+	b.Helper()
 
 	api, err := coreapi.NewCoreAPI(core)
-	require.NoError(t, err)
+	require.NoError(b, err)
 	return api
 }
 
-func testingMockNet(t *testing.T) mocknet.Mocknet {
+func testingMockNetB(b *testing.B) mocknet.Mocknet {
 	mn := mocknet.New()
-	t.Cleanup(func() { mn.Close() })
+	b.Cleanup(func() { mn.Close() })
 	return mn
 }
 
-func testingTempDir(t *testing.T, name string) (string, func()) {
-	t.Helper()
+func testingTempDirB(b *testing.B, name string) (string, func()) {
+	b.Helper()
 
 	path, err := ioutil.TempDir("", name)
-	require.NoError(t, err)
+	require.NoError(b, err)
 
 	cleanup := func() { os.RemoveAll(path) }
 	return path, cleanup

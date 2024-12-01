@@ -23,9 +23,9 @@ import (
 	"github.com/stateless-minds/go-orbit-db/stores"
 	"github.com/stateless-minds/go-orbit-db/stores/operation"
 	"github.com/stateless-minds/go-orbit-db/stores/replicator"
-	coreapi "github.com/ipfs/kubo/core/coreiface"
+	coreiface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/ipfs/boxo/path"
-	files "github.com/ipfs/boxo/files"
+	files "github.com/ipfs/go-libipfs/files"
 	cid "github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
 	"github.com/libp2p/go-libp2p/core/event"
@@ -34,6 +34,7 @@ import (
 	"github.com/pkg/errors"
 	otkv "go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 )
 
@@ -54,7 +55,7 @@ type BaseStore struct {
 	identity          *identityprovider.Identity
 	address           address.Address
 	dbName            string
-	ipfs              coreapi.CoreAPI
+	ipfs              coreiface.CoreAPI
 	cache             datastore.Datastore
 	access            accesscontroller.Interface
 	oplog             ipfslog.Log
@@ -89,7 +90,7 @@ func (b *BaseStore) DBName() string {
 	return b.dbName
 }
 
-func (b *BaseStore) IPFS() coreapi.CoreAPI {
+func (b *BaseStore) IPFS() coreiface.CoreAPI {
 	return b.ipfs
 }
 
@@ -136,7 +137,7 @@ func (b *BaseStore) EventBus() event.Bus {
 }
 
 // InitBaseStore Initializes the store base
-func (b *BaseStore) InitBaseStore(ipfs coreapi.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) error {
+func (b *BaseStore) InitBaseStore(ipfs coreiface.CoreAPI, identity *identityprovider.Identity, addr address.Address, options *iface.NewStoreOptions) error {
 	var err error
 
 	b.ctx, b.cancel = context.WithCancel(context.Background())
@@ -180,7 +181,7 @@ func (b *BaseStore) InitBaseStore(ipfs coreapi.CoreAPI, identity *identityprovid
 	b.messageMarshaler = options.MessageMarshaler
 
 	if options.Tracer == nil {
-		options.Tracer = trace.NewNoopTracerProvider().Tracer("")
+		options.Tracer = tracenoop.NewTracerProvider().Tracer("")
 	}
 
 	if identity == nil {
@@ -662,7 +663,7 @@ func (b *BaseStore) Sync(ctx context.Context, heads []ipfslog.Entry) error {
 	return nil
 }
 
-func (b *BaseStore) LoadMoreFrom(ctx context.Context, amount uint, entries []ipfslog.Entry) {
+func (b *BaseStore) LoadMoreFrom(ctx context.Context, amount uint, entries []ipfslog.Entry) { //nolint:all
 	b.Replicator().Load(ctx, entries)
 	// TODO: can this return an error?
 }
@@ -719,7 +720,12 @@ func (b *BaseStore) LoadFromSnapshot(ctx context.Context) error {
 
 	b.Logger().Debug("loading snapshot from path", zap.String("snapshot", string(snapshot)))
 
-	resNode, err := b.IPFS().Unixfs().Get(ctx, path.New(string(snapshot)))
+	path, err := path.NewPath(string(snapshot))
+	if err != nil {
+		return fmt.Errorf("unable to convert string to path: %w", err)
+	}
+
+	resNode, err := b.IPFS().Unixfs().Get(ctx, path)
 	if err != nil {
 		return fmt.Errorf("unable to get snapshot from ipfs: %w", err)
 	}

@@ -4,7 +4,11 @@ import (
 	"context"
 	"fmt"
 
+<<<<<<< HEAD
 	coreapi "github.com/ipfs/kubo/core/coreiface"
+=======
+	coreiface "github.com/ipfs/kubo/core/coreiface"
+>>>>>>> e8ef88b31a120f3a80241d15e37cb34357f8b85b
 
 	"github.com/stateless-minds/go-orbit-db/accesscontroller/ipfs"
 	"github.com/stateless-minds/go-orbit-db/accesscontroller/orbitdb"
@@ -63,7 +67,7 @@ type DetermineAddressOptions = iface.DetermineAddressOptions
 type NewOrbitDBOptions = baseorbitdb.NewOrbitDBOptions
 
 // NewOrbitDB Creates a new OrbitDB instance with default access controllers and store types
-func NewOrbitDB(ctx context.Context, i coreapi.CoreAPI, options *NewOrbitDBOptions) (iface.OrbitDB, error) {
+func NewOrbitDB(ctx context.Context, i coreiface.CoreAPI, options *NewOrbitDBOptions) (iface.OrbitDB, error) {
 	odb, err := baseorbitdb.NewOrbitDB(ctx, i, options)
 
 	if err != nil {

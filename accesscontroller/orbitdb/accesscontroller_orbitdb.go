@@ -112,7 +112,7 @@ func (o *orbitDBAccessController) getAuthorizations() (map[string][]string, erro
 	return authorizationsLists, nil
 }
 
-func (o *orbitDBAccessController) CanAppend(entry logac.LogEntry, p identityprovider.Interface, additionalContext accesscontroller.CanAppendAdditionalContext) error {
+func (o *orbitDBAccessController) CanAppend(entry logac.LogEntry, p identityprovider.Interface, _ accesscontroller.CanAppendAdditionalContext) error {
 	writeAccess, err := o.GetAuthorizedByRole("write")
 	if err != nil {
 		return fmt.Errorf("unable to get keys with write access: %w", err)
@@ -249,7 +249,7 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 	return nil
 }
 
-func (o *orbitDBAccessController) Save(ctx context.Context) (accesscontroller.ManifestParams, error) {
+func (o *orbitDBAccessController) Save(_ context.Context) (accesscontroller.ManifestParams, error) {
 	return accesscontroller.NewManifestParams(o.kvStore.Address().GetRoot(), false, "orbitdb"), nil
 }
 
@@ -261,7 +261,7 @@ func (o *orbitDBAccessController) Close() error {
 	return nil
 }
 
-func (o *orbitDBAccessController) onUpdate(ctx context.Context) {
+func (o *orbitDBAccessController) onUpdate(_ context.Context) {
 	if err := o.emitterEvtUpdated.Emit(&EventUpdated{}); err != nil {
 		o.logger.Warn("unable to emit event updated", zap.Error(err))
 	}

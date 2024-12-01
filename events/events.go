@@ -46,7 +46,7 @@ type eventBox struct {
 
 // Deprecated: use event bus directly
 // Emit Sends an event to the subscribed listeners
-func (e *EventEmitter) Emit(ctx context.Context, evt Event) {
+func (e *EventEmitter) Emit(_ context.Context, evt Event) {
 	e.muEmitters.Lock()
 
 	bus := e.getBus()

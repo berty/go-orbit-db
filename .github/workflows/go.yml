@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         golang:
-          - '1.19.x'
+          - "1.21.x"
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -40,8 +40,8 @@ jobs:
     strategy:
       matrix:
         golang:
-          - '1.19.x'
-          - '1.20.x'
+          - "1.21.x"
+          - "1.22.x"
     env:
       OS: ubuntu-latest
       GOLANG: ${{ matrix.golang }}
@@ -89,8 +89,8 @@ jobs:
     strategy:
       matrix:
         golang:
-          - '1.19.x'
-          - '1.20.x'
+          - "1.21.x"
+          - "1.22.x"
     env:
       OS: macos-latest
       GOLANG: ${{ matrix.golang }}
