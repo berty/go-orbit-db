@@ -11,7 +11,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 
-	iface "github.com/ipfs/kubo/core/coreiface"
 	ds "github.com/ipfs/go-datastore"
 	dsync "github.com/ipfs/go-datastore/sync"
 	cfg "github.com/ipfs/kubo/config"
