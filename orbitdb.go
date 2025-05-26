@@ -8,6 +8,7 @@ import (
 
 	"github.com/stateless-minds/go-orbit-db/accesscontroller/ipfs"
 	"github.com/stateless-minds/go-orbit-db/accesscontroller/orbitdb"
+	orbitdb_selfenroll "github.com/stateless-minds/go-orbit-db/accesscontroller/orbitdb-selfenroll"
 	"github.com/stateless-minds/go-orbit-db/accesscontroller/simple"
 	"github.com/stateless-minds/go-orbit-db/baseorbitdb"
 	"github.com/stateless-minds/go-orbit-db/iface"
@@ -76,6 +77,7 @@ func NewOrbitDB(ctx context.Context, i coreiface.CoreAPI, options *NewOrbitDBOpt
 
 	_ = odb.RegisterAccessControllerType(ipfs.NewIPFSAccessController)
 	_ = odb.RegisterAccessControllerType(orbitdb.NewOrbitDBAccessController)
+	_ = odb.RegisterAccessControllerType(orbitdb_selfenroll.NewOrbitDBAccessController)
 	_ = odb.RegisterAccessControllerType(simple.NewSimpleAccessController)
 
 	return &orbitDB{
