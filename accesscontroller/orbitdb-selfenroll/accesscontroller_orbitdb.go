@@ -54,7 +54,7 @@ func (o *selfEnrollAccessController) Logger() *zap.Logger {
 }
 
 func (o *selfEnrollAccessController) Type() string {
-	return "selfenroll"
+	return "orbitdb_selfenroll"
 }
 
 func (o *selfEnrollAccessController) Address() address.Address {
