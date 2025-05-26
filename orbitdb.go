@@ -75,10 +75,22 @@ func NewOrbitDB(ctx context.Context, i coreiface.CoreAPI, options *NewOrbitDBOpt
 	odb.RegisterStoreType("keyvalue", kvstore.NewOrbitDBKeyValue)
 	odb.RegisterStoreType("docstore", documentstore.NewOrbitDBDocumentStore)
 
-	_ = odb.RegisterAccessControllerType(ipfs.NewIPFSAccessController)
-	_ = odb.RegisterAccessControllerType(orbitdb.NewOrbitDBAccessController)
-	_ = odb.RegisterAccessControllerType(orbitdb_selfenroll.NewOrbitDBAccessController)
-	_ = odb.RegisterAccessControllerType(simple.NewSimpleAccessController)
+	err = odb.RegisterAccessControllerType(ipfs.NewIPFSAccessController)
+	if err != nil {
+		return nil, err
+	}
+	err = odb.RegisterAccessControllerType(orbitdb.NewOrbitDBAccessController)
+	if err != nil {
+		return nil, err
+	}
+	err = odb.RegisterAccessControllerType(orbitdb_selfenroll.NewSelfEnrollAccessController)
+	if err != nil {
+		return nil, err
+	}
+	err = odb.RegisterAccessControllerType(simple.NewSimpleAccessController)
+	if err != nil {
+		return nil, err
+	}
 
 	return &orbitDB{
 		BaseOrbitDB: odb,
