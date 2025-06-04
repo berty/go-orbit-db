@@ -8,6 +8,10 @@ import (
 	"strings"
 	"testing"
 
+	datastore "github.com/ipfs/go-datastore"
+	leveldb "github.com/ipfs/go-ds-leveldb"
+	"github.com/polydawn/refmt/cbor"
+	"github.com/polydawn/refmt/obj/atlas"
 	"github.com/stateless-minds/go-ipfs-log/identityprovider"
 	"github.com/stateless-minds/go-ipfs-log/io"
 	"github.com/stateless-minds/go-ipfs-log/keystore"
@@ -17,10 +21,7 @@ import (
 	"github.com/stateless-minds/go-orbit-db/iface"
 	"github.com/stateless-minds/go-orbit-db/stores/operation"
 	"github.com/stateless-minds/go-orbit-db/utils"
-	datastore "github.com/ipfs/go-datastore"
-	leveldb "github.com/ipfs/go-ds-leveldb"
-	"github.com/polydawn/refmt/cbor"
-	"github.com/polydawn/refmt/obj/atlas"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -230,17 +231,24 @@ func TestCreateOpen(t *testing.T) {
 				t.Run("creates an access controller and adds writers", func(t *testing.T) {
 					defer subSetup(t)()
 
+					// Assert that the OrbitDB instance implements iface.OrbitDBKVStoreProvider
+					_, ok := orbit.(iface.OrbitDBKVStoreProvider)
+					assert.True(t, ok, "OrbitDB instance does not implement KeyValue")
+
 					access := &accesscontroller.CreateAccessControllerOptions{
+						Type: "orbitdb_selfenroll",
 						Access: map[string][]string{
 							"write": {"another-key", "yet-another-key", orbit.Identity().ID},
 						},
 					}
 
 					overwrite := true
+					// storeType := "docstore"
 
-					db, err := orbit.Create(ctx, "fourth", "eventlog", &orbitdb.CreateDBOptions{
+					db, err := orbit.Create(ctx, "fourth", "docstore", &orbitdb.CreateDBOptions{
 						AccessController: access,
 						Overwrite:        &overwrite,
+						// StoreType:        &storeType,
 					})
 					require.NoError(t, err)
 
@@ -248,7 +256,9 @@ func TestCreateOpen(t *testing.T) {
 					defer db.Close()
 
 					accessController := db.AccessController()
+
 					allowed, err := accessController.GetAuthorizedByRole("write")
+
 					require.NoError(t, err)
 					require.Equal(t, allowed, []string{"another-key", "yet-another-key", orbit.Identity().ID})
 				})

@@ -24,6 +24,28 @@ var Events = []interface{}{
 	new(EventUpdated),
 }
 
+var grantsCache = make(map[string][]string)
+var grantsCacheMutex sync.Mutex
+
+func cacheGrants(dbName string, grants []string) {
+	grantsCacheMutex.Lock()
+	grantsCache[dbName] = grants
+	grantsCacheMutex.Unlock()
+}
+
+func getCachedGrants(dbName string) ([]string, bool) {
+	grantsCacheMutex.Lock()
+	grants, ok := grantsCache[dbName]
+	grantsCacheMutex.Unlock()
+	return grants, ok
+}
+
+func deleteCachedGrants(dbName string) {
+	grantsCacheMutex.Lock()
+	delete(grantsCache, dbName)
+	grantsCacheMutex.Unlock()
+}
+
 // CreateDBOptions An alias for iface.CreateDBOptions
 type CreateDBOptions = iface.CreateDBOptions
 
@@ -63,6 +85,7 @@ func (o *selfEnrollAccessController) Address() address.Address {
 
 func (o *selfEnrollAccessController) GetAuthorizedByRole(role string) ([]string, error) {
 	authorizations, err := o.getAuthorizations()
+
 	if err != nil {
 		return nil, fmt.Errorf("unable to get authorizations: %w", err)
 	}
@@ -113,6 +136,25 @@ func (o *selfEnrollAccessController) getAuthorizations() (map[string][]string, e
 }
 
 func (o *selfEnrollAccessController) CanAppend(entry logac.LogEntry, p identityprovider.Interface, _ accesscontroller.CanAppendAdditionalContext) error {
+	// writeAccess, err := o.GetAuthorizedByRole("write")
+	// if err != nil {
+	// 	return fmt.Errorf("unable to get keys with write access: %w", err)
+	// }
+
+	// adminAccess, err := o.GetAuthorizedByRole("admin")
+	// if err != nil {
+	// 	return fmt.Errorf("unable to get keys with admin access: %w", err)
+	// }
+
+	// access := append(writeAccess, adminAccess...)
+
+	// for _, k := range access {
+	// 	if k == entry.GetIdentity().ID || k == "*" {
+	// 		return p.VerifyIdentity(entry.GetIdentity())
+	// 	}
+	// }
+
+	// return fmt.Errorf("unauthorized")
 	return nil
 }
 
@@ -178,8 +220,15 @@ func (o *selfEnrollAccessController) Load(ctx context.Context, address string) e
 		}
 	}
 
+	grants, ok := getCachedGrants("_access")
+
+	if !ok {
+		return fmt.Errorf("unable to get grants")
+	}
+
 	// Force '<address>/_access' naming for the database
-	writeAccess := o.options.GetAccess("admin")
+	// writeAccess := o.options.GetAccess("admin")
+	writeAccess := grants
 	if len(writeAccess) == 0 {
 		writeAccess = []string{o.orbitdb.Identity().ID}
 	}
@@ -195,6 +244,12 @@ func (o *selfEnrollAccessController) Load(ctx context.Context, address string) e
 	}
 
 	o.kvStore = store
+
+	for _, writeAccess := range grants {
+		if err := o.Grant(ctx, "write", writeAccess); err != nil {
+			return fmt.Errorf("unable to grant write access: %w", err)
+		}
+	}
 
 	sub, err := o.kvStore.EventBus().Subscribe([]interface{}{
 		new(stores.EventWrite),
@@ -232,7 +287,7 @@ func (o *selfEnrollAccessController) Load(ctx context.Context, address string) e
 }
 
 func (o *selfEnrollAccessController) Save(_ context.Context) (accesscontroller.ManifestParams, error) {
-	return accesscontroller.NewManifestParams(o.kvStore.Address().GetRoot(), false, "orbitdb"), nil
+	return accesscontroller.NewManifestParams(o.kvStore.Address().GetRoot(), false, "orbitdb_selfenroll"), nil
 }
 
 func (o *selfEnrollAccessController) Close() error {
@@ -244,13 +299,13 @@ func (o *selfEnrollAccessController) Close() error {
 }
 
 func (o *selfEnrollAccessController) onUpdate(_ context.Context) {
-	if err := o.emitterEvtUpdated.Emit(&EventUpdated{}); err != nil {
+	if err := o.emitterEvtUpdated.Emit(EventUpdated{}); err != nil {
 		o.logger.Warn("unable to emit event updated", zap.Error(err))
 	}
 }
 
 // NewIPFSAccessController Returns a default access controller for OrbitDB database
-func NewSelfEnrollAccessController(ctx context.Context, db iface.BaseOrbitDB, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (accesscontroller.Interface, error) {
+func NewSelfEnrollAccessController(ctx context.Context, db iface.OrbitDB, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (accesscontroller.Interface, error) {
 	if db == nil {
 		return &selfEnrollAccessController{}, fmt.Errorf("an OrbitDB instance is required")
 	}
@@ -265,6 +320,8 @@ func NewSelfEnrollAccessController(ctx context.Context, db iface.BaseOrbitDB, pa
 		addr = params.GetAddress().String()
 	} else if params.GetName() != "" {
 		addr = params.GetName()
+		grants := params.GetAccess("write")
+		cacheGrants("_access", grants)
 	}
 
 	kvStore, err := kvDB.KeyValue(ctx, addr, nil)
@@ -278,6 +335,7 @@ func NewSelfEnrollAccessController(ctx context.Context, db iface.BaseOrbitDB, pa
 	}
 
 	controller := &selfEnrollAccessController{
+		orbitdb:           db,
 		emitterEvtUpdated: emitter,
 		kvStore:           kvStore,
 		options:           params,
@@ -287,11 +345,17 @@ func NewSelfEnrollAccessController(ctx context.Context, db iface.BaseOrbitDB, pa
 		o(controller)
 	}
 
-	for _, writeAccess := range params.GetAccess("write") {
-		if err := controller.Grant(ctx, "write", writeAccess); err != nil {
-			return nil, fmt.Errorf("unable to grant write access: %w", err)
-		}
-	}
+	// if params.GetAddress().Defined() {
+	// 	utils.EnsureAddress(params.GetAddress().String())
+	// 	grants, ok := getCachedGrants("_access")
+	// 	if ok {
+	// 		for _, writeAccess := range grants {
+	// 			if err := controller.Grant(ctx, "write", writeAccess); err != nil {
+	// 				return nil, fmt.Errorf("unable to grant write access: %w", err)
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	return controller, nil
 }

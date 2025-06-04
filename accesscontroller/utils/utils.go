@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	cid "github.com/ipfs/go-cid"
 	"github.com/stateless-minds/go-orbit-db/accesscontroller"
 	"github.com/stateless-minds/go-orbit-db/iface"
-	cid "github.com/ipfs/go-cid"
 )
 
 // Create Creates a new access controller and returns the manifest CID
-func Create(ctx context.Context, db iface.BaseOrbitDB, controllerType string, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (cid.Cid, error) {
+func Create(ctx context.Context, db iface.OrbitDB, controllerType string, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (cid.Cid, error) {
 	AccessController, ok := db.GetAccessControllerType(controllerType)
 	if !ok {
 		return cid.Cid{}, fmt.Errorf("unrecognized access controller on create")
@@ -34,7 +34,7 @@ func Create(ctx context.Context, db iface.BaseOrbitDB, controllerType string, pa
 }
 
 // Resolve Resolves an access controller using its manifest address
-func Resolve(ctx context.Context, db iface.BaseOrbitDB, manifestAddress string, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (accesscontroller.Interface, error) {
+func Resolve(ctx context.Context, db iface.OrbitDB, manifestAddress string, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (accesscontroller.Interface, error) {
 	manifest, err := accesscontroller.ResolveManifest(ctx, db.IPFS(), manifestAddress, params)
 	if err != nil {
 		return nil, fmt.Errorf("unable to resolve manifest: %w", err)

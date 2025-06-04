@@ -262,13 +262,13 @@ func (o *orbitDBAccessController) Close() error {
 }
 
 func (o *orbitDBAccessController) onUpdate(_ context.Context) {
-	if err := o.emitterEvtUpdated.Emit(&EventUpdated{}); err != nil {
+	if err := o.emitterEvtUpdated.Emit(EventUpdated{}); err != nil {
 		o.logger.Warn("unable to emit event updated", zap.Error(err))
 	}
 }
 
 // NewIPFSAccessController Returns a default access controller for OrbitDB database
-func NewOrbitDBAccessController(ctx context.Context, db iface.BaseOrbitDB, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (accesscontroller.Interface, error) {
+func NewOrbitDBAccessController(ctx context.Context, db iface.OrbitDB, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (accesscontroller.Interface, error) {
 	if db == nil {
 		return &orbitDBAccessController{}, fmt.Errorf("an OrbitDB instance is required")
 	}
@@ -296,6 +296,7 @@ func NewOrbitDBAccessController(ctx context.Context, db iface.BaseOrbitDB, param
 	}
 
 	controller := &orbitDBAccessController{
+		orbitdb:           db,
 		emitterEvtUpdated: emitter,
 		kvStore:           kvStore,
 		options:           params,
