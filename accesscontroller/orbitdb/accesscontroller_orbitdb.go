@@ -196,8 +196,15 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 		}
 	}
 
+	grants, ok := utils.GetCachedGrants("_access")
+
+	if !ok {
+		return fmt.Errorf("unable to get grants")
+	}
+
 	// Force '<address>/_access' naming for the database
-	writeAccess := o.options.GetAccess("admin")
+	// writeAccess := o.options.GetAccess("admin")
+	writeAccess := grants
 	if len(writeAccess) == 0 {
 		writeAccess = []string{o.orbitdb.Identity().ID}
 	}
@@ -213,6 +220,14 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 	}
 
 	o.kvStore = store
+
+	for _, writeAccess := range grants {
+		if err := o.Grant(ctx, "write", writeAccess); err != nil {
+			return fmt.Errorf("unable to grant write access: %w", err)
+		}
+	}
+
+	utils.DeleteCachedGrants("_access")
 
 	sub, err := o.kvStore.EventBus().Subscribe([]interface{}{
 		new(stores.EventWrite),
@@ -283,6 +298,8 @@ func NewOrbitDBAccessController(ctx context.Context, db iface.OrbitDB, params ac
 		addr = params.GetAddress().String()
 	} else if params.GetName() != "" {
 		addr = params.GetName()
+		grants := params.GetAccess("write")
+		utils.CacheGrants("_access", grants)
 	}
 
 	kvStore, err := kvDB.KeyValue(ctx, addr, nil)
@@ -304,12 +321,6 @@ func NewOrbitDBAccessController(ctx context.Context, db iface.OrbitDB, params ac
 
 	for _, o := range options {
 		o(controller)
-	}
-
-	for _, writeAccess := range params.GetAccess("write") {
-		if err := controller.Grant(ctx, "write", writeAccess); err != nil {
-			return nil, fmt.Errorf("unable to grant write access: %w", err)
-		}
 	}
 
 	return controller, nil

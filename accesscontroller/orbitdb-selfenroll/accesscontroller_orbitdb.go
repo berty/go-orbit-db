@@ -24,28 +24,6 @@ var Events = []interface{}{
 	new(EventUpdated),
 }
 
-var grantsCache = make(map[string][]string)
-var grantsCacheMutex sync.Mutex
-
-func cacheGrants(dbName string, grants []string) {
-	grantsCacheMutex.Lock()
-	grantsCache[dbName] = grants
-	grantsCacheMutex.Unlock()
-}
-
-func getCachedGrants(dbName string) ([]string, bool) {
-	grantsCacheMutex.Lock()
-	grants, ok := grantsCache[dbName]
-	grantsCacheMutex.Unlock()
-	return grants, ok
-}
-
-func deleteCachedGrants(dbName string) {
-	grantsCacheMutex.Lock()
-	delete(grantsCache, dbName)
-	grantsCacheMutex.Unlock()
-}
-
 // CreateDBOptions An alias for iface.CreateDBOptions
 type CreateDBOptions = iface.CreateDBOptions
 
@@ -155,7 +133,8 @@ func (o *selfEnrollAccessController) CanAppend(entry logac.LogEntry, p identityp
 	// }
 
 	// return fmt.Errorf("unauthorized")
-	return nil
+
+	return p.VerifyIdentity(entry.GetIdentity())
 }
 
 func (o *selfEnrollAccessController) Grant(ctx context.Context, capability string, keyID string) error {
@@ -220,7 +199,7 @@ func (o *selfEnrollAccessController) Load(ctx context.Context, address string) e
 		}
 	}
 
-	grants, ok := getCachedGrants("_access")
+	grants, ok := utils.GetCachedGrants("_access")
 
 	if !ok {
 		return fmt.Errorf("unable to get grants")
@@ -250,6 +229,8 @@ func (o *selfEnrollAccessController) Load(ctx context.Context, address string) e
 			return fmt.Errorf("unable to grant write access: %w", err)
 		}
 	}
+
+	utils.DeleteCachedGrants("_access")
 
 	sub, err := o.kvStore.EventBus().Subscribe([]interface{}{
 		new(stores.EventWrite),
@@ -321,7 +302,7 @@ func NewSelfEnrollAccessController(ctx context.Context, db iface.OrbitDB, params
 	} else if params.GetName() != "" {
 		addr = params.GetName()
 		grants := params.GetAccess("write")
-		cacheGrants("_access", grants)
+		utils.CacheGrants("_access", grants)
 	}
 
 	kvStore, err := kvDB.KeyValue(ctx, addr, nil)
@@ -344,18 +325,6 @@ func NewSelfEnrollAccessController(ctx context.Context, db iface.OrbitDB, params
 	for _, o := range options {
 		o(controller)
 	}
-
-	// if params.GetAddress().Defined() {
-	// 	utils.EnsureAddress(params.GetAddress().String())
-	// 	grants, ok := getCachedGrants("_access")
-	// 	if ok {
-	// 		for _, writeAccess := range grants {
-	// 			if err := controller.Grant(ctx, "write", writeAccess); err != nil {
-	// 				return nil, fmt.Errorf("unable to grant write access: %w", err)
-	// 			}
-	// 		}
-	// 	}
-	// }
 
 	return controller, nil
 }
