@@ -273,17 +273,15 @@ func TestCreateOpen(t *testing.T) {
 					access := &accesscontroller.CreateAccessControllerOptions{
 						Type: "orbitdb_selfenroll",
 						Access: map[string][]string{
-							"write": {"another-key", "yet-another-key", orbit.Identity().ID},
+							"write": {orbit.Identity().ID},
 						},
 					}
 
 					overwrite := true
-					// storeType := "docstore"
 
 					db, err := orbit.Create(ctx, "fourth", "docstore", &orbitdb.CreateDBOptions{
 						AccessController: access,
 						Overwrite:        &overwrite,
-						// StoreType:        &storeType,
 					})
 					require.NoError(t, err)
 
@@ -292,10 +290,25 @@ func TestCreateOpen(t *testing.T) {
 
 					accessController := db.AccessController()
 
-					allowed, err := accessController.GetAuthorizedByRole("write")
-
+					idDS, err := leveldb.NewDatastore("", nil)
 					require.NoError(t, err)
-					require.ElementsMatch(t, allowed, []string{"another-key", "yet-another-key", orbit.Identity().ID})
+
+					defer idDS.Close()
+
+					idKeystore, err := keystore.NewKeystore(idDS)
+					require.NoError(t, err)
+
+					identity, err := identityprovider.CreateIdentity(ctx, &identityprovider.CreateIdentityOptions{ID: "test-id", Keystore: idKeystore, Type: "orbitdb"})
+					require.NoError(t, err)
+					require.NotNil(t, identity)
+
+					accessController.Grant(ctx, "write", identity.ID)
+					require.NoError(t, err)
+
+					allowed, err := accessController.GetAuthorizedByRole("write")
+					require.NoError(t, err)
+
+					require.ElementsMatch(t, allowed, []string{identity.ID, orbit.Identity().ID})
 				})
 
 				t.Run("creates an access controller and doesn't add read access keys", func(t *testing.T) {
