@@ -5,6 +5,7 @@ import (
 
 	"github.com/stateless-minds/go-ipfs-log/accesscontroller"
 	"github.com/stateless-minds/go-ipfs-log/iface"
+	"github.com/stateless-minds/go-orbit-db/address"
 
 	"go.uber.org/zap"
 )
@@ -18,6 +19,8 @@ type Interface interface {
 
 	// Type Returns the type of the store as a string
 	Type() string
+
+	Address() address.Address
 
 	// GetAuthorizedByRole Returns the list of keys authorized for a given role
 	GetAuthorizedByRole(role string) ([]string, error)

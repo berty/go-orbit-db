@@ -230,7 +230,7 @@ func (o *selfEnrollAccessController) Load(ctx context.Context, address string) e
 		}
 	}
 
-	utils.DeleteCachedGrants("_access")
+	// utils.DeleteCachedGrants("_access")
 
 	sub, err := o.kvStore.EventBus().Subscribe([]interface{}{
 		new(stores.EventWrite),

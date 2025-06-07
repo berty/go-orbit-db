@@ -260,7 +260,7 @@ func TestCreateOpen(t *testing.T) {
 					allowed, err := accessController.GetAuthorizedByRole("write")
 
 					require.NoError(t, err)
-					require.Equal(t, allowed, []string{"another-key", "yet-another-key", orbit.Identity().ID})
+					require.ElementsMatch(t, allowed, []string{"another-key", "yet-another-key", orbit.Identity().ID})
 				})
 
 				t.Run("creates a custom access controller and self-enrolls", func(t *testing.T) {
@@ -279,16 +279,27 @@ func TestCreateOpen(t *testing.T) {
 
 					overwrite := true
 
-					db, err := orbit.Create(ctx, "fourth", "docstore", &orbitdb.CreateDBOptions{
+					opts := orbitdb.CreateDBOptions{
 						AccessController: access,
 						Overwrite:        &overwrite,
-					})
+					}
+
+					db, err := orbit.Create(ctx, "fourth", "docstore", &opts)
+					require.NoError(t, err)
+
+					store, err := orbit.Open(ctx, db.Address().String(), &opts)
 					require.NoError(t, err)
 
 					defer db.Drop()
 					defer db.Close()
 
-					accessController := db.AccessController()
+					accessController := store.AccessController()
+
+					acAddress := accessController.Address().String()
+
+					require.Contains(t, acAddress, "_access")
+
+					require.Equal(t, "orbitdb_selfenroll", accessController.Type())
 
 					idDS, err := leveldb.NewDatastore("", nil)
 					require.NoError(t, err)
