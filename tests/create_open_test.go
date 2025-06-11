@@ -287,7 +287,7 @@ func TestCreateOpen(t *testing.T) {
 					db, err := orbit.Create(ctx, "fourth", "docstore", &opts)
 					require.NoError(t, err)
 
-					store, err := orbit.Open(ctx, db.Address().String(), &opts)
+					store, err := orbit.Docs(ctx, db.Address().String(), &opts)
 					require.NoError(t, err)
 
 					defer db.Drop()

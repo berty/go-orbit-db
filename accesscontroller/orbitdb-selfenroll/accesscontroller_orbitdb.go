@@ -201,10 +201,6 @@ func (o *selfEnrollAccessController) Load(ctx context.Context, address string) e
 
 	grants, ok := utils.GetCachedGrants("_access")
 
-	if !ok {
-		return fmt.Errorf("unable to get grants")
-	}
-
 	// Force '<address>/_access' naming for the database
 	// writeAccess := o.options.GetAccess("admin")
 	writeAccess := grants
@@ -224,9 +220,11 @@ func (o *selfEnrollAccessController) Load(ctx context.Context, address string) e
 
 	o.kvStore = store
 
-	for _, writeAccess := range grants {
-		if err := o.Grant(ctx, "write", writeAccess); err != nil {
-			return fmt.Errorf("unable to grant write access: %w", err)
+	if ok {
+		for _, writeAccess := range grants {
+			if err := o.Grant(ctx, "write", writeAccess); err != nil {
+				return fmt.Errorf("unable to grant write access: %w", err)
+			}
 		}
 	}
 
