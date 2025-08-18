@@ -28,7 +28,7 @@ body:
     id: context
     attributes:
       label: Context
-      description: Is it a general question about the design and goals of go-orbit-db, or about how to use use it in an app (or some other context)?
+      description: Is it a general question about the design and goals of go-orbit-db, or about how to use it in an app (or some other context)?
       placeholder: This is a question about ...
     validations:
       required: true
