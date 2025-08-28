@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"berty.tech/go-ipfs-log/identityprovider"
+	"github.com/stateless-minds/go-ipfs-log/identityprovider"
 	coreiface "github.com/ipfs/kubo/core/coreiface"
 
-	"berty.tech/go-orbit-db/address"
-	"berty.tech/go-orbit-db/iface"
-	"berty.tech/go-orbit-db/stores/basestore"
-	"berty.tech/go-orbit-db/stores/operation"
+	"github.com/stateless-minds/go-orbit-db/address"
+	"github.com/stateless-minds/go-orbit-db/iface"
+	"github.com/stateless-minds/go-orbit-db/stores/basestore"
+	"github.com/stateless-minds/go-orbit-db/stores/operation"
 )
 
 type orbitDBKeyValue struct {

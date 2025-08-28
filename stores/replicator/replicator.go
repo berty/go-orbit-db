@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	ipfslog "berty.tech/go-ipfs-log"
-	"berty.tech/go-ipfs-log/iface"
+	ipfslog "github.com/stateless-minds/go-ipfs-log"
+	"github.com/stateless-minds/go-ipfs-log/iface"
 	cid "github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/p2p/host/eventbus"

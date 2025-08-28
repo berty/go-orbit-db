@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"sync"
 
-	logac "berty.tech/go-ipfs-log/accesscontroller"
-	"berty.tech/go-ipfs-log/identityprovider"
-	"berty.tech/go-orbit-db/accesscontroller"
-	"berty.tech/go-orbit-db/address"
-	"berty.tech/go-orbit-db/iface"
 	cid "github.com/ipfs/go-cid"
+	logac "github.com/stateless-minds/go-ipfs-log/accesscontroller"
+	"github.com/stateless-minds/go-ipfs-log/identityprovider"
+	"github.com/stateless-minds/go-orbit-db/accesscontroller"
+	"github.com/stateless-minds/go-orbit-db/address"
+	"github.com/stateless-minds/go-orbit-db/iface"
 	"go.uber.org/zap"
 )
 
@@ -77,7 +77,7 @@ func (o *simpleAccessController) CanAppend(e logac.LogEntry, _ identityprovider.
 }
 
 // NewSimpleAccessController Returns a non configurable access controller
-func NewSimpleAccessController(_ context.Context, _ iface.BaseOrbitDB, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (accesscontroller.Interface, error) {
+func NewSimpleAccessController(_ context.Context, _ iface.OrbitDB, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (accesscontroller.Interface, error) {
 	if params == nil {
 		return &simpleAccessController{}, fmt.Errorf("an options object is required")
 	}

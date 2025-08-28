@@ -4,21 +4,21 @@ import (
 	"context"
 	"time"
 
-	ipfslog "berty.tech/go-ipfs-log"
-	"berty.tech/go-ipfs-log/entry"
-	"berty.tech/go-ipfs-log/identityprovider"
-	"berty.tech/go-ipfs-log/iface"
-	"berty.tech/go-ipfs-log/keystore"
-	"berty.tech/go-orbit-db/accesscontroller"
-	"berty.tech/go-orbit-db/address"
-	"berty.tech/go-orbit-db/events"
-	"berty.tech/go-orbit-db/stores/operation"
-	"berty.tech/go-orbit-db/stores/replicator"
 	cid "github.com/ipfs/go-cid"
 	datastore "github.com/ipfs/go-datastore"
 	coreiface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/libp2p/go-libp2p/core/event"
 	peer "github.com/libp2p/go-libp2p/core/peer"
+	ipfslog "github.com/stateless-minds/go-ipfs-log"
+	"github.com/stateless-minds/go-ipfs-log/entry"
+	"github.com/stateless-minds/go-ipfs-log/identityprovider"
+	"github.com/stateless-minds/go-ipfs-log/iface"
+	"github.com/stateless-minds/go-ipfs-log/keystore"
+	"github.com/stateless-minds/go-orbit-db/accesscontroller"
+	"github.com/stateless-minds/go-orbit-db/address"
+	"github.com/stateless-minds/go-orbit-db/events"
+	"github.com/stateless-minds/go-orbit-db/stores/operation"
+	"github.com/stateless-minds/go-orbit-db/stores/replicator"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -155,11 +155,51 @@ type OrbitDBLogStoreProvider interface {
 
 // OrbitDB Provides an OrbitDB interface with the default access controllers and store types
 type OrbitDB interface {
-	BaseOrbitDB
-
 	OrbitDBKVStoreProvider
 	OrbitDBLogStoreProvider
 	OrbitDBDocumentStoreProvider
+
+	// IPFS Returns the instance of the IPFS API used by the current DB
+	IPFS() coreiface.CoreAPI
+
+	// Identity Returns the identity used by the current DB
+	Identity() *identityprovider.Identity
+
+	// Open Opens an existing data store
+	Open(ctx context.Context, dbAddress string, options *CreateDBOptions) (Store, error)
+
+	// Create Creates a new store
+	Create(ctx context.Context, name string, storeType string, options *CreateDBOptions) (Store, error)
+
+	// Close Closes the current DB and all the related stores
+	Close() error
+
+	// DetermineAddress Returns the store address for the given parameters
+	DetermineAddress(ctx context.Context, name string, storeType string, options *DetermineAddressOptions) (address.Address, error)
+
+	// RegisterStoreType Registers a new store type
+	RegisterStoreType(storeType string, constructor StoreConstructor)
+
+	// UnregisterStoreType Removes a store type
+	UnregisterStoreType(storeType string)
+
+	// RegisterAccessControllerType Registers a new access controller type
+	RegisterAccessControllerType(AccessControllerConstructor) error
+
+	// UnregisterAccessControllerType Unregisters an access controller type
+	UnregisterAccessControllerType(string)
+
+	// GetAccessControllerType Retrieves an access controller type constructor if it exists
+	GetAccessControllerType(string) (AccessControllerConstructor, bool)
+
+	// EventBus Returns the eventsBus
+	EventBus() event.Bus
+
+	// Logger Returns the logger
+	Logger() *zap.Logger
+
+	// Tracer Returns the tracer
+	Tracer() trace.Tracer
 }
 
 // StreamOptions Defines the parameters that can be given to the Stream function of an EventLogStore
@@ -387,7 +427,7 @@ type IndexConstructor func(publicKey []byte) StoreIndex
 type OnWritePrototype func(ctx context.Context, addr cid.Cid, entry ipfslog.Entry, heads []cid.Cid) error
 
 // AccessControllerConstructor Required prototype for custom controllers constructors
-type AccessControllerConstructor func(context.Context, BaseOrbitDB, accesscontroller.ManifestParams, ...accesscontroller.Option) (accesscontroller.Interface, error)
+type AccessControllerConstructor func(context.Context, OrbitDB, accesscontroller.ManifestParams, ...accesscontroller.Option) (accesscontroller.Interface, error)
 
 // PubSubTopic is a pub sub subscription to a topic
 type PubSubTopic interface {

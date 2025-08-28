@@ -6,16 +6,16 @@ import (
 	"fmt"
 	"sync"
 
-	logac "berty.tech/go-ipfs-log/accesscontroller"
-	"berty.tech/go-ipfs-log/identityprovider"
-	"berty.tech/go-ipfs-log/io"
-	"berty.tech/go-orbit-db/accesscontroller"
-	"berty.tech/go-orbit-db/address"
-	"berty.tech/go-orbit-db/iface"
 	cid "github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	coreiface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/polydawn/refmt/obj/atlas"
+	logac "github.com/stateless-minds/go-ipfs-log/accesscontroller"
+	"github.com/stateless-minds/go-ipfs-log/identityprovider"
+	"github.com/stateless-minds/go-ipfs-log/io"
+	"github.com/stateless-minds/go-orbit-db/accesscontroller"
+	"github.com/stateless-minds/go-orbit-db/address"
+	"github.com/stateless-minds/go-orbit-db/iface"
 	"go.uber.org/zap"
 )
 
@@ -137,7 +137,7 @@ func (i *ipfsAccessController) Close() error {
 }
 
 // NewIPFSAccessController Returns an access controller for IPFS
-func NewIPFSAccessController(_ context.Context, db iface.BaseOrbitDB, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (accesscontroller.Interface, error) {
+func NewIPFSAccessController(_ context.Context, db iface.OrbitDB, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (accesscontroller.Interface, error) {
 	if params == nil {
 		return &ipfsAccessController{}, fmt.Errorf("an options object must be passed")
 	}

@@ -1,4 +1,4 @@
-package orbitdb
+package orbitdb_selfenroll
 
 import (
 	"context"
@@ -30,7 +30,7 @@ type CreateDBOptions = iface.CreateDBOptions
 // EventUpdated An event sent when the access controller has been updated
 type EventUpdated struct{}
 
-type orbitDBAccessController struct {
+type selfEnrollAccessController struct {
 	emitterEvtUpdated event.Emitter
 	orbitdb           iface.OrbitDB
 	kvStore           iface.KeyValueStore
@@ -39,30 +39,31 @@ type orbitDBAccessController struct {
 	logger            *zap.Logger
 }
 
-func (o *orbitDBAccessController) SetLogger(logger *zap.Logger) {
+func (o *selfEnrollAccessController) SetLogger(logger *zap.Logger) {
 	o.lock.Lock()
 	defer o.lock.Unlock()
 
 	o.logger = logger
 }
 
-func (o *orbitDBAccessController) Logger() *zap.Logger {
+func (o *selfEnrollAccessController) Logger() *zap.Logger {
 	o.lock.RLock()
 	defer o.lock.RUnlock()
 
 	return o.logger
 }
 
-func (o *orbitDBAccessController) Type() string {
-	return "orbitdb"
+func (o *selfEnrollAccessController) Type() string {
+	return "orbitdb_selfenroll"
 }
 
-func (o *orbitDBAccessController) Address() address.Address {
+func (o *selfEnrollAccessController) Address() address.Address {
 	return o.kvStore.Address()
 }
 
-func (o *orbitDBAccessController) GetAuthorizedByRole(role string) ([]string, error) {
+func (o *selfEnrollAccessController) GetAuthorizedByRole(role string) ([]string, error) {
 	authorizations, err := o.getAuthorizations()
+
 	if err != nil {
 		return nil, fmt.Errorf("unable to get authorizations: %w", err)
 	}
@@ -70,7 +71,7 @@ func (o *orbitDBAccessController) GetAuthorizedByRole(role string) ([]string, er
 	return authorizations[role], nil
 }
 
-func (o *orbitDBAccessController) getAuthorizations() (map[string][]string, error) {
+func (o *selfEnrollAccessController) getAuthorizations() (map[string][]string, error) {
 	authorizations := map[string]map[string]struct{}{}
 
 	if o.kvStore == nil {
@@ -112,29 +113,31 @@ func (o *orbitDBAccessController) getAuthorizations() (map[string][]string, erro
 	return authorizationsLists, nil
 }
 
-func (o *orbitDBAccessController) CanAppend(entry logac.LogEntry, p identityprovider.Interface, _ accesscontroller.CanAppendAdditionalContext) error {
-	writeAccess, err := o.GetAuthorizedByRole("write")
-	if err != nil {
-		return fmt.Errorf("unable to get keys with write access: %w", err)
-	}
+func (o *selfEnrollAccessController) CanAppend(entry logac.LogEntry, p identityprovider.Interface, _ accesscontroller.CanAppendAdditionalContext) error {
+	// writeAccess, err := o.GetAuthorizedByRole("write")
+	// if err != nil {
+	// 	return fmt.Errorf("unable to get keys with write access: %w", err)
+	// }
 
-	adminAccess, err := o.GetAuthorizedByRole("admin")
-	if err != nil {
-		return fmt.Errorf("unable to get keys with admin access: %w", err)
-	}
+	// adminAccess, err := o.GetAuthorizedByRole("admin")
+	// if err != nil {
+	// 	return fmt.Errorf("unable to get keys with admin access: %w", err)
+	// }
 
-	access := append(writeAccess, adminAccess...)
+	// access := append(writeAccess, adminAccess...)
 
-	for _, k := range access {
-		if k == entry.GetIdentity().ID || k == "*" {
-			return p.VerifyIdentity(entry.GetIdentity())
-		}
-	}
+	// for _, k := range access {
+	// 	if k == entry.GetIdentity().ID || k == "*" {
+	// 		return p.VerifyIdentity(entry.GetIdentity())
+	// 	}
+	// }
 
-	return fmt.Errorf("unauthorized")
+	// return fmt.Errorf("unauthorized")
+
+	return p.VerifyIdentity(entry.GetIdentity())
 }
 
-func (o *orbitDBAccessController) Grant(ctx context.Context, capability string, keyID string) error {
+func (o *selfEnrollAccessController) Grant(ctx context.Context, capability string, keyID string) error {
 	capabilities, err := o.GetAuthorizedByRole(capability)
 	if err != nil {
 		return fmt.Errorf("unable to fetch capabilities: %w", err)
@@ -155,7 +158,7 @@ func (o *orbitDBAccessController) Grant(ctx context.Context, capability string, 
 	return nil
 }
 
-func (o *orbitDBAccessController) Revoke(ctx context.Context, capability string, keyID string) error {
+func (o *selfEnrollAccessController) Revoke(ctx context.Context, capability string, keyID string) error {
 	capabilities, err := o.GetAuthorizedByRole(capability)
 	if err != nil {
 		return fmt.Errorf("unable to get capability: %w", err)
@@ -188,7 +191,7 @@ func (o *orbitDBAccessController) Revoke(ctx context.Context, capability string,
 	return nil
 }
 
-func (o *orbitDBAccessController) Load(ctx context.Context, address string) error {
+func (o *selfEnrollAccessController) Load(ctx context.Context, address string) error {
 	if o.kvStore != nil {
 		err := o.kvStore.Close()
 		if err != nil {
@@ -197,10 +200,6 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 	}
 
 	grants, ok := utils.GetCachedGrants("_access")
-
-	if !ok {
-		return fmt.Errorf("unable to get grants")
-	}
 
 	// Force '<address>/_access' naming for the database
 	// writeAccess := o.options.GetAccess("admin")
@@ -221,13 +220,15 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 
 	o.kvStore = store
 
-	for _, writeAccess := range grants {
-		if err := o.Grant(ctx, "write", writeAccess); err != nil {
-			return fmt.Errorf("unable to grant write access: %w", err)
+	if ok {
+		for _, writeAccess := range grants {
+			if err := o.Grant(ctx, "write", writeAccess); err != nil {
+				return fmt.Errorf("unable to grant write access: %w", err)
+			}
 		}
 	}
 
-	utils.DeleteCachedGrants("_access")
+	// utils.DeleteCachedGrants("_access")
 
 	sub, err := o.kvStore.EventBus().Subscribe([]interface{}{
 		new(stores.EventWrite),
@@ -264,11 +265,11 @@ func (o *orbitDBAccessController) Load(ctx context.Context, address string) erro
 	return nil
 }
 
-func (o *orbitDBAccessController) Save(_ context.Context) (accesscontroller.ManifestParams, error) {
-	return accesscontroller.NewManifestParams(o.kvStore.Address().GetRoot(), false, "orbitdb"), nil
+func (o *selfEnrollAccessController) Save(_ context.Context) (accesscontroller.ManifestParams, error) {
+	return accesscontroller.NewManifestParams(o.kvStore.Address().GetRoot(), false, "orbitdb_selfenroll"), nil
 }
 
-func (o *orbitDBAccessController) Close() error {
+func (o *selfEnrollAccessController) Close() error {
 	if err := o.kvStore.Close(); err != nil {
 		return fmt.Errorf("error while closing store: %w", err)
 	}
@@ -276,21 +277,21 @@ func (o *orbitDBAccessController) Close() error {
 	return nil
 }
 
-func (o *orbitDBAccessController) onUpdate(_ context.Context) {
+func (o *selfEnrollAccessController) onUpdate(_ context.Context) {
 	if err := o.emitterEvtUpdated.Emit(EventUpdated{}); err != nil {
 		o.logger.Warn("unable to emit event updated", zap.Error(err))
 	}
 }
 
 // NewIPFSAccessController Returns a default access controller for OrbitDB database
-func NewOrbitDBAccessController(ctx context.Context, db iface.OrbitDB, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (accesscontroller.Interface, error) {
+func NewSelfEnrollAccessController(ctx context.Context, db iface.OrbitDB, params accesscontroller.ManifestParams, options ...accesscontroller.Option) (accesscontroller.Interface, error) {
 	if db == nil {
-		return &orbitDBAccessController{}, fmt.Errorf("an OrbitDB instance is required")
+		return &selfEnrollAccessController{}, fmt.Errorf("an OrbitDB instance is required")
 	}
 
 	kvDB, ok := db.(iface.OrbitDBKVStoreProvider)
 	if !ok {
-		return &orbitDBAccessController{}, fmt.Errorf("the OrbitDB instance must provide a key value store")
+		return &selfEnrollAccessController{}, fmt.Errorf("the OrbitDB instance must provide a key value store")
 	}
 
 	addr := "default-access-controller"
@@ -312,7 +313,7 @@ func NewOrbitDBAccessController(ctx context.Context, db iface.OrbitDB, params ac
 		return nil, fmt.Errorf("unable to init emitter: %w", err)
 	}
 
-	controller := &orbitDBAccessController{
+	controller := &selfEnrollAccessController{
 		orbitdb:           db,
 		emitterEvtUpdated: emitter,
 		kvStore:           kvStore,
@@ -326,4 +327,4 @@ func NewOrbitDBAccessController(ctx context.Context, db iface.OrbitDB, params ac
 	return controller, nil
 }
 
-var _ accesscontroller.Interface = &orbitDBAccessController{}
+var _ accesscontroller.Interface = &selfEnrollAccessController{}

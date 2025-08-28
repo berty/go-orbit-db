@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	ipfslog "berty.tech/go-ipfs-log"
+	ipfslog "github.com/stateless-minds/go-ipfs-log"
 )
 
 type opDoc struct {

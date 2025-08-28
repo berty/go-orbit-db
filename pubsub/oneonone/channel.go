@@ -13,8 +13,8 @@ import (
 	peer "github.com/libp2p/go-libp2p/core/peer"
 	"go.uber.org/zap"
 
-	"berty.tech/go-orbit-db/iface"
-	"berty.tech/go-orbit-db/pubsub"
+	"github.com/stateless-minds/go-orbit-db/iface"
+	"github.com/stateless-minds/go-orbit-db/pubsub"
 )
 
 const (
