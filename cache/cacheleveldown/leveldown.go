@@ -1,3 +1,5 @@
+//go:build !js
+
 package cacheleveldown
 
 import (
@@ -11,6 +13,7 @@ import (
 	"berty.tech/go-orbit-db/cache"
 	datastore "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
+
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"go.uber.org/zap"
 )

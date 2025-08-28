@@ -1,3 +1,5 @@
+//go:build !js
+
 package tests
 
 import (
@@ -15,8 +17,8 @@ import (
 	"berty.tech/go-orbit-db/pubsub/pubsubraw"
 	orbitstores "berty.tech/go-orbit-db/stores"
 	"berty.tech/go-orbit-db/stores/operation"
-	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 	"github.com/libp2p/go-libp2p/core/event"
+	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
