@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"io"
 
-	"berty.tech/go-orbit-db/iface"
-	"berty.tech/go-orbit-db/pubsub"
+	"github.com/stateless-minds/go-orbit-db/iface"
+	"github.com/stateless-minds/go-orbit-db/pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"

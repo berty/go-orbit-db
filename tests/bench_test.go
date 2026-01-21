@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	orbitdb "berty.tech/go-orbit-db"
-	"berty.tech/go-orbit-db/iface"
+	orbitdb "github.com/stateless-minds/go-orbit-db"
+	"github.com/stateless-minds/go-orbit-db/iface"
 	"github.com/stretchr/testify/require"
 )
 
-// go test -benchmem -run='^$' -bench '^BenchmarkKeyValueStore$' berty.tech/go-orbit-db/tests -v -count=1 -benchtime=1000x
+// go test -benchmem -run='^$' -bench '^BenchmarkKeyValueStore$' github.com/stateless-minds/go-orbit-db/tests -v -count=1 -benchtime=1000x
 func BenchmarkKeyValueStore(b *testing.B) {
 	tmpDir, clean := testingTempDirB(b, "db-keystore")
 	defer clean()
@@ -29,7 +29,7 @@ func BenchmarkKeyValueStore(b *testing.B) {
 	}
 }
 
-// go test -benchmem -run='^$' -bench '^BenchmarkKeyValueStorePB$' berty.tech/go-orbit-db/tests -v -count=1 -benchtime=1000x
+// go test -benchmem -run='^$' -bench '^BenchmarkKeyValueStorePB$' github.com/stateless-minds/go-orbit-db/tests -v -count=1 -benchtime=1000x
 func BenchmarkKeyValueStorePB(b *testing.B) {
 	tmpDir, clean := testingTempDirB(b, "db-keystore")
 	defer clean()

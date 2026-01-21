@@ -1,7 +1,7 @@
 package replicator
 
 import (
-	ipfslog "berty.tech/go-ipfs-log"
+	ipfslog "github.com/stateless-minds/go-ipfs-log"
 	cid "github.com/ipfs/go-cid"
 )
 

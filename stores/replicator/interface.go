@@ -3,9 +3,9 @@ package replicator
 import (
 	"context"
 
-	ipfslog "berty.tech/go-ipfs-log"
-	"berty.tech/go-ipfs-log/identityprovider"
-	"berty.tech/go-orbit-db/accesscontroller"
+	ipfslog "github.com/stateless-minds/go-ipfs-log"
+	"github.com/stateless-minds/go-ipfs-log/identityprovider"
+	"github.com/stateless-minds/go-orbit-db/accesscontroller"
 	cid "github.com/ipfs/go-cid"
 	coreiface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/libp2p/go-libp2p/core/event"

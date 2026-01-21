@@ -6,11 +6,11 @@ import (
 	"strings"
 	"sync"
 
-	"berty.tech/go-ipfs-log/io"
 	cid "github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	coreiface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/polydawn/refmt/obj/atlas"
+	"github.com/stateless-minds/go-ipfs-log/io"
 	"go.uber.org/zap"
 )
 

@@ -1,2 +1,2 @@
 // accesscontroller is a package handling permissions for OrbitDB stores
-package accesscontroller // import "berty.tech/go-orbit-db/accesscontroller"
+package accesscontroller // import "github.com/stateless-minds/go-orbit-db/accesscontroller"

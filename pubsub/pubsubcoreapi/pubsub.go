@@ -12,9 +12,9 @@ import (
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
-	"berty.tech/go-orbit-db/events"
-	"berty.tech/go-orbit-db/iface"
-	"berty.tech/go-orbit-db/pubsub"
+	"github.com/stateless-minds/go-orbit-db/events"
+	"github.com/stateless-minds/go-orbit-db/iface"
+	"github.com/stateless-minds/go-orbit-db/pubsub"
 )
 
 type psTopic struct {

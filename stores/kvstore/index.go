@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sync"
 
-	ipfslog "berty.tech/go-ipfs-log"
-	"berty.tech/go-orbit-db/iface"
-	"berty.tech/go-orbit-db/stores/operation"
+	ipfslog "github.com/stateless-minds/go-ipfs-log"
+	"github.com/stateless-minds/go-orbit-db/iface"
+	"github.com/stateless-minds/go-orbit-db/stores/operation"
 )
 
 type kvIndex struct {

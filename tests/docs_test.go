@@ -7,9 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	orbitdb2 "berty.tech/go-orbit-db"
-	"berty.tech/go-orbit-db/iface"
-	"berty.tech/go-orbit-db/stores/documentstore"
+	orbitdb2 "github.com/stateless-minds/go-orbit-db"
+	"github.com/stateless-minds/go-orbit-db/iface"
+	"github.com/stateless-minds/go-orbit-db/stores/documentstore"
 )
 
 func TestDocumentsStore(t *testing.T) {

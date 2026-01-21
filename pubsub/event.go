@@ -5,7 +5,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 
-	"berty.tech/go-orbit-db/iface"
+	"github.com/stateless-minds/go-orbit-db/iface"
 )
 
 type Event interface{}

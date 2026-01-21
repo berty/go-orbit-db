@@ -8,19 +8,20 @@ import (
 	"strings"
 	"testing"
 
-	"berty.tech/go-ipfs-log/identityprovider"
-	"berty.tech/go-ipfs-log/io"
-	"berty.tech/go-ipfs-log/keystore"
-	orbitdb "berty.tech/go-orbit-db"
-	"berty.tech/go-orbit-db/accesscontroller"
-	"berty.tech/go-orbit-db/address"
-	"berty.tech/go-orbit-db/iface"
-	"berty.tech/go-orbit-db/stores/operation"
-	"berty.tech/go-orbit-db/utils"
 	datastore "github.com/ipfs/go-datastore"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	"github.com/polydawn/refmt/cbor"
 	"github.com/polydawn/refmt/obj/atlas"
+	"github.com/stateless-minds/go-ipfs-log/identityprovider"
+	"github.com/stateless-minds/go-ipfs-log/io"
+	"github.com/stateless-minds/go-ipfs-log/keystore"
+	orbitdb "github.com/stateless-minds/go-orbit-db"
+	"github.com/stateless-minds/go-orbit-db/accesscontroller"
+	"github.com/stateless-minds/go-orbit-db/address"
+	"github.com/stateless-minds/go-orbit-db/iface"
+	"github.com/stateless-minds/go-orbit-db/stores/operation"
+	"github.com/stateless-minds/go-orbit-db/utils"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -230,17 +231,24 @@ func TestCreateOpen(t *testing.T) {
 				t.Run("creates an access controller and adds writers", func(t *testing.T) {
 					defer subSetup(t)()
 
+					// Assert that the OrbitDB instance implements iface.OrbitDBKVStoreProvider
+					_, ok := orbit.(iface.OrbitDBKVStoreProvider)
+					assert.True(t, ok, "OrbitDB instance does not implement KeyValue")
+
 					access := &accesscontroller.CreateAccessControllerOptions{
+						Type: "orbitdb",
 						Access: map[string][]string{
 							"write": {"another-key", "yet-another-key", orbit.Identity().ID},
 						},
 					}
 
 					overwrite := true
+					// storeType := "docstore"
 
-					db, err := orbit.Create(ctx, "fourth", "eventlog", &orbitdb.CreateDBOptions{
+					db, err := orbit.Create(ctx, "fourth", "docstore", &orbitdb.CreateDBOptions{
 						AccessController: access,
 						Overwrite:        &overwrite,
+						// StoreType:        &storeType,
 					})
 					require.NoError(t, err)
 
@@ -248,9 +256,70 @@ func TestCreateOpen(t *testing.T) {
 					defer db.Close()
 
 					accessController := db.AccessController()
+
+					allowed, err := accessController.GetAuthorizedByRole("write")
+
+					require.NoError(t, err)
+					require.ElementsMatch(t, allowed, []string{"another-key", "yet-another-key", orbit.Identity().ID})
+				})
+
+				t.Run("creates a custom access controller and self-enrolls", func(t *testing.T) {
+					defer subSetup(t)()
+
+					// Assert that the OrbitDB instance implements iface.OrbitDBKVStoreProvider
+					_, ok := orbit.(iface.OrbitDBKVStoreProvider)
+					assert.True(t, ok, "OrbitDB instance does not implement KeyValue")
+
+					access := &accesscontroller.CreateAccessControllerOptions{
+						Type: "orbitdb_selfenroll",
+						Access: map[string][]string{
+							"write": {orbit.Identity().ID},
+						},
+					}
+
+					overwrite := true
+
+					opts := orbitdb.CreateDBOptions{
+						AccessController: access,
+						Overwrite:        &overwrite,
+					}
+
+					db, err := orbit.Create(ctx, "fourth", "docstore", &opts)
+					require.NoError(t, err)
+
+					store, err := orbit.Docs(ctx, db.Address().String(), &opts)
+					require.NoError(t, err)
+
+					defer db.Drop()
+					defer db.Close()
+
+					accessController := store.AccessController()
+
+					acAddress := accessController.Address().String()
+
+					require.Contains(t, acAddress, "_access")
+
+					require.Equal(t, "orbitdb_selfenroll", accessController.Type())
+
+					idDS, err := leveldb.NewDatastore("", nil)
+					require.NoError(t, err)
+
+					defer idDS.Close()
+
+					idKeystore, err := keystore.NewKeystore(idDS)
+					require.NoError(t, err)
+
+					identity, err := identityprovider.CreateIdentity(ctx, &identityprovider.CreateIdentityOptions{ID: "test-id", Keystore: idKeystore, Type: "orbitdb"})
+					require.NoError(t, err)
+					require.NotNil(t, identity)
+
+					accessController.Grant(ctx, "write", identity.ID)
+					require.NoError(t, err)
+
 					allowed, err := accessController.GetAuthorizedByRole("write")
 					require.NoError(t, err)
-					require.Equal(t, allowed, []string{"another-key", "yet-another-key", orbit.Identity().ID})
+
+					require.ElementsMatch(t, allowed, []string{identity.ID, orbit.Identity().ID})
 				})
 
 				t.Run("creates an access controller and doesn't add read access keys", func(t *testing.T) {

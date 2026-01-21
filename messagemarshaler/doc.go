@@ -1,2 +1,2 @@
 // Package messagemarshaler is a package for marshal messages
-package messagemarshaler // import "berty.tech/go-orbit-db/messagemarshaler"
+package messagemarshaler // import "github.com/stateless-minds/go-orbit-db/messagemarshaler"
