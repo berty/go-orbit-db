@@ -54,6 +54,11 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.golang }}
+      # setup-go >= v6 exports GOTOOLCHAIN=local, which breaks matrix legs
+      # running a Go older than the go.mod requirement; restore the default
+      # auto-switching so commands use the toolchain from go.mod.
+      - name: Restore GOTOOLCHAIN auto-switching
+        run: echo "GOTOOLCHAIN=auto" >> "$GITHUB_ENV"
       - name: Cache Go modules
         uses: actions/cache@v6
         with:
@@ -103,6 +108,11 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.golang }}
+      # setup-go >= v6 exports GOTOOLCHAIN=local, which breaks matrix legs
+      # running a Go older than the go.mod requirement; restore the default
+      # auto-switching so commands use the toolchain from go.mod.
+      - name: Restore GOTOOLCHAIN auto-switching
+        run: echo "GOTOOLCHAIN=auto" >> "$GITHUB_ENV"
       - name: Cache Go modules
         uses: actions/cache@v6
         with:
