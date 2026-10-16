@@ -17,7 +17,7 @@ jobs:
           - "1.26.x"
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       - name: Setup asdf
         uses: asdf-vm/actions/setup@9cd779f40fe38688dd19505ccbc4eaaf018b44e7
@@ -49,13 +49,18 @@ jobs:
       GOLANG: ${{ matrix.golang }}
     steps:
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@v7
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.golang }}
+      # setup-go >= v6 exports GOTOOLCHAIN=local, which breaks matrix legs
+      # running a Go older than the go.mod requirement; restore the default
+      # auto-switching so commands use the toolchain from go.mod.
+      - name: Restore GOTOOLCHAIN auto-switching
+        run: echo "GOTOOLCHAIN=auto" >> "$GITHUB_ENV"
       - name: Cache Go modules
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ matrix.golang}}-${{ hashFiles('**/go.sum') }}
@@ -78,7 +83,7 @@ jobs:
       #- name: Run tests with goleak
       #  run: go test -v -tags=goleak -test.timeout=10m ./...
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v7
         with:
           file: ./coverage.txt
           flags: unittests
@@ -98,13 +103,18 @@ jobs:
       GOLANG: ${{ matrix.golang }}
     steps:
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@v7
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.golang }}
+      # setup-go >= v6 exports GOTOOLCHAIN=local, which breaks matrix legs
+      # running a Go older than the go.mod requirement; restore the default
+      # auto-switching so commands use the toolchain from go.mod.
+      - name: Restore GOTOOLCHAIN auto-switching
+        run: echo "GOTOOLCHAIN=auto" >> "$GITHUB_ENV"
       - name: Cache Go modules
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ matrix.golang}}-${{ hashFiles('**/go.sum') }}
@@ -127,7 +137,7 @@ jobs:
       #- name: Run tests with goleak
       #  run: go test -v -tags=goleak -test.timeout=10m ./...
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v7
         with:
           file: ./coverage.txt
           flags: unittests
